@@ -193,6 +193,17 @@ class Trasloco_Main_Controller {
 		if ( ! is_file( TRASLOCO_BACKUPS_WEBCONFIG ) ) {
 			$this->create_backups_webconfig( TRASLOCO_BACKUPS_WEBCONFIG );
 		}
+
+		// Remove work folders of imports and exports that stopped halfway: nothing has written to them for a day
+		foreach ( (array) glob( TRASLOCO_STORAGE_PATH . DIRECTORY_SEPARATOR . '*', GLOB_ONLYDIR ) as $folder ) {
+			$last = (int) @filemtime( $folder );
+			foreach ( (array) glob( $folder . DIRECTORY_SEPARATOR . '*' ) as $file ) {
+				$last = max( $last, (int) @filemtime( $file ) );
+			}
+			if ( $last < time() - DAY_IN_SECONDS ) {
+				Trasloco_Directory::delete( $folder );
+			}
+		}
 	}
 
 	/**

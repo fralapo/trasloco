@@ -340,7 +340,7 @@ function trasloco_archive_file( $blog_id = null ) {
 	$name[] = parse_url( get_site_url( $blog_id ), PHP_URL_HOST );
 
 	// Add path
-	if ( ( $path = explode( '/', parse_url( get_site_url( $blog_id ), PHP_URL_PATH ) ) ) ) {
+	if ( ( $path = explode( '/', (string) parse_url( get_site_url( $blog_id ), PHP_URL_PATH ) ) ) ) {
 		foreach ( $path as $directory ) {
 			if ( $directory ) {
 				$name[] = $directory;
@@ -373,7 +373,7 @@ function trasloco_archive_folder( $blog_id = null ) {
 	$name[] = parse_url( get_site_url( $blog_id ), PHP_URL_HOST );
 
 	// Add path
-	if ( ( $path = explode( '/', parse_url( get_site_url( $blog_id ), PHP_URL_PATH ) ) ) ) {
+	if ( ( $path = explode( '/', (string) parse_url( get_site_url( $blog_id ), PHP_URL_PATH ) ) ) ) {
 		foreach ( $path as $directory ) {
 			if ( $directory ) {
 				$name[] = $directory;
@@ -403,7 +403,7 @@ function trasloco_archive_bucket( $blog_id = null ) {
 	}
 
 	// Add path
-	if ( ( $path = explode( '/', parse_url( get_site_url( $blog_id ), PHP_URL_PATH ) ) ) ) {
+	if ( ( $path = explode( '/', (string) parse_url( get_site_url( $blog_id ), PHP_URL_PATH ) ) ) ) {
 		foreach ( $path as $directory ) {
 			if ( $directory ) {
 				$name[] = $directory;
@@ -433,7 +433,7 @@ function trasloco_archive_vault( $blog_id = null ) {
 	}
 
 	// Add path
-	if ( ( $path = explode( '/', parse_url( get_site_url( $blog_id ), PHP_URL_PATH ) ) ) ) {
+	if ( ( $path = explode( '/', (string) parse_url( get_site_url( $blog_id ), PHP_URL_PATH ) ) ) ) {
 		foreach ( $path as $directory ) {
 			if ( $directory ) {
 				$name[] = $directory;
@@ -463,7 +463,7 @@ function trasloco_archive_project( $blog_id = null ) {
 	}
 
 	// Add path
-	if ( ( $path = explode( '/', parse_url( get_site_url( $blog_id ), PHP_URL_PATH ) ) ) ) {
+	if ( ( $path = explode( '/', (string) parse_url( get_site_url( $blog_id ), PHP_URL_PATH ) ) ) ) {
 		foreach ( $path as $directory ) {
 			if ( $directory ) {
 				$name[] = $directory;
@@ -493,7 +493,7 @@ function trasloco_archive_share( $blog_id = null ) {
 	}
 
 	// Add path
-	if ( ( $path = explode( '/', parse_url( get_site_url( $blog_id ), PHP_URL_PATH ) ) ) ) {
+	if ( ( $path = explode( '/', (string) parse_url( get_site_url( $blog_id ), PHP_URL_PATH ) ) ) ) {
 		foreach ( $path as $directory ) {
 			if ( $directory ) {
 				$name[] = $directory;
