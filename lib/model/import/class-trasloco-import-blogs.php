@@ -28,7 +28,7 @@ class Trasloco_Import_Blogs {
 	public static function execute( $params ) {
 
 		// Set progress
-		Trasloco_Status::info( __( 'Preparing blogs...', TRASLOCO_PLUGIN_NAME ) );
+		Trasloco_Status::info( __( 'Reading the site details from the file...', TRASLOCO_PLUGIN_NAME ) );
 
 		$blogs = array();
 
@@ -100,17 +100,17 @@ class Trasloco_Import_Blogs {
 						);
 					} else {
 						throw new Trasloco_Import_Exception(
-							__( 'The archive should contain <strong>Single WordPress</strong> site! Please revisit your export settings.', TRASLOCO_PLUGIN_NAME )
+							__( 'This file comes from a WordPress Multisite network (several sites managed together). Trasloco can import only single sites.', TRASLOCO_PLUGIN_NAME )
 						);
 					}
 				} else {
 					throw new Trasloco_Import_Exception(
-						__( 'At least <strong>one WordPress</strong> site should be presented in the archive.', TRASLOCO_PLUGIN_NAME )
+						__( 'This file does not contain a site. Export the old site again and use the new file.', TRASLOCO_PLUGIN_NAME )
 					);
 				}
 			} else {
 				throw new Trasloco_Import_Exception(
-					__( 'Unable to import <strong>WordPress Network</strong> into WordPress <strong>Single</strong> site.', TRASLOCO_PLUGIN_NAME )
+					__( 'This file comes from a WordPress Multisite network (several sites managed together). Trasloco can import only single sites.', TRASLOCO_PLUGIN_NAME )
 				);
 			}
 		}
@@ -121,7 +121,7 @@ class Trasloco_Import_Blogs {
 		trasloco_close( $handle );
 
 		// Set progress
-		Trasloco_Status::info( __( 'Done preparing blogs.', TRASLOCO_PLUGIN_NAME ) );
+		Trasloco_Status::info( __( 'Site details read.', TRASLOCO_PLUGIN_NAME ) );
 
 		return $params;
 	}

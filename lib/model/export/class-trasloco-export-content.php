@@ -73,7 +73,7 @@ class Trasloco_Export_Content {
 		$progress = (int) min( ( $processed_files_size / $total_files_size ) * 100, 100 );
 
 		// Set progress
-		Trasloco_Status::info( sprintf( __( 'Archiving %d files...<br />%d%% complete', TRASLOCO_PLUGIN_NAME ), $total_files_count, $progress ) );
+		Trasloco_Status::info( sprintf( __( 'Copying %d files into the export file...<br />%d%% done', TRASLOCO_PLUGIN_NAME ), $total_files_count, $progress ) );
 
 		// Flag to hold if file data has been processed
 		$completed = true;
@@ -112,7 +112,7 @@ class Trasloco_Export_Content {
 				$progress = (int) min( ( $processed_files_size / $total_files_size ) * 100, 100 );
 
 				// Set progress
-				Trasloco_Status::info( sprintf( __( 'Archiving %d files...<br />%d%% complete', TRASLOCO_PLUGIN_NAME ), $total_files_count, $progress ) );
+				Trasloco_Status::info( sprintf( __( 'Copying %d files into the export file...<br />%d%% done', TRASLOCO_PLUGIN_NAME ), $total_files_count, $progress ) );
 
 				// More than 10 seconds have passed, break and do another request
 				if ( ( $timeout = apply_filters( 'trasloco_completed_timeout', 10 ) ) ) {

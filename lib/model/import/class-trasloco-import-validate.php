@@ -30,7 +30,7 @@ class Trasloco_Import_Validate {
 		// Verify file if size > 2GB and PHP = 32-bit
 		if ( ! trasloco_is_filesize_supported( trasloco_archive_path( $params ) ) ) {
 			throw new Trasloco_Import_Exception(
-				__( 'Your PHP is 32-bit. To import this file, switch to 64-bit PHP and try again.', TRASLOCO_PLUGIN_NAME )
+				__( 'This server runs the 32-bit version of PHP (the software WordPress runs on) and cannot open files this large. Ask your hosting company to switch the site to 64-bit PHP, then try again.', TRASLOCO_PLUGIN_NAME )
 			);
 		}
 
@@ -59,7 +59,7 @@ class Trasloco_Import_Validate {
 		$progress = (int) min( ( $archive_bytes_offset / $total_archive_size ) * 100, 100 );
 
 		// Set progress
-		Trasloco_Status::info( sprintf( __( 'Unpacking archive...<br />%d%% complete', TRASLOCO_PLUGIN_NAME ), $progress ) );
+		Trasloco_Status::info( sprintf( __( 'Checking the file...<br />%d%% done', TRASLOCO_PLUGIN_NAME ), $progress ) );
 
 		// Open the archive file for reading
 		$archive = new Trasloco_Extractor( trasloco_archive_path( $params ) );
@@ -70,7 +70,7 @@ class Trasloco_Import_Validate {
 		// Validate the archive file consistency
 		if ( ! $archive->is_valid() ) {
 			throw new Trasloco_Import_Exception(
-				__( 'The archive file is corrupted. Export the site again and upload the new file.', TRASLOCO_PLUGIN_NAME )
+				__( 'The file is damaged or incomplete, for example because the download stopped before the end. Export the old site again and upload the new file.', TRASLOCO_PLUGIN_NAME )
 			);
 		}
 
@@ -107,12 +107,12 @@ class Trasloco_Import_Validate {
 			// Check package.json file
 			if ( false === is_file( trasloco_package_path( $params ) ) ) {
 				throw new Trasloco_Import_Exception(
-					__( 'This is not a valid <strong>.wpress</strong> export: the package.json file is missing.', TRASLOCO_PLUGIN_NAME )
+					__( 'This file was not created by Trasloco → Export, or it is damaged. Export the old site again and upload the new file.', TRASLOCO_PLUGIN_NAME )
 				);
 			}
 
 			// Set progress
-			Trasloco_Status::info( __( 'Done unpacking archive.', TRASLOCO_PLUGIN_NAME ) );
+			Trasloco_Status::info( __( 'The file is complete.', TRASLOCO_PLUGIN_NAME ) );
 
 			// Unset archive bytes offset
 			unset( $params['archive_bytes_offset'] );
@@ -132,7 +132,7 @@ class Trasloco_Import_Validate {
 			$progress = (int) min( ( $archive_bytes_offset / $total_archive_size ) * 100, 100 );
 
 			// Set progress
-			Trasloco_Status::info( sprintf( __( 'Unpacking archive...<br />%d%% complete', TRASLOCO_PLUGIN_NAME ), $progress ) );
+			Trasloco_Status::info( sprintf( __( 'Checking the file...<br />%d%% done', TRASLOCO_PLUGIN_NAME ), $progress ) );
 
 			// Set archive bytes offset
 			$params['archive_bytes_offset'] = $archive_bytes_offset;

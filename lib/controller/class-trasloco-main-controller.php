@@ -392,6 +392,11 @@ class Trasloco_Main_Controller {
 
 		wp_enqueue_style( 'trasloco', Trasloco_Template::asset_link( 'css/trasloco.css' ), array( 'dashicons' ), (string) filemtime( TRASLOCO_PATH . '/lib/view/assets/css/trasloco.css' ) );
 		wp_enqueue_script( 'trasloco', Trasloco_Template::asset_link( 'javascript/trasloco.js' ), array(), (string) filemtime( TRASLOCO_PATH . '/lib/view/assets/javascript/trasloco.js' ), true );
+		wp_localize_script( 'trasloco', 'trasloco_ui', array(
+			'replacement' => __( 'Replacement %d', TRASLOCO_PLUGIN_NAME ),
+			'covered'     => __( 'Not needed now: the option above already leaves all of them out.', TRASLOCO_PLUGIN_NAME ),
+			'deleted'     => __( 'The backup has been deleted.', TRASLOCO_PLUGIN_NAME ),
+		) );
 	}
 
 	/**
@@ -441,6 +446,25 @@ class Trasloco_Main_Controller {
 			'trasloco_backups',
 			'Trasloco_Backups_Controller::index'
 		);
+
+		// Sub-level Guide menu
+		add_submenu_page(
+			'trasloco_export',
+			__( 'Guide', TRASLOCO_PLUGIN_NAME ),
+			__( 'Guide', TRASLOCO_PLUGIN_NAME ),
+			'export',
+			'trasloco_guide',
+			'Trasloco_Main_Controller::guide'
+		);
+	}
+
+	/**
+	 * Guide page
+	 *
+	 * @return void
+	 */
+	public static function guide() {
+		Trasloco_Template::render( 'guide/index' );
 	}
 
 	/**
@@ -532,17 +556,13 @@ class Trasloco_Main_Controller {
 		wp_localize_script( 'trasloco_export', 'trasloco_locale', array(
 			'stop_exporting_your_website'         => __( 'You are about to stop exporting your website, are you sure?', TRASLOCO_PLUGIN_NAME ),
 			'preparing_to_export'                 => __( 'Preparing to export...', TRASLOCO_PLUGIN_NAME ),
-			'unable_to_export'                    => __( 'Unable to export', TRASLOCO_PLUGIN_NAME ),
-			'unable_to_start_the_export'          => __( 'Unable to start the export. Refresh the page and try again', TRASLOCO_PLUGIN_NAME ),
-			'unable_to_run_the_export'            => __( 'Unable to run the export. Refresh the page and try again', TRASLOCO_PLUGIN_NAME ),
-			'unable_to_stop_the_export'           => __( 'Unable to stop the export. Refresh the page and try again', TRASLOCO_PLUGIN_NAME ),
+			'unable_to_export'                    => __( 'The export stopped', TRASLOCO_PLUGIN_NAME ),
+			'unable_to_start_the_export'          => __( 'The export could not start. Refresh the page and click Create export file again.', TRASLOCO_PLUGIN_NAME ),
+			'unable_to_run_the_export'            => __( 'The export stopped before the file was finished. Your site has not changed. Refresh the page and click Create export file again.', TRASLOCO_PLUGIN_NAME ),
+			'unable_to_stop_the_export'           => __( 'Trasloco could not stop the export. Refresh the page.', TRASLOCO_PLUGIN_NAME ),
 			'please_wait_stopping_the_export'     => __( 'Please wait, stopping the export...', TRASLOCO_PLUGIN_NAME ),
 			'close_export'                        => __( 'Close', TRASLOCO_PLUGIN_NAME ),
 			'stop_export'                         => __( 'Stop export', TRASLOCO_PLUGIN_NAME ),
-			'leave_feedback'                      => __( 'Leave plugin developers any feedback here', TRASLOCO_PLUGIN_NAME ),
-			'how_may_we_help_you'                 => __( 'How may we help you?', TRASLOCO_PLUGIN_NAME ),
-			'thanks_for_submitting_your_feedback' => __( 'Thanks for submitting your feedback!', TRASLOCO_PLUGIN_NAME ),
-			'thanks_for_submitting_your_request'  => __( 'Thanks for submitting your request!', TRASLOCO_PLUGIN_NAME ),
 		) );
 	}
 
@@ -622,23 +642,21 @@ class Trasloco_Main_Controller {
 		wp_localize_script( 'trasloco_import', 'trasloco_locale', array(
 			'stop_importing_your_website'         => __( 'You are about to stop importing your website, are you sure?', TRASLOCO_PLUGIN_NAME ),
 			'preparing_to_import'                 => __( 'Preparing to import...', TRASLOCO_PLUGIN_NAME ),
-			'unable_to_import'                    => __( 'Unable to import', TRASLOCO_PLUGIN_NAME ),
-			'unable_to_start_the_import'          => __( 'Unable to start the import. Refresh the page and try again', TRASLOCO_PLUGIN_NAME ),
-			'unable_to_confirm_the_import'        => __( 'Unable to confirm the import. Refresh the page and try again', TRASLOCO_PLUGIN_NAME ),
-			'unable_to_prepare_blogs_on_import'   => __( 'Unable to prepare blogs on import. Refresh the page and try again', TRASLOCO_PLUGIN_NAME ),
-			'unable_to_stop_the_import'           => __( 'Unable to stop the import. Refresh the page and try again', TRASLOCO_PLUGIN_NAME ),
+			'unable_to_import'                    => __( 'The import stopped', TRASLOCO_PLUGIN_NAME ),
+			'unable_to_start_the_import'          => __( 'The import could not start. Nothing on this site has changed. Refresh the page and choose the file again.', TRASLOCO_PLUGIN_NAME ),
+			'unable_to_confirm_the_import'        => __( 'Your confirmation did not reach the server, so nothing has been replaced yet. Refresh the page and start the import again.', TRASLOCO_PLUGIN_NAME ),
+			'unable_to_prepare_blogs_on_import'   => __( 'The import could not read the site details stored in the file. Refresh the page and try again. If it fails again, export the old site again and use the new file.', TRASLOCO_PLUGIN_NAME ),
+			'unable_to_stop_the_import'           => __( 'Trasloco could not stop the import. Refresh the page. If you had already clicked Replace site, import the same file again so that the site is complete.', TRASLOCO_PLUGIN_NAME ),
 			'please_wait_stopping_the_export'     => __( 'Please wait, stopping the import...', TRASLOCO_PLUGIN_NAME ),
 			'close_import'                        => __( 'Close', TRASLOCO_PLUGIN_NAME ),
 			'stop_import'                         => __( 'Stop import', TRASLOCO_PLUGIN_NAME ),
 			'confirm_import'                      => __( 'Replace site', TRASLOCO_PLUGIN_NAME ),
+			'cancel_import'                       => __( 'Cancel, keep this site as it is', TRASLOCO_PLUGIN_NAME ),
 			'continue_import'                     => __( 'Continue', TRASLOCO_PLUGIN_NAME ),
-			'please_do_not_close_this_browser'    => __( 'Please do not close this browser window or your import will fail', TRASLOCO_PLUGIN_NAME ),
-			'leave_feedback'                      => __( 'Leave plugin developers any feedback here', TRASLOCO_PLUGIN_NAME ),
-			'how_may_we_help_you'                 => __( 'How may we help you?', TRASLOCO_PLUGIN_NAME ),
-			'thanks_for_submitting_your_feedback' => __( 'Thanks for submitting your feedback!', TRASLOCO_PLUGIN_NAME ),
-			'thanks_for_submitting_your_request'  => __( 'Thanks for submitting your request!', TRASLOCO_PLUGIN_NAME ),
-			'problem_while_uploading_your_file'   => __( 'There was a problem uploading your file. Check your connection and try again.', TRASLOCO_PLUGIN_NAME ),
-			'invalid_archive_extension'           => __( 'This file is not compatible: choose a <strong>.wpress</strong> export file.', TRASLOCO_PLUGIN_NAME ),
+			'please_do_not_close_this_browser'    => __( 'Keep this tab open until the end. If you close it, the import stops halfway and this site may be left partly replaced.', TRASLOCO_PLUGIN_NAME ),
+			'uploading_the_file'                  => __( 'Uploading the file to this site. Nothing has been replaced yet. Keep this tab open.', TRASLOCO_PLUGIN_NAME ),
+			'problem_while_uploading_your_file'   => __( 'The upload stopped: the file could not be sent to this site, even after many attempts. Check your internet connection, refresh the page and choose the file again. If it keeps failing, ask your hosting company whether a firewall blocks uploads to wp-admin/admin-ajax.php.', TRASLOCO_PLUGIN_NAME ),
+			'invalid_archive_extension'           => __( 'This is not a Trasloco export file. Choose the file whose name ends in <strong>.wpress</strong>, created on the old site in Trasloco → Export.', TRASLOCO_PLUGIN_NAME ),
 			'invalid_archive_size'                => sprintf(
 				__( 'The file is larger than the upload limit of <strong>%s</strong>.', TRASLOCO_PLUGIN_NAME ),
 				size_format( apply_filters( 'trasloco_max_file_size', TRASLOCO_MAX_FILE_SIZE ) )
@@ -715,22 +733,19 @@ class Trasloco_Main_Controller {
 		wp_localize_script( 'trasloco_backups', 'trasloco_locale', array(
 			'stop_importing_your_website'         => __( 'You are about to stop importing your website, are you sure?', TRASLOCO_PLUGIN_NAME ),
 			'preparing_to_import'                 => __( 'Preparing to import...', TRASLOCO_PLUGIN_NAME ),
-			'unable_to_import'                    => __( 'Unable to import', TRASLOCO_PLUGIN_NAME ),
-			'unable_to_start_the_import'          => __( 'Unable to start the import. Refresh the page and try again', TRASLOCO_PLUGIN_NAME ),
-			'unable_to_confirm_the_import'        => __( 'Unable to confirm the import. Refresh the page and try again', TRASLOCO_PLUGIN_NAME ),
-			'unable_to_prepare_blogs_on_import'   => __( 'Unable to prepare blogs on import. Refresh the page and try again', TRASLOCO_PLUGIN_NAME ),
-			'unable_to_stop_the_import'           => __( 'Unable to stop the import. Refresh the page and try again', TRASLOCO_PLUGIN_NAME ),
+			'unable_to_import'                    => __( 'The import stopped', TRASLOCO_PLUGIN_NAME ),
+			'unable_to_start_the_import'          => __( 'The import could not start. Nothing on this site has changed. Refresh the page and choose the file again.', TRASLOCO_PLUGIN_NAME ),
+			'unable_to_confirm_the_import'        => __( 'Your confirmation did not reach the server, so nothing has been replaced yet. Refresh the page and start the import again.', TRASLOCO_PLUGIN_NAME ),
+			'unable_to_prepare_blogs_on_import'   => __( 'The import could not read the site details stored in the file. Refresh the page and try again. If it fails again, export the old site again and use the new file.', TRASLOCO_PLUGIN_NAME ),
+			'unable_to_stop_the_import'           => __( 'Trasloco could not stop the import. Refresh the page. If you had already clicked Replace site, import the same file again so that the site is complete.', TRASLOCO_PLUGIN_NAME ),
 			'please_wait_stopping_the_export'     => __( 'Please wait, stopping the import...', TRASLOCO_PLUGIN_NAME ),
 			'close_import'                        => __( 'Close', TRASLOCO_PLUGIN_NAME ),
 			'stop_import'                         => __( 'Stop import', TRASLOCO_PLUGIN_NAME ),
 			'confirm_import'                      => __( 'Replace site', TRASLOCO_PLUGIN_NAME ),
+			'cancel_import'                       => __( 'Cancel, keep this site as it is', TRASLOCO_PLUGIN_NAME ),
 			'continue_import'                     => __( 'Continue', TRASLOCO_PLUGIN_NAME ),
-			'please_do_not_close_this_browser'    => __( 'Please do not close this browser window or your import will fail', TRASLOCO_PLUGIN_NAME ),
-			'leave_feedback'                      => __( 'Leave plugin developers any feedback here', TRASLOCO_PLUGIN_NAME ),
-			'how_may_we_help_you'                 => __( 'How may we help you?', TRASLOCO_PLUGIN_NAME ),
-			'thanks_for_submitting_your_feedback' => __( 'Thanks for submitting your feedback!', TRASLOCO_PLUGIN_NAME ),
-			'thanks_for_submitting_your_request'  => __( 'Thanks for submitting your request!', TRASLOCO_PLUGIN_NAME ),
-			'want_to_delete_this_file'            => __( 'Are you sure you want to delete this file?', TRASLOCO_PLUGIN_NAME ),
+			'please_do_not_close_this_browser'    => __( 'Keep this tab open until the end. If you close it, the import stops halfway and this site may be left partly replaced.', TRASLOCO_PLUGIN_NAME ),
+			'want_to_delete_this_file'            => __( 'Delete this backup from the server? This cannot be undone. The site itself does not change.', TRASLOCO_PLUGIN_NAME ),
 		) );
 	}
 

@@ -28,7 +28,7 @@ class Trasloco_Export_Download {
 	public static function execute( $params ) {
 
 		// Set progress
-		Trasloco_Status::info( __( 'Renaming exported file...', TRASLOCO_PLUGIN_NAME ) );
+		Trasloco_Status::info( __( 'Finishing the export file...', TRASLOCO_PLUGIN_NAME ) );
 
 		// Open the archive file for writing
 		$archive = new Trasloco_Compressor( trasloco_archive_path( $params ) );
@@ -58,7 +58,7 @@ class Trasloco_Export_Download {
 				sprintf(
 					__(
 						'<a href="%s" class="trasloco-button-green trasloco-emphasize">' .
-						'<span>Download %s</span>' .
+						'<span>Download the export file of %s</span>' .
 						'<em>Size: %s</em>' .
 						'</a>',
 						TRASLOCO_PLUGIN_NAME
@@ -66,7 +66,8 @@ class Trasloco_Export_Download {
 					$link,
 					$name,
 					$size
-				)
+				) .
+				'<span class="tr-modal-next">' . esc_html__( 'Next: on the new site, open Trasloco → Import and upload this file. A copy of the file also stays in Trasloco → Backups.', TRASLOCO_PLUGIN_NAME ) . '</span>'
 			);
 		}
 

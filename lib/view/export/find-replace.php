@@ -25,22 +25,15 @@
 ?>
 
 <ul id="trasloco-queries" class="tr-queries">
-	<li class="trasloco-query trasloco-expandable">
-		<p>
-			<span>
-				<small class="trasloco-query-find-text"><?php echo esc_html( __( '<text>', TRASLOCO_PLUGIN_NAME ) ); ?></small>
-				<span aria-hidden="true">&rarr;</span>
-				<small class="trasloco-query-replace-text"><?php echo esc_html( __( '<another-text>', TRASLOCO_PLUGIN_NAME ) ); ?></small>
-			</span>
-		</p>
+	<li class="trasloco-query">
 		<div class="tr-query-fields">
 			<label>
-				<span><?php esc_html_e( 'Find', TRASLOCO_PLUGIN_NAME ); ?></span>
-				<input class="trasloco-query-find-input" type="text" placeholder="https://old.example.com" name="options[replace][old_value][]" />
+				<span><?php esc_html_e( 'Text to find', TRASLOCO_PLUGIN_NAME ); ?></span>
+				<input class="trasloco-query-find-input" type="text" autocomplete="off" name="options[replace][old_value][]" />
 			</label>
 			<label>
 				<span><?php esc_html_e( 'Replace with', TRASLOCO_PLUGIN_NAME ); ?></span>
-				<input class="trasloco-query-replace-input" type="text" placeholder="https://new.example.com" name="options[replace][new_value][]" />
+				<input class="trasloco-query-replace-input" type="text" autocomplete="off" name="options[replace][new_value][]" />
 			</label>
 		</div>
 	</li>

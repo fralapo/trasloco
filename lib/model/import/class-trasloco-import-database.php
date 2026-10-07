@@ -71,7 +71,7 @@ class Trasloco_Import_Database {
 		$progress = (int) ( ( $query_offset / $total_queries_size ) * 100 );
 
 		// Set progress
-		Trasloco_Status::info( sprintf( __( 'Restoring database...<br />%d%% complete', TRASLOCO_PLUGIN_NAME ), $progress ) );
+		Trasloco_Status::info( sprintf( __( 'Replacing the content and settings, and changing the old site address to the new one...<br />%d%% done', TRASLOCO_PLUGIN_NAME ), $progress ) );
 
 		$old_replace_values = $old_replace_raw_values = array();
 		$new_replace_values = $new_replace_raw_values = array();
@@ -775,7 +775,7 @@ class Trasloco_Import_Database {
 		if ( $mysql->import( trasloco_database_path( $params ), $query_offset ) ) {
 
 			// Set progress
-			Trasloco_Status::info( __( 'Done restoring database.', TRASLOCO_PLUGIN_NAME ) );
+			Trasloco_Status::info( __( 'Content and settings replaced.', TRASLOCO_PLUGIN_NAME ) );
 
 			// Unset query offset
 			unset( $params['query_offset'] );
@@ -795,7 +795,7 @@ class Trasloco_Import_Database {
 			$progress = (int) ( ( $query_offset / $total_queries_size ) * 100 );
 
 			// Set progress
-			Trasloco_Status::info( sprintf( __( 'Restoring database...<br />%d%% complete', TRASLOCO_PLUGIN_NAME ), $progress ) );
+			Trasloco_Status::info( sprintf( __( 'Replacing the content and settings, and changing the old site address to the new one...<br />%d%% done', TRASLOCO_PLUGIN_NAME ), $progress ) );
 
 			// Set query offset
 			$params['query_offset'] = $query_offset;

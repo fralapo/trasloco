@@ -354,8 +354,8 @@ function trasloco_archive_file( $blog_id = null ) {
 	// Add hours, minutes and seconds
 	$name[] = date( 'His' );
 
-	// Add unique identifier
-	$name[] = rand( 100, 999 );
+	// Add a random code: backups are served from a public folder, so the name must not be guessable
+	$name[] = wp_generate_password( 12, false );
 
 	return sprintf( '%s.wpress', strtolower( implode( '-', $name ) ) );
 }
@@ -1192,7 +1192,7 @@ function trasloco_fseek( $file_handle, Math_BigInteger $offset ) {
 function trasloco_verify_secret_key( $secret_key ) {
 	$expected = (string) get_option( TRASLOCO_SECRET_KEY );
 	if ( $expected === '' || ! is_string( $secret_key ) || ! hash_equals( $expected, $secret_key ) ) {
-		throw new Trasloco_Not_Valid_Secret_Key_Exception( __( 'Unable to authenticate the secret key.', TRASLOCO_PLUGIN_NAME ) );
+		throw new Trasloco_Not_Valid_Secret_Key_Exception( __( 'This page is out of date, so the request was refused for security. Refresh the page and try again.', TRASLOCO_PLUGIN_NAME ) );
 	}
 
 	return true;
@@ -1247,4 +1247,122 @@ function trasloco_setup_environment() {
 
 	// Set shutdown handler
 	@register_shutdown_function( 'Trasloco_Handler::shutdown' );
+}
+
+/**
+ * Export options shown on the Export page and explained on the Guide page
+ *
+ * Each group has a title and a list of options. Each option key is the form
+ * field name (options[key]); label and help are shown to the user.
+ *
+ * @return array
+ */
+function trasloco_export_option_groups() {
+	return array(
+		array(
+			'title'   => __( 'Content', TRASLOCO_PLUGIN_NAME ),
+			'options' => array(
+				'no_spam_comments'  => array(
+					'label' => __( 'Leave out spam comments', TRASLOCO_PLUGIN_NAME ),
+					'help'  => __( 'Comments that WordPress or an anti-spam plugin marked as spam. Nobody reads them, and there can be thousands.', TRASLOCO_PLUGIN_NAME ),
+				),
+				'no_post_revisions' => array(
+					'label' => __( 'Leave out post revisions', TRASLOCO_PLUGIN_NAME ),
+					'help'  => __( 'Every time you save a post or a page, WordPress keeps the previous version as a revision. The current version is always exported; only the old copies are left out.', TRASLOCO_PLUGIN_NAME ),
+				),
+				'no_media'          => array(
+					'label' => __( 'Leave out the media library', TRASLOCO_PLUGIN_NAME ),
+					'help'  => __( 'Images, PDFs and every other file uploaded to the site (the wp-content/uploads folder). Without them the new site shows broken images, unless you copy the files in another way.', TRASLOCO_PLUGIN_NAME ),
+				),
+			),
+		),
+		array(
+			'title'   => __( 'Design and features', TRASLOCO_PLUGIN_NAME ),
+			'options' => array(
+				'no_themes'           => array(
+					'label' => __( 'Leave out all themes', TRASLOCO_PLUGIN_NAME ),
+					'help'  => __( 'The theme decides how the site looks. Leave themes out only if the new site already has exactly the same theme installed.', TRASLOCO_PLUGIN_NAME ),
+				),
+				'no_inactive_themes'  => array(
+					'label' => __( 'Leave out inactive themes', TRASLOCO_PLUGIN_NAME ),
+					'help'  => __( 'Themes that are installed but not in use. The active theme, and its parent theme if it has one, is still exported.', TRASLOCO_PLUGIN_NAME ),
+				),
+				'no_plugins'          => array(
+					'label' => __( 'Leave out all plugins', TRASLOCO_PLUGIN_NAME ),
+					'help'  => __( 'Plugins add features such as forms, shops or SEO. Leave them out only if the new site already has the same plugins installed.', TRASLOCO_PLUGIN_NAME ),
+				),
+				'no_inactive_plugins' => array(
+					'label' => __( 'Leave out inactive plugins', TRASLOCO_PLUGIN_NAME ),
+					'help'  => __( 'Plugins that are installed but switched off. Active plugins are still exported.', TRASLOCO_PLUGIN_NAME ),
+				),
+				'no_muplugins'        => array(
+					'label' => __( 'Leave out must-use plugins', TRASLOCO_PLUGIN_NAME ),
+					'help'  => __( 'Special plugins in the wp-content/mu-plugins folder: they are always on and do not appear in the normal plugin list. Hosting companies often put their own tools there, so leave them out when you move to a different hosting company.', TRASLOCO_PLUGIN_NAME ),
+				),
+			),
+		),
+		array(
+			'title'   => __( 'Other', TRASLOCO_PLUGIN_NAME ),
+			'options' => array(
+				'no_cache'         => array(
+					'label' => __( 'Leave out the cache', TRASLOCO_PLUGIN_NAME ),
+					'help'  => __( 'Temporary copies of pages that caching plugins keep in the wp-content/cache folder. They are rebuilt on their own, so leaving them out is safe and makes the file smaller.', TRASLOCO_PLUGIN_NAME ),
+				),
+				'no_database'      => array(
+					'label' => __( 'Leave out the database', TRASLOCO_PLUGIN_NAME ),
+					'help'  => __( 'The database holds posts, pages, comments, users and settings. Without it the file contains only files (media, themes, plugins), and importing it does not change the content of the other site. Use it only to copy files between two sites that already have the same content.', TRASLOCO_PLUGIN_NAME ),
+				),
+				'no_email_replace' => array(
+					'label' => __( 'Keep email addresses unchanged', TRASLOCO_PLUGIN_NAME ),
+					'help'  => __( 'When the site moves to a new domain, the import also changes email addresses on the old domain: info@old-site.com becomes info@new-site.com. Tick this to keep them as they are, for example when you copy a live site to a test address.', TRASLOCO_PLUGIN_NAME ),
+				),
+			),
+		),
+	);
+}
+
+/**
+ * Message shown in the progress window when an export or import stops
+ *
+ * Low-level file errors are technical: put a plain explanation first and the
+ * original message after it as "Technical details".
+ *
+ * @param  Exception $e       The error
+ * @param  string    $context export or import
+ * @return string
+ */
+function trasloco_error_message( $e, $context ) {
+	$file_errors = array(
+		'Trasloco_Not_Accessible_Exception',
+		'Trasloco_Not_Seekable_Exception',
+		'Trasloco_Not_Tellable_Exception',
+		'Trasloco_Not_Readable_Exception',
+		'Trasloco_Not_Writable_Exception',
+		'Trasloco_Not_Truncatable_Exception',
+		'Trasloco_Not_Closable_Exception',
+		'Trasloco_Not_Directory_Exception',
+	);
+
+	$plain = '';
+	if ( $e instanceof Trasloco_Quota_Exceeded_Exception ) {
+		$plain = __( 'The server is out of disk space. Delete the backups you no longer need in Trasloco → Backups, or ask your hosting company for more space, then try again.', TRASLOCO_PLUGIN_NAME );
+	} elseif ( in_array( get_class( $e ), $file_errors, true ) ) {
+		$plain = __( 'Trasloco could not read or write a file on the server. Ask your hosting company to let the web server write in the wp-content folder, then try again.', TRASLOCO_PLUGIN_NAME );
+	}
+
+	if ( 'import' === $context ) {
+		$after = __( 'If this happened after you clicked Replace site, this site may be only partly replaced: refresh the page and import the same file again.', TRASLOCO_PLUGIN_NAME );
+	} else {
+		$after = __( 'Your site has not changed. Refresh the page and try again.', TRASLOCO_PLUGIN_NAME );
+	}
+
+	$tags = array( 'strong' => array(), 'code' => array(), 'br' => array() );
+	if ( $plain ) {
+		$html  = '<span class="tr-para">' . esc_html( $plain ) . '</span>';
+		$html .= '<span class="tr-para tr-tech">' . esc_html__( 'Technical details:', TRASLOCO_PLUGIN_NAME ) . ' ' . esc_html( $e->getMessage() ) . '</span>';
+	} else {
+		$html = '<span class="tr-para">' . wp_kses( $e->getMessage(), $tags ) . '</span>';
+	}
+
+	return $html . '<span class="tr-para">' . esc_html( $after ) . '</span>';
 }

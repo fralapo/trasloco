@@ -54,7 +54,7 @@ class Trasloco_Export_Config_File {
 		$progress = (int) min( ( $package_bytes_offset / $total_package_size ) * 100, 100 );
 
 		// Set progress
-		Trasloco_Status::info( sprintf( __( 'Archiving configuration file...<br />%d%% complete', TRASLOCO_PLUGIN_NAME ), $progress ) );
+		Trasloco_Status::info( sprintf( __( 'Adding the site details to the export file...<br />%d%% done', TRASLOCO_PLUGIN_NAME ), $progress ) );
 
 		// Open the archive file for writing
 		$archive = new Trasloco_Compressor( trasloco_archive_path( $params ) );
@@ -66,7 +66,7 @@ class Trasloco_Export_Config_File {
 		if ( $archive->add_file( trasloco_package_path( $params ), TRASLOCO_PACKAGE_NAME, $package_bytes_written, $package_bytes_offset ) ) {
 
 			// Set progress
-			Trasloco_Status::info( __( 'Done archiving configuration file.', TRASLOCO_PLUGIN_NAME ) );
+			Trasloco_Status::info( __( 'Site details added.', TRASLOCO_PLUGIN_NAME ) );
 
 			// Unset archive bytes offset
 			unset( $params['archive_bytes_offset'] );
@@ -89,7 +89,7 @@ class Trasloco_Export_Config_File {
 			$progress = (int) min( ( $package_bytes_offset / $total_package_size ) * 100, 100 );
 
 			// Set progress
-			Trasloco_Status::info( sprintf( __( 'Archiving configuration file...<br />%d%% complete', TRASLOCO_PLUGIN_NAME ), $progress ) );
+			Trasloco_Status::info( sprintf( __( 'Adding the site details to the export file...<br />%d%% done', TRASLOCO_PLUGIN_NAME ), $progress ) );
 
 			// Set archive bytes offset
 			$params['archive_bytes_offset'] = $archive_bytes_offset;

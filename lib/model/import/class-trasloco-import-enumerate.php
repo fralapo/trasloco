@@ -28,7 +28,7 @@ class Trasloco_Import_Enumerate {
 	public static function execute( $params ) {
 
 		// Set progress
-		Trasloco_Status::info( __( 'Retrieving a list of all WordPress files...', TRASLOCO_PLUGIN_NAME ) );
+		Trasloco_Status::info( __( 'Listing the files in the export file...', TRASLOCO_PLUGIN_NAME ) );
 
 		// Open the archive file for reading
 		$archive = new Trasloco_Extractor( trasloco_archive_path( $params ) );
@@ -43,7 +43,7 @@ class Trasloco_Import_Enumerate {
 		$archive->close();
 
 		// Set progress
-		Trasloco_Status::info( __( 'Done retrieving a list of all WordPress files.', TRASLOCO_PLUGIN_NAME ) );
+		Trasloco_Status::info( __( 'File list ready.', TRASLOCO_PLUGIN_NAME ) );
 
 		return $params;
 	}

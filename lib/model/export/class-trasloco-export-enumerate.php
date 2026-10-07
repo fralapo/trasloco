@@ -42,7 +42,7 @@ class Trasloco_Export_Enumerate {
 		}
 
 		// Set progress
-		Trasloco_Status::info( __( 'Retrieving a list of all WordPress files...', TRASLOCO_PLUGIN_NAME ) );
+		Trasloco_Status::info( __( 'Listing the files to copy (media, themes, plugins)...', TRASLOCO_PLUGIN_NAME ) );
 
 		// Set exclude filters
 		$exclude_filters = trasloco_content_filters();
@@ -130,7 +130,7 @@ class Trasloco_Export_Enumerate {
 		}
 
 		// Set progress
-		Trasloco_Status::info( __( 'Done retrieving a list of all WordPress files.', TRASLOCO_PLUGIN_NAME ) );
+		Trasloco_Status::info( __( 'File list ready.', TRASLOCO_PLUGIN_NAME ) );
 
 		// Set total files count
 		$params['total_files_count'] = $total_files_count;

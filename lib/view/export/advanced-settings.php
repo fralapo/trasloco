@@ -24,31 +24,21 @@
  */
 ?>
 
-<?php
-$tr_options = array(
-	'no_spam_comments'    => __( 'Spam comments', TRASLOCO_PLUGIN_NAME ),
-	'no_post_revisions'   => __( 'Post revisions', TRASLOCO_PLUGIN_NAME ),
-	'no_media'            => __( 'Media library (images and files)', TRASLOCO_PLUGIN_NAME ),
-	'no_themes'           => __( 'Themes', TRASLOCO_PLUGIN_NAME ),
-	'no_inactive_themes'  => __( 'Inactive themes', TRASLOCO_PLUGIN_NAME ),
-	'no_plugins'          => __( 'Plugins', TRASLOCO_PLUGIN_NAME ),
-	'no_inactive_plugins' => __( 'Inactive plugins', TRASLOCO_PLUGIN_NAME ),
-	'no_muplugins'        => __( 'Must-use plugins', TRASLOCO_PLUGIN_NAME ),
-	'no_cache'            => __( 'Cache', TRASLOCO_PLUGIN_NAME ),
-	'no_database'         => __( 'Database', TRASLOCO_PLUGIN_NAME ),
-	'no_email_replace'    => __( 'Domain replacement in email addresses (database)', TRASLOCO_PLUGIN_NAME ),
-);
-?>
 <details class="tr-details">
-	<summary><?php esc_html_e( 'Choose what to exclude', TRASLOCO_PLUGIN_NAME ); ?></summary>
-	<fieldset class="tr-checks">
-		<legend class="screen-reader-text"><?php esc_html_e( 'Items to exclude from the export', TRASLOCO_PLUGIN_NAME ); ?></legend>
-		<?php foreach ( $tr_options as $tr_key => $tr_label ) : ?>
-			<label for="trasloco-<?php echo esc_attr( str_replace( '_', '-', $tr_key ) ); ?>">
-				<input type="checkbox" id="trasloco-<?php echo esc_attr( str_replace( '_', '-', $tr_key ) ); ?>" name="options[<?php echo esc_attr( $tr_key ); ?>]" />
-				<span><?php printf( esc_html__( 'Exclude: %s', TRASLOCO_PLUGIN_NAME ), esc_html( $tr_label ) ); ?></span>
-			</label>
-		<?php endforeach; ?>
-		<?php do_action( 'trasloco_export_advanced_settings' ); ?>
-	</fieldset>
+	<summary><?php esc_html_e( 'Leave parts of the site out (advanced)', TRASLOCO_PLUGIN_NAME ); ?></summary>
+	<p class="tr-hint"><?php esc_html_e( 'Tick an option only if you know you do not need that part on the new site. Each option says what is left out.', TRASLOCO_PLUGIN_NAME ); ?></p>
+	<?php foreach ( trasloco_export_option_groups() as $tr_group ) : ?>
+		<fieldset class="tr-opts">
+			<legend><?php echo esc_html( $tr_group['title'] ); ?></legend>
+			<?php foreach ( $tr_group['options'] as $tr_key => $tr_opt ) : ?>
+				<?php $tr_id = 'trasloco-' . str_replace( '_', '-', $tr_key ); ?>
+				<div class="tr-opt">
+					<input type="checkbox" id="<?php echo esc_attr( $tr_id ); ?>" name="options[<?php echo esc_attr( $tr_key ); ?>]" aria-describedby="<?php echo esc_attr( $tr_id ); ?>-help" />
+					<label for="<?php echo esc_attr( $tr_id ); ?>"><?php echo esc_html( $tr_opt['label'] ); ?></label>
+					<p id="<?php echo esc_attr( $tr_id ); ?>-help" class="tr-hint"><?php echo esc_html( $tr_opt['help'] ); ?></p>
+				</div>
+			<?php endforeach; ?>
+		</fieldset>
+	<?php endforeach; ?>
+	<?php do_action( 'trasloco_export_advanced_settings' ); ?>
 </details>

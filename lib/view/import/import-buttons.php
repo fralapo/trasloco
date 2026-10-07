@@ -38,13 +38,13 @@
 					<?php esc_html_e( 'Choose a file from your computer', TRASLOCO_PLUGIN_NAME ); ?>
 					<input type="file" id="trasloco-select-file" accept=".wpress" class="screen-reader-text" />
 				</label>
-				<p class="tr-hint tr-limit"><?php esc_html_e( 'No size limit. The file is uploaded in chunks: if the connection drops, the upload retries on its own.', TRASLOCO_PLUGIN_NAME ); ?></p>
+				<p class="tr-hint tr-limit"><?php esc_html_e( 'A .wpress file is the export file that Trasloco → Export creates. There is no size limit on 64-bit PHP, which almost every hosting uses. The file is sent in small pieces: if the connection drops, the missing piece is sent again.', TRASLOCO_PLUGIN_NAME ); ?></p>
 			</div>
 		</div>
 	</div>
 <?php else : ?>
 	<div class="tr-note tr-note-error" role="alert">
 		<span class="dashicons dashicons-dismiss" aria-hidden="true"></span>
-		<p><?php printf( wp_kses( __( '<strong>Cannot write to the working folder.</strong> Make sure <code>%s</code> exists and is readable and writable.', TRASLOCO_PLUGIN_NAME ), array( 'strong' => array(), 'code' => array() ) ), esc_html( TRASLOCO_STORAGE_PATH ) ); ?></p>
+		<p><?php printf( wp_kses( __( '<strong>Trasloco cannot save files on this server.</strong> Ask your hosting company to let the web server write in the folder <code>%s</code>.', TRASLOCO_PLUGIN_NAME ), array( 'strong' => array(), 'code' => array() ) ), esc_html( TRASLOCO_STORAGE_PATH ) ); ?></p>
 	</div>
 <?php endif; ?>

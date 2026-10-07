@@ -28,14 +28,14 @@ class Trasloco_Export_Archive {
 	public static function execute( $params ) {
 
 		// Set progress
-		Trasloco_Status::info( __( 'Creating an empty archive...', TRASLOCO_PLUGIN_NAME ) );
+		Trasloco_Status::info( __( 'Creating the export file...', TRASLOCO_PLUGIN_NAME ) );
 
 		// Create empty archive file
 		$archive = new Trasloco_Compressor( trasloco_archive_path( $params ) );
 		$archive->close();
 
 		// Set progress
-		Trasloco_Status::info( __( 'Done creating an empty archive.', TRASLOCO_PLUGIN_NAME ) );
+		Trasloco_Status::info( __( 'Export file created.', TRASLOCO_PLUGIN_NAME ) );
 
 		return $params;
 	}

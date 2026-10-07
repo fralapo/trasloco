@@ -3,7 +3,7 @@
  * Plugin Name: Trasloco
  * Description: Free, open source plugin to back up and migrate WordPress sites. Export the whole site (database, media, themes and plugins) to a single file and import it anywhere, with no size limit.
  * Author: Trasloco contributors
- * Version: 1.0.0
+ * Version: 1.1.0
  * License: AGPL-3.0-or-later
  * License URI: https://www.gnu.org/licenses/agpl-3.0.html
  * Text Domain: trasloco

@@ -28,7 +28,7 @@ class Trasloco_Import_Mu_Plugins {
 	public static function execute( $params ) {
 
 		// Set progress
-		Trasloco_Status::info( __( 'Activating mu-plugins...', TRASLOCO_PLUGIN_NAME ) );
+		Trasloco_Status::info( __( 'Copying must-use plugins...', TRASLOCO_PLUGIN_NAME ) );
 
 		$exclude_files = array(
 			TRASLOCO_MUPLUGINS_NAME . DIRECTORY_SEPARATOR . TRASLOCO_ENDURANCE_PAGE_CACHE_NAME,
@@ -47,7 +47,7 @@ class Trasloco_Import_Mu_Plugins {
 		$archive->close();
 
 		// Set progress
-		Trasloco_Status::info( __( 'Done activating mu-plugins.', TRASLOCO_PLUGIN_NAME ) );
+		Trasloco_Status::info( __( 'Must-use plugins copied.', TRASLOCO_PLUGIN_NAME ) );
 
 		return $params;
 	}

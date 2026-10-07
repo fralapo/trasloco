@@ -58,7 +58,7 @@ class Trasloco_Export_Database {
 		$progress = (int) ( ( $table_index / $total_tables_count ) * 100 );
 
 		// Set progress
-		Trasloco_Status::info( sprintf( __( 'Exporting database...<br />%d%% complete', TRASLOCO_PLUGIN_NAME ), $progress ) );
+		Trasloco_Status::info( sprintf( __( 'Copying the database (posts, pages, users, settings)...<br />%d%% done', TRASLOCO_PLUGIN_NAME ), $progress ) );
 
 		// Get database client
 		if ( empty( $wpdb->use_mysqli ) ) {
@@ -136,7 +136,7 @@ class Trasloco_Export_Database {
 		if ( $mysql->export( trasloco_database_path( $params ), $table_index, $table_offset ) ) {
 
 			// Set progress
-			Trasloco_Status::info( __( 'Done exporting database.', TRASLOCO_PLUGIN_NAME ) );
+			Trasloco_Status::info( __( 'Database copied.', TRASLOCO_PLUGIN_NAME ) );
 
 			// Unset table index
 			unset( $params['table_index'] );
@@ -159,7 +159,7 @@ class Trasloco_Export_Database {
 			$progress = (int) ( ( $table_index / $total_tables_count ) * 100 );
 
 			// Set progress
-			Trasloco_Status::info( sprintf( __( 'Exporting database...<br />%d%% complete', TRASLOCO_PLUGIN_NAME ), $progress ) );
+			Trasloco_Status::info( sprintf( __( 'Copying the database (posts, pages, users, settings)...<br />%d%% done', TRASLOCO_PLUGIN_NAME ), $progress ) );
 
 			// Set table index
 			$params['table_index'] = $table_index;

@@ -189,12 +189,18 @@ class Trasloco_Import_Done {
 		// Set progress
 		Trasloco_Status::done(
 			__(
-				'Your data has been imported successfully!',
+				'The site has been imported',
 				TRASLOCO_PLUGIN_NAME
 			),
 			sprintf(
 				__(
-					'One last step: <a class="trasloco-no-underline" href="%s" target="_blank">open the permalink settings</a> and save them twice, so that page links work. Then log in with the username and password of the source site.',
+					'<p class="tr-para">Four things are left to do:</p>' .
+					'<ol class="tr-done-steps">' .
+					'<li>Log in again with the username and password of the old site. You have been logged out because the users were replaced.</li>' .
+					'<li><a href="%s" target="_blank">Open Settings → Permalinks</a> and click Save Changes twice. This rebuilds the page addresses, so that links do not end on a “Page not found” error.</li>' .
+					'<li>Some plugins were switched off so that you can log in: plugins that hide or rename the login page, reCAPTCHA, plugins that force https:// when this site has no security certificate, and the Jetpack image CDN and single sign-on. Open Plugins and switch back on the ones you need.</li>' .
+					'<li>Open the site and check a few pages, images and forms.</li>' .
+					'</ol>',
 					TRASLOCO_PLUGIN_NAME
 				),
 				admin_url( 'options-permalink.php#submit' )

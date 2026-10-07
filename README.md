@@ -7,7 +7,7 @@
 **Trasloco is a free, open source WordPress plugin that backs up and migrates a whole WordPress site.** It exports the database, media library, themes and plugins into a single `.wpress` file, then imports that file on any other WordPress install, with no file size limit, no paid add-ons and no account. It is tested with a real 1.64 GB site.
 
 [![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
-![Version](https://img.shields.io/badge/version-1.0.0-informational.svg)
+![Version](https://img.shields.io/badge/version-1.1.0-informational.svg)
 ![Languages](https://img.shields.io/badge/languages-en%20it%20es%20fr%20de-success.svg)
 ![Tested on PHP 8.2](https://img.shields.io/badge/tested_on-PHP_8.2-777bb4.svg)
 
@@ -28,8 +28,9 @@ I wrote it to move a 1.6 GB site to shared hosting without paying for a "remove 
 - **No size limit.** `TRASLOCO_MAX_FILE_SIZE` is 0, which means unlimited.
 - **Chunked upload that survives firewalls and retries.** The browser sends the file in 2 MB chunks, base64-encoded, each one with its byte offset. Some hosting firewalls reject binary uploads that happen to contain PHP code; base64 text gets through. If a chunk is sent twice after a network error, it overwrites the same bytes instead of being appended again, so the archive stays intact.
 - **Reads old and new `.wpress` archives.** Newer writers put an 8-character CRC at the end of the path field and close the archive with an end block that has an empty name. Trasloco accepts both that layout and the older all-zero end block.
-- **Find and replace on export.** Change the site address while exporting. Serialized data is handled correctly.
-- **Three plain pages:** Export, Import and Backups. Each has one main action, the advanced options start closed, and a progress bar shows each step.
+- **The site address changes by itself.** On import, the old address is replaced with the new one in links, images and settings, serialized data included. Email addresses on the old domain change too, unless you turn that off.
+- **Find and replace for other text.** For anything else that must change on the new site, such as an old phone number or a second domain.
+- **Four plain pages:** Export, Import, Backups and Guide. Every option has a one-line explanation under it, the Import page lists what to do before you start, and a progress bar shows each step. The Guide page explains every function, with a glossary for people who do not know how WordPress works inside.
 - **Five languages:** English, Italian, Spanish, French and German, all in one file. See [Languages](#languages).
 - **PHP 8.2 clean.** The iterators carry `#[\ReturnTypeWillChange]`, so the log is free of deprecation notices.
 - **WP-CLI:** `wp trasloco backup` and `wp trasloco restore <file>`.
@@ -54,8 +55,9 @@ Then activate **Trasloco** in the plugin list.
 **On the source site**
 
 1. Go to **Trasloco → Export**.
-2. If the new site will have a different address, fill in "Change the site address" with the old and the new one.
-3. Click **Create export file**, wait for it to finish and download the `.wpress` file.
+2. Click **Create export file**, wait for it to finish and download the `.wpress` file.
+
+You do not need to type the new address anywhere: the import changes it.
 
 **On the destination site**
 
@@ -96,16 +98,22 @@ The script collects every plugin string from the code. It fails if a string is m
 Install Trasloco on both sites. On the old site, open **Trasloco → Export** and click **Create export file**, then download the `.wpress` file. On the new site, open **Trasloco → Import**, drop the file on the page and click **Replace site**. Finally, save the permalink settings twice.
 
 ### Is there a file size limit?
-No. Trasloco has no size limit on exports or imports. Uploads travel in 2 MB chunks, so the PHP `upload_max_filesize` setting does not cap the archive size. The largest site tested so far is 1.64 GB (18,240 files, 108 database tables).
+No, on 64-bit PHP, which almost every host uses. (32-bit PHP cannot handle files over 2 GB, and Trasloco tells you so.) Uploads travel in 2 MB chunks, so the PHP `upload_max_filesize` setting does not cap the archive size. The largest site tested so far is 1.64 GB (18,240 files, 108 database tables).
 
 ### Is Trasloco free for commercial use?
 Yes. Trasloco is free software under the AGPL-3.0 license: you can use it on client sites and build paid products or services on it. If you distribute a modified version, or offer one over a network, you must publish its source code under the same license.
 
-### Can Trasloco change the site URL during a migration?
-Yes. Fill in "Change the site address" on the Export page with the old and the new address. Trasloco replaces it everywhere in the database, including serialized data, which a plain SQL search and replace would corrupt.
+### Does Trasloco change the site URL during a migration?
+Yes, on its own. When the file is imported, the old address is replaced with the address of the new site everywhere in the database, including serialized data, which a plain SQL search and replace would corrupt. Email addresses on the old domain are changed as well (info@old.com becomes info@new.com); tick "Keep email addresses unchanged" on the Export page to avoid that, for example when you copy a live site to a staging address. "Find and replace text" on the Export page is only for other text.
+
+### What else does the import change on its own?
+At the end it switches on the theme and the plugins that were active on the old site. If the new site has no HTTPS, it switches off plugins that force HTTPS. It also switches off plugins that hide or rename the login page, so that you can log in at `/wp-login.php`. The users are those of the old site, so you log in with the old username and password.
+
+### Who can download the backup files?
+They sit in `wp-content/trasloco-backups`. Visitors cannot list the folder, and every file name ends with a random 12-character code. Anyone who has the exact link can still download a file, and it contains the whole site, user accounts included, so do not share the links and delete the backups you no longer need.
 
 ### Can I restore a site from the command line?
-Yes, with WP-CLI: `wp trasloco backup` creates a backup and `wp trasloco restore <file>` restores one from the `wp-content/trasloco-backups` folder.
+Yes, with WP-CLI: `wp trasloco backup` creates a backup (it takes the same options as the Export page, such as `--exclude-media` or `--replace "old" "new"`), `wp trasloco backup --list` lists the backups, and `wp trasloco restore <file>` restores one from the `wp-content/trasloco-backups` folder.
 
 ### What does a Trasloco backup contain?
 One `.wpress` file holds the database dump, the `wp-content` uploads, themes, plugins and must-use plugins. Spam comments, post revisions, media, themes, plugins, cache or the database can each be left out on the Export page.
@@ -120,7 +128,7 @@ English, Italian, Spanish, French and German. The language follows the WordPress
 
 ## Known limits
 
-As of version 1.0.0 (October 2026):
+As of version 1.1.0 (October 2026):
 
 - **Not yet tried on a real host behind a firewall.** So far it has been tested on local WordPress installs with PHP 8.2, including an import of a real 1.64 GB site (12 pages, 73 media files, 19 plugins). The base64 upload was built for hosting firewalls, but it has not been seen working behind one yet. PHP 7.4 has not been tested either.
 - **Single sites only.** Importing a multisite network is not supported.

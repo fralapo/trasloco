@@ -59,7 +59,7 @@ class Trasloco_Export_Database_File {
 		$progress = (int) min( ( $database_bytes_offset / $total_database_size ) * 100, 100 );
 
 		// Set progress
-		Trasloco_Status::info( sprintf( __( 'Archiving database...<br />%d%% complete', TRASLOCO_PLUGIN_NAME ), $progress ) );
+		Trasloco_Status::info( sprintf( __( 'Adding the database to the export file...<br />%d%% done', TRASLOCO_PLUGIN_NAME ), $progress ) );
 
 		// Open the archive file for writing
 		$archive = new Trasloco_Compressor( trasloco_archive_path( $params ) );
@@ -71,7 +71,7 @@ class Trasloco_Export_Database_File {
 		if ( $archive->add_file( trasloco_database_path( $params ), TRASLOCO_DATABASE_NAME, $database_bytes_written, $database_bytes_offset ) ) {
 
 			// Set progress
-			Trasloco_Status::info( __( 'Done archiving database.', TRASLOCO_PLUGIN_NAME ) );
+			Trasloco_Status::info( __( 'Database added.', TRASLOCO_PLUGIN_NAME ) );
 
 			// Unset archive bytes offset
 			unset( $params['archive_bytes_offset'] );
@@ -94,7 +94,7 @@ class Trasloco_Export_Database_File {
 			$progress = (int) min( ( $database_bytes_offset / $total_database_size ) * 100, 100 );
 
 			// Set progress
-			Trasloco_Status::info( sprintf( __( 'Archiving database...<br />%d%% complete', TRASLOCO_PLUGIN_NAME ), $progress ) );
+			Trasloco_Status::info( sprintf( __( 'Adding the database to the export file...<br />%d%% done', TRASLOCO_PLUGIN_NAME ), $progress ) );
 
 			// Set archive bytes offset
 			$params['archive_bytes_offset'] = $archive_bytes_offset;

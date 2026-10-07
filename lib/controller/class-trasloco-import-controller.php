@@ -88,8 +88,8 @@ class Trasloco_Import_Controller {
 							echo json_encode( array( 'errors' => array( array( 'code' => $e->getCode(), 'message' => $e->getMessage() ) ) ) );
 							exit;
 						} catch ( Exception $e ) {
-							Trasloco_Status::error( __( 'Unable to import', TRASLOCO_PLUGIN_NAME ), $e->getMessage() );
-							Trasloco_Notification::error( __( 'Unable to import', TRASLOCO_PLUGIN_NAME ), $e->getMessage() );
+							Trasloco_Status::error( __( 'The import stopped', TRASLOCO_PLUGIN_NAME ), trasloco_error_message( $e, 'import' ) );
+							Trasloco_Notification::error( __( 'The import stopped', TRASLOCO_PLUGIN_NAME ), $e->getMessage() );
 							// The storage parameter may be the invalid part of the request
 							try {
 								Trasloco_Directory::delete( trasloco_storage_path( $params ) );

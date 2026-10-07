@@ -29,7 +29,7 @@ class Trasloco_Export_Config {
 		global $wp_version, $wpdb;
 
 		// Set progress
-		Trasloco_Status::info( __( 'Preparing configuration file...', TRASLOCO_PLUGIN_NAME ) );
+		Trasloco_Status::info( __( 'Noting the site address, theme and active plugins...', TRASLOCO_PLUGIN_NAME ) );
 
 		// Get options
 		$options = wp_load_alloptions();
@@ -151,7 +151,7 @@ class Trasloco_Export_Config {
 		trasloco_close( $handle );
 
 		// Set progress
-		Trasloco_Status::info( __( 'Done preparing configuration file.', TRASLOCO_PLUGIN_NAME ) );
+		Trasloco_Status::info( __( 'Site details noted.', TRASLOCO_PLUGIN_NAME ) );
 
 		return $params;
 	}
