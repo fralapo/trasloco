@@ -25,7 +25,7 @@
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  *
  * @category  Templates
- * @package   Bandar
+ * @package   Trasloco_Bandar
  * @author    Yani Iliev <yani@iliev.me>
  * @copyright 2013 Yani Iliev
  * @license   https://raw.github.com/yani-/bandar/master/LICENSE The MIT License (MIT)
@@ -36,8 +36,8 @@
 /**
  * Define EOL for CLI and Web
  */
-if (!defined('BANDAR_EOL')) {
-	define('BANDAR_EOL', php_sapi_name() === 'cli' ? PHP_EOL : '<br />');
+if (!defined('TRASLOCO_BANDAR_EOL')) {
+	define('TRASLOCO_BANDAR_EOL', php_sapi_name() === 'cli' ? PHP_EOL : '<br />');
 }
 
 /**
@@ -51,17 +51,17 @@ require_once
 	'TemplateDoesNotExistException.php';
 
 /**
- * Bandar Main class
+ * Trasloco_Bandar Main class
  *
  * @category  Templates
- * @package   Bandar
+ * @package   Trasloco_Bandar
  * @author    Yani Iliev <yani@iliev.me>
  * @copyright 2013 Yani Iliev
  * @license   https://raw.github.com/yani-/bandar/master/LICENSE The MIT License (MIT)
  * @version   Release: 2.0.1
  * @link      https://github.com/yani-/bandar/
  */
-class Bandar
+class Trasloco_Bandar
 {
 	/**
 	 * Path to template files
@@ -88,25 +88,25 @@ class Bandar
 		/**
 		 * if debug flag is on, output the string
 		 */
-		if (defined('BANDAR_DEBUG') && BANDAR_DEBUG) {
+		if (defined('TRASLOCO_BANDAR_DEBUG') && TRASLOCO_BANDAR_DEBUG) {
 			echo $str;
 		}
 	}
 
 	/**
-	 * Retrieves templatesPath from BANDAR_TEMPLATES_PATH constant
+	 * Retrieves templatesPath from TRASLOCO_BANDAR_TEMPLATES_PATH constant
 	 *
-	 * @throws TemplatesPathNotSetException If BANDAR_TEMPLATES_PATH is not defined
+	 * @throws Trasloco_Templates_Path_Not_Set_Exception If TRASLOCO_BANDAR_TEMPLATES_PATH is not defined
 	 *
 	 * @return string|null Templates path
 	 */
 	public static function getTemplatesPathFromConstant()
 	{
 		self::debug(
-			'Calling getTemplatesPathFromConstant' . BANDAR_EOL
+			'Calling getTemplatesPathFromConstant' . TRASLOCO_BANDAR_EOL
 		);
-		if (defined('BANDAR_TEMPLATES_PATH')) {
-			return realpath(BANDAR_TEMPLATES_PATH) . DIRECTORY_SEPARATOR;
+		if (defined('TRASLOCO_BANDAR_TEMPLATES_PATH')) {
+			return realpath(TRASLOCO_BANDAR_TEMPLATES_PATH) . DIRECTORY_SEPARATOR;
 		}
 		return null;
 	}
@@ -116,16 +116,16 @@ class Bandar
 	 *
 	 * @param string $template Template file
 	 *
-	 * @throws TemplateDoesNotExistException If template file is not found
+	 * @throws Trasloco_Template_Does_Not_Exist_Exception If template file is not found
 	 *
 	 * @return null
 	 */
 	public static function setTemplate($template, $path = false)
 	{
 		self::debug(
-			'Calling setTemplate with' . BANDAR_EOL .
-			'$template = ' . $template . BANDAR_EOL .
-			'type of $template is ' . gettype($template) . BANDAR_EOL
+			'Calling setTemplate with' . TRASLOCO_BANDAR_EOL .
+			'$template = ' . $template . TRASLOCO_BANDAR_EOL .
+			'type of $template is ' . gettype($template) . TRASLOCO_BANDAR_EOL
 		);
 
 		if ($path) {
@@ -141,7 +141,7 @@ class Bandar
 		if (self::templateExists($template)) {
 			self::$template = $template;
 		} else {
-			throw new TemplateDoesNotExistException;
+			throw new Trasloco_Template_Does_Not_Exist_Exception;
 		}
 	}
 
@@ -155,9 +155,9 @@ class Bandar
 	public static function templateExists($template)
 	{
 		self::debug(
-			'Calling templateExists with ' . BANDAR_EOL .
-			'$template = ' . $template . BANDAR_EOL .
-			'type of $template is ' . gettype($template) . BANDAR_EOL
+			'Calling templateExists with ' . TRASLOCO_BANDAR_EOL .
+			'$template = ' . $template . TRASLOCO_BANDAR_EOL .
+			'type of $template is ' . gettype($template) . TRASLOCO_BANDAR_EOL
 		);
 		return (!is_dir($template) && is_readable($template));
 	}
@@ -174,10 +174,10 @@ class Bandar
 	{
 		self::debug(
 			'Calling render with' .
-			'$template = ' . $template . BANDAR_EOL .
-			'type of $template is ' . gettype($template) . BANDAR_EOL .
-			'$args = ' . print_r($args, true) . BANDAR_EOL .
-			'type of $args is ' . gettype($args) . BANDAR_EOL
+			'$template = ' . $template . TRASLOCO_BANDAR_EOL .
+			'type of $template is ' . gettype($template) . TRASLOCO_BANDAR_EOL .
+			'$args = ' . print_r($args, true) . TRASLOCO_BANDAR_EOL .
+			'type of $args is ' . gettype($args) . TRASLOCO_BANDAR_EOL
 		);
 		self::setTemplate($template, $path);
 		/**
@@ -205,10 +205,10 @@ class Bandar
 	{
 		self::debug(
 			'Calling render with' .
-			'$template = ' . $template . BANDAR_EOL .
-			'type of $template is ' . gettype($template) . BANDAR_EOL .
-			'$args = ' . print_r($args, true) . BANDAR_EOL .
-			'type of $args is ' . gettype($args) . BANDAR_EOL
+			'$template = ' . $template . TRASLOCO_BANDAR_EOL .
+			'type of $template is ' . gettype($template) . TRASLOCO_BANDAR_EOL .
+			'$args = ' . print_r($args, true) . TRASLOCO_BANDAR_EOL .
+			'type of $args is ' . gettype($args) . TRASLOCO_BANDAR_EOL
 		);
 		self::setTemplate($template, $path);
 		/**

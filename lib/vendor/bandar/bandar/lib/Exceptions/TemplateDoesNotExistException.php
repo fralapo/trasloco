@@ -3,7 +3,7 @@
 /* vim: set expandtab tabstop=4 shiftwidth=4 softtabstop=4: */
 
 /**
- * Contains TemplateDoesNotExistException class to be used in main Bandar class
+ * Contains Trasloco_Template_Does_Not_Exist_Exception class to be used in main Bandar class
  *
  * PHP version 5
  *
@@ -25,7 +25,7 @@
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  *
  * @category  Exceptions
- * @package   Bandar
+ * @package   Trasloco_Bandar
  * @author    Yani Iliev <yani@iliev.me>
  * @copyright 2013 Yani Iliev
  * @license   https://raw.github.com/yani-/bandar/master/LICENSE The MIT License (MIT)
@@ -34,17 +34,17 @@
  */
 
 /**
- * TemplateDoesNotExistException
+ * Trasloco_Template_Does_Not_Exist_Exception
  *
  * @category  Exceptions
- * @package   Bandar
+ * @package   Trasloco_Bandar
  * @author    Yani Iliev <yani@iliev.me>
  * @copyright 2013 Yani Iliev
  * @license   https://raw.github.com/yani-/bandar/master/LICENSE The MIT License (MIT)
  * @version   Release: 2.0.1
  * @link      https://github.com/yani-/bandar/
  */
-class TemplateDoesNotExistException extends Exception
+class Trasloco_Template_Does_Not_Exist_Exception extends Exception
 {
 
 }

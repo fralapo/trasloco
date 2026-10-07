@@ -23,7 +23,7 @@
  * ╚══════╝╚══════╝╚═╝  ╚═╝  ╚═══╝  ╚═╝     ╚═╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝
  */
 
-class Trasloco_Template extends Bandar {
+class Trasloco_Template extends Trasloco_Bandar {
 
 	/**
 	 * Renders a file and returns its contents

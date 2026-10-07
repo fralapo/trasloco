@@ -31,7 +31,7 @@ define( 'TRASLOCO_DEBUG', false );
 // ==================
 // = Plugin Version =
 // ==================
-define( 'TRASLOCO_VERSION', '1.1.1' );
+define( 'TRASLOCO_VERSION', '1.1.2' );
 
 // ===============
 // = Plugin Name =
@@ -91,7 +91,7 @@ define( 'TRASLOCO_TEMPLATES_PATH', TRASLOCO_LIB_PATH . DIRECTORY_SEPARATOR . 'vi
 // ===================
 // = Set Bandar Path =
 // ===================
-define( 'BANDAR_TEMPLATES_PATH', TRASLOCO_TEMPLATES_PATH );
+define( 'TRASLOCO_BANDAR_TEMPLATES_PATH', TRASLOCO_TEMPLATES_PATH );
 
 // ===============
 // = Vendor Path =

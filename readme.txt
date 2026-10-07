@@ -3,7 +3,7 @@ Tags: backup, migration, migrate, export, import
 Requires at least: 5.5
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.1.1
+Stable tag: 1.1.2
 License: AGPL-3.0-or-later
 License URI: https://www.gnu.org/licenses/agpl-3.0.html
 
@@ -35,6 +35,9 @@ Trasloco exports a whole WordPress site (database, media, themes and plugins) to
 The new address is set by the import: there is nothing to type. Trasloco > Guide explains every option.
 
 == Changelog ==
+
+= 1.1.2 =
+* Fixed a fatal error on activation when All-in-One WP Migration is active on the same site: the bundled template library now has its own name.
 
 = 1.1.1 =
 * Upload no longer stops at 0% behind hosting firewalls that refuse requests over about 1 MB: a refused chunk is sent again at half the size.
