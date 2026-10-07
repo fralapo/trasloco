@@ -7,7 +7,7 @@
 **Trasloco is a free, open source WordPress plugin that backs up and migrates a whole WordPress site.** It exports the database, media library, themes and plugins into a single `.wpress` file, then imports that file on any other WordPress install, with no file size limit, no paid add-ons and no account. It is tested with a real 1.64 GB site.
 
 [![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
-![Version](https://img.shields.io/badge/version-1.1.0-informational.svg)
+![Version](https://img.shields.io/badge/version-1.1.1-informational.svg)
 ![Languages](https://img.shields.io/badge/languages-en%20it%20es%20fr%20de-success.svg)
 ![Tested on PHP 8.2](https://img.shields.io/badge/tested_on-PHP_8.2-777bb4.svg)
 
@@ -26,7 +26,7 @@ I wrote it to move a 1.6 GB site to shared hosting without paying for a "remove 
 ## Features
 
 - **No size limit.** `TRASLOCO_MAX_FILE_SIZE` is 0, which means unlimited.
-- **Chunked upload that survives firewalls and retries.** The browser sends the file in 2 MB chunks, base64-encoded, each one with its byte offset. Some hosting firewalls reject binary uploads that happen to contain PHP code; base64 text gets through. If a chunk is sent twice after a network error, it overwrites the same bytes instead of being appended again, so the archive stays intact.
+- **Chunked upload that survives firewalls and retries.** The browser sends the file in chunks of up to 2 MB, base64-encoded, each one with its byte offset. Some hosting firewalls reject binary uploads that happen to contain PHP code; base64 text gets through. Others reject any request over about 1 MB: when a chunk is refused, the next try uses a chunk half the size. If a chunk is sent twice after a network error, it overwrites the same bytes instead of being appended again, so the archive stays intact.
 - **Reads old and new `.wpress` archives.** Newer writers put an 8-character CRC at the end of the path field and close the archive with an end block that has an empty name. Trasloco accepts both that layout and the older all-zero end block.
 - **The site address changes by itself.** On import, the old address is replaced with the new one in links, images and settings, serialized data included. Email addresses on the old domain change too, unless you turn that off.
 - **Find and replace for other text.** For anything else that must change on the new site, such as an old phone number or a second domain.

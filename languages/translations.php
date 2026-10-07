@@ -1703,4 +1703,16 @@ return array(
 		'fr' => 'Le fichier contient aussi tout le reste du dossier wp-content, par exemple les sauvegardes créées par d’autres extensions de sauvegarde. Elles peuvent rendre le fichier beaucoup plus gros : si vous n’en avez pas besoin, supprimez d’abord les anciennes.',
 		'de' => 'Außerdem enthält die Datei alles andere im Ordner wp-content, zum Beispiel Sicherungen anderer Backup-Plugins. Sie können die Datei deutlich größer machen: Löschen Sie alte Sicherungen dort zuerst, wenn Sie sie nicht brauchen.',
 	),
+	'The database could not be read from the file. The files have been copied, but the content and settings of this site have not been replaced. The server may be out of disk space: free some space, then import the file again.' => array(
+		'it' => 'Non è stato possibile leggere il database dal file. I file sono stati copiati, ma i contenuti e le impostazioni di questo sito non sono stati sostituiti. Forse sul server manca spazio: libera un po’ di spazio, poi importa di nuovo il file.',
+		'es' => 'No se ha podido leer la base de datos del archivo. Los archivos se han copiado, pero el contenido y los ajustes de este sitio no se han sustituido. Puede que el servidor no tenga espacio libre: libera espacio y vuelve a importar el archivo.',
+		'fr' => 'Impossible de lire la base de données dans le fichier. Les fichiers ont été copiés, mais le contenu et les réglages de ce site n’ont pas été remplacés. Le serveur manque peut-être d’espace : libérez de l’espace, puis importez à nouveau le fichier.',
+		'de' => 'Die Datenbank konnte nicht aus der Datei gelesen werden. Die Dateien wurden kopiert, aber Inhalte und Einstellungen dieser Website wurden nicht ersetzt. Möglicherweise ist auf dem Server kein Speicherplatz mehr frei: Geben Sie Speicherplatz frei und importieren Sie die Datei erneut.',
+	),
+	'Warning: %d database commands failed, so part of the content or settings may be missing. Check the site carefully; if something is missing, send the technical details below to whoever manages the server.' => array(
+		'it' => 'Attenzione: %d comandi del database non sono riusciti, quindi una parte dei contenuti o delle impostazioni potrebbe mancare. Controlla bene il sito; se manca qualcosa, invia i dettagli tecnici qui sotto a chi gestisce il server.',
+		'es' => 'Atención: %d comandos de la base de datos han fallado, así que puede faltar parte del contenido o de los ajustes. Revisa bien el sitio; si falta algo, envía los detalles técnicos de abajo a quien gestiona el servidor.',
+		'fr' => 'Attention : %d commandes de la base de données ont échoué, une partie du contenu ou des réglages peut donc manquer. Vérifiez bien le site ; s’il manque quelque chose, envoyez les détails techniques ci-dessous à la personne qui gère le serveur.',
+		'de' => 'Achtung: %d Datenbankbefehle sind fehlgeschlagen, daher fehlen möglicherweise Teile der Inhalte oder Einstellungen. Prüfen Sie die Website genau; wenn etwas fehlt, senden Sie die technischen Details unten an die Person, die den Server betreut.',
+	),
 );

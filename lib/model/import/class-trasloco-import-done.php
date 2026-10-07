@@ -186,13 +186,24 @@ class Trasloco_Import_Done {
 			}
 		}
 
+		// Database commands that failed: say so, instead of a plain success
+		$warning = '';
+		$errors  = @file( trasloco_storage_path( $params ) . DIRECTORY_SEPARATOR . 'database-errors.log', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES );
+		if ( $errors ) {
+			$warning = sprintf(
+				'<p class="tr-para"><strong>%s</strong></p><span class="tr-para tr-tech">%s</span>',
+				sprintf( __( 'Warning: %d database commands failed, so part of the content or settings may be missing. Check the site carefully; if something is missing, send the technical details below to whoever manages the server.', TRASLOCO_PLUGIN_NAME ), count( $errors ) ),
+				implode( '<br />', array_map( 'esc_html', array_slice( $errors, 0, 3 ) ) )
+			);
+		}
+
 		// Set progress
 		Trasloco_Status::done(
 			__(
 				'The site has been imported',
 				TRASLOCO_PLUGIN_NAME
 			),
-			sprintf(
+			$warning . sprintf(
 				__(
 					'<p class="tr-para">Four things are left to do:</p>' .
 					'<ol class="tr-done-steps">' .

@@ -140,10 +140,10 @@ class Trasloco_Import_Controller {
 	}
 
 	public static function max_chunk_size() {
-		return min(
-			trasloco_parse_size( ini_get( 'post_max_size' ), TRASLOCO_MAX_CHUNK_SIZE ),
-			trasloco_parse_size( ini_get( 'upload_max_filesize' ), TRASLOCO_MAX_CHUNK_SIZE ),
-			trasloco_parse_size( TRASLOCO_MAX_CHUNK_SIZE )
-		);
+		// The chunk travels base64-encoded (a third larger) in a plain POST field, not as a file:
+		// keep the whole request under post_max_size (0 means no limit)
+		$post_max = (int) ( trasloco_parse_size( ini_get( 'post_max_size' ), 0 ) * 0.7 );
+
+		return min( $post_max > 0 ? $post_max : TRASLOCO_MAX_CHUNK_SIZE, TRASLOCO_MAX_CHUNK_SIZE );
 	}
 }

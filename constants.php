@@ -31,7 +31,7 @@ define( 'TRASLOCO_DEBUG', false );
 // ==================
 // = Plugin Version =
 // ==================
-define( 'TRASLOCO_VERSION', '1.1.0' );
+define( 'TRASLOCO_VERSION', '1.1.1' );
 
 // ===============
 // = Plugin Name =

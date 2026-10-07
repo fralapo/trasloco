@@ -755,6 +755,38 @@ abstract class Trasloco_Database {
 	 * @param  integer $query_offset Query offset
 	 * @return boolean
 	 */
+	/**
+	 * File that collects the queries that failed, so the import can report them
+	 *
+	 * @var string
+	 */
+	protected $error_log = null;
+
+	/**
+	 * Set error log file
+	 *
+	 * @param  string $file_name Path of the log file
+	 * @return object
+	 */
+	public function set_error_log( $file_name ) {
+		$this->error_log = $file_name;
+
+		return $this;
+	}
+
+	/**
+	 * Append a failed query to the error log
+	 *
+	 * @param  string $message Error message
+	 * @param  string $query   SQL query
+	 * @return void
+	 */
+	protected function log_error( $message, $query ) {
+		if ( $this->error_log ) {
+			@file_put_contents( $this->error_log, str_replace( array( "\r", "\n" ), ' ', $message . ' | ' . substr( $query, 0, 150 ) ) . "\n", FILE_APPEND );
+		}
+	}
+
 	public function import( $file_name, &$query_offset = 0 ) {
 		// Set max allowed packet
 		$max_allowed_packet = $this->get_max_allowed_packet();
@@ -814,6 +846,10 @@ abstract class Trasloco_Database {
 							$this->query( $query );
 						}
 
+						if ( $this->errno() ) {
+							$this->log_error( $this->errno() . ' ' . $this->error(), $query );
+						}
+
 						// Set query offset
 						$query_offset = ftell( $file_handler );
 
@@ -826,6 +862,8 @@ abstract class Trasloco_Database {
 								}
 							}
 						}
+					} else {
+						$this->log_error( sprintf( 'Skipped: larger than max_allowed_packet (%d bytes)', $max_allowed_packet ), $query );
 					}
 
 					$query = null;

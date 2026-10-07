@@ -28,8 +28,15 @@ class Trasloco_Import_Database {
 	public static function execute( $params ) {
 		global $wpdb;
 
-		// Skip database import
+		// Skip database import, but only when the file was exported without it on purpose
 		if ( ! is_file( trasloco_database_path( $params ) ) ) {
+			$config = json_decode( (string) @file_get_contents( trasloco_package_path( $params ) ), true );
+			if ( empty( $config['NoDatabase'] ) ) {
+				throw new Trasloco_Import_Exception(
+					__( 'The database could not be read from the file. The files have been copied, but the content and settings of this site have not been replaced. The server may be out of disk space: free some space, then import the file again.', TRASLOCO_PLUGIN_NAME )
+				);
+			}
+
 			return $params;
 		}
 
@@ -752,7 +759,8 @@ class Trasloco_Import_Database {
 			->set_old_replace_values( $old_replace_values )
 			->set_new_replace_values( $new_replace_values )
 			->set_old_replace_raw_values( $old_replace_raw_values )
-			->set_new_replace_raw_values( $new_replace_raw_values );
+			->set_new_replace_raw_values( $new_replace_raw_values )
+			->set_error_log( trasloco_storage_path( $params ) . DIRECTORY_SEPARATOR . 'database-errors.log' );
 
 		// Flush database
 		if ( isset( $config['Plugin']['Version'] ) && ( $version = $config['Plugin']['Version'] ) ) {
