@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title">
+	<title id="title">Trasloco</title>
+	<!-- A moving box seen from above. The packing tape runs over the lid seam and down the front: it draws the T of Trasloco. -->
+	<rect width="256" height="256" rx="60" fill="#1E4E79"/>
+	<!-- motion: the box is on its way -->
+	<g fill="#8FB4D6">
+		<rect x="22" y="116" width="30" height="10" rx="5"/>
+		<rect x="12" y="142" width="40" height="10" rx="5"/>
+		<rect x="28" y="168" width="24" height="10" rx="5"/>
+	</g>
+	<!-- box faces: lid, left side, right side -->
+	<path d="M138 48 L214 92 L138 136 L62 92 Z" fill="#E7B57A"/>
+	<path d="M62 92 L138 136 L138 220 L62 176 Z" fill="#C98A4E"/>
+	<path d="M138 136 L214 92 L214 176 L138 220 Z" fill="#A86C36"/>
+	<!-- packing tape: over the lid seam, then down the front -->
+	<path d="M109.1 64.7 L185.1 108.7 L166.9 119.3 L90.9 75.3 Z" fill="#F6E9C8"/>
+	<path d="M166.9 119.3 L185.1 108.7 L185.1 192.7 L166.9 203.3 Z" fill="#E3D0A4"/>
+</svg>

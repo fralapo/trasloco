@@ -1,0 +1,30 @@
+Trasloco
+Copyright (C) 2026 Trasloco contributors
+
+Trasloco as a whole is distributed under the GNU Affero General Public
+License, version 3 or (at your option) any later version. See LICENSE.
+
+Third-party code
+----------------
+
+Part of this program is derived from a GPLv3 project:
+
+    Copyright (C) 2014-2018 ServMask Inc.
+    Licensed under the GNU General Public License, version 3 or later.
+    See LICENSE-GPL-3.0.
+
+Every file that carries the "Copyright (C) 2014-2018 ServMask Inc." header
+comes from that project. Those files were modified by the Trasloco
+contributors in 2026. The changes include renamed classes, functions and
+files, removed features, new import and upload code, and new user-facing
+text. The files remain available under the GPL v3 or later. Section 13 of
+the GPL v3 allows them to be combined with the AGPL v3 code in this
+repository, and the network interaction requirement of AGPL v3 section 13
+applies to the combined work.
+
+Bundled libraries keep their own MIT licenses (see the headers in each file):
+- lib/vendor/bandar: Bandar template engine, Copyright (C) 2013 Yani Iliev.
+- lib/vendor/math/BigInteger.php: phpseclib Math_BigInteger.
+
+Trasloco is an independent project. It is not affiliated with or endorsed
+by ServMask Inc.

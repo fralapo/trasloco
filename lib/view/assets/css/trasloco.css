@@ -1,0 +1,378 @@
+/*
+ * Trasloco - styles for the Export, Import and Backups pages.
+ * Spacing scale: multiples of 8px. Primary color = the admin color scheme chosen in the WordPress profile.
+ */
+.tr-page {
+	--tr-accent: var(--wp-admin-theme-color, #2271b1);
+	--tr-accent-dark: var(--wp-admin-theme-color-darker-10, #135e96);
+	/* darker shade for text and white-on-color buttons: keeps 4.5:1 on light admin color schemes */
+	--tr-accent-strong: var(--wp-admin-theme-color-darker-20, #0a4b78);
+	--tr-text: #1d2327;
+	--tr-muted: #50575e;
+	--tr-line: #dcdcde;
+	--tr-bg: #f6f7f7;
+	--tr-danger: #b32d2e;
+	--tr-radius: 8px;
+
+	box-sizing: border-box;
+	max-width: 760px;
+	margin: 24px 20px 48px 0;
+	color: var(--tr-text);
+	font-size: 14px;
+	line-height: 1.5;
+}
+
+.tr-page *,
+.tr-page *::before,
+.tr-page *::after { box-sizing: inherit; }
+
+/* ---------- Header ---------- */
+.tr-head { margin-bottom: 24px; }
+
+.tr-page .tr-head h1 {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin: 0 0 8px;
+	padding: 0;
+	font-size: 24px;
+	font-weight: 600;
+	line-height: 1.3;
+}
+
+.tr-page .tr-head h1 .dashicons {
+	width: 28px;
+	height: 28px;
+	font-size: 28px;
+	color: var(--tr-accent);
+}
+
+.tr-lead {
+	margin: 0;
+	max-width: 60ch;
+	font-size: 15px;
+	color: var(--tr-muted);
+}
+
+.tr-hint {
+	margin: 0;
+	font-size: 13px;
+	color: var(--tr-muted);
+}
+
+/* ---------- Card ---------- */
+.tr-page .tr-card {
+	margin: 0 0 16px;
+	padding: 24px;
+	background: #fff;
+	border: 1px solid var(--tr-line);
+	border-radius: var(--tr-radius);
+}
+
+.tr-page .tr-card h2 {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+	margin: 0 0 8px;
+	padding: 0;
+	font-size: 16px;
+	font-weight: 600;
+}
+
+.tr-card > .tr-hint { margin-bottom: 16px; max-width: 64ch; }
+
+.tr-badge {
+	padding: 0 8px;
+	border-radius: 999px;
+	background: var(--tr-bg);
+	border: 1px solid var(--tr-line);
+	font-size: 12px;
+	font-weight: 500;
+	line-height: 20px;
+	color: var(--tr-muted);
+}
+
+/* ---------- Buttons ---------- */
+.tr-page .tr-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	min-height: 40px;
+	padding: 0 16px;
+	border: 1px solid transparent;
+	border-radius: 6px;
+	background: transparent;
+	font: inherit;
+	font-weight: 600;
+	line-height: 1.2;
+	text-decoration: none;
+	cursor: pointer;
+	transition: background-color .15s ease, border-color .15s ease, box-shadow .15s ease;
+}
+
+.tr-page .tr-btn .dashicons { width: 20px; height: 20px; font-size: 20px; }
+
+.tr-page .tr-btn:focus-visible {
+	outline: 2px solid var(--tr-accent);
+	outline-offset: 2px;
+}
+
+.tr-page .tr-btn-primary { background: var(--tr-accent-strong); color: #fff; }
+.tr-page .tr-btn-primary:hover { background: var(--tr-text); color: #fff; }
+.tr-page .tr-btn-primary:active { transform: translateY(1px); }
+
+.tr-page .tr-btn-ghost { border-color: var(--tr-line); background: #fff; color: var(--tr-text); }
+.tr-page .tr-btn-ghost:hover { border-color: var(--tr-accent); color: var(--tr-accent-dark); }
+
+.tr-page .tr-btn-danger { border-color: var(--tr-line); background: #fff; color: var(--tr-danger); }
+.tr-page .tr-btn-danger:hover { border-color: var(--tr-danger); background: #fcf0f1; color: var(--tr-danger); }
+
+.tr-page .tr-btn[disabled],
+.tr-page .tr-btn[aria-disabled="true"] { opacity: .5; pointer-events: none; }
+
+.tr-actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px 16px;
+	margin-top: 24px;
+}
+
+/* ---------- Export options ---------- */
+.tr-details summary {
+	display: inline-block;
+	padding: 8px 0;
+	font-weight: 600;
+	color: var(--tr-accent-strong);
+	cursor: pointer;
+}
+
+.tr-details summary { list-style: none; }
+.tr-details summary::-webkit-details-marker { display: none; }
+.tr-details summary::before {
+	content: "\25B8";
+	display: inline-block;
+	width: 16px;
+	transition: transform .15s ease;
+}
+.tr-details[open] summary::before { transform: rotate(90deg); }
+.tr-details summary:hover { color: var(--tr-accent-dark); }
+.tr-details summary:focus-visible { outline: 2px solid var(--tr-accent); outline-offset: 2px; border-radius: 4px; }
+
+.tr-page .tr-checks {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 0 24px;
+	margin: 8px 0 0;
+	padding: 0;
+	border: 0;
+}
+
+.tr-page .tr-checks label {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-height: 40px;
+	cursor: pointer;
+}
+
+.tr-page .tr-checks input[type="checkbox"] { margin: 0; }
+
+/* ---------- Find and replace ---------- */
+.tr-page .tr-queries { margin: 0 0 8px; padding: 0; list-style: none; }
+
+.tr-page .tr-queries .trasloco-query { margin: 0 0 8px; padding: 0; border: 0; background: none; }
+.tr-page .tr-queries .trasloco-query > p { display: none; }
+
+.tr-page .tr-queries .trasloco-query .tr-query-fields {
+	visibility: visible !important;
+	height: auto !important;
+	margin: 0;
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 16px;
+}
+
+.tr-page .tr-query-fields label { display: flex; flex-direction: column; gap: 4px; font-weight: 600; }
+.tr-page .tr-query-fields label span { font-size: 13px; }
+
+.tr-page .tr-query-fields input[type="text"] {
+	width: 100%;
+	min-height: 40px;
+	margin: 0;
+	padding: 0 12px;
+	border: 1px solid #8c8f94;
+	border-radius: 6px;
+	font-weight: 400;
+}
+
+.tr-page .tr-query-fields input[type="text"]:focus {
+	border-color: var(--tr-accent);
+	box-shadow: 0 0 0 1px var(--tr-accent);
+	outline: 2px solid transparent;
+}
+
+/* ---------- Drop zone ---------- */
+.tr-page .tr-drop {
+	margin: 0 0 16px;
+	padding: 48px 24px;
+	border: 2px dashed #8c8f94;
+	border-radius: 12px;
+	background: var(--tr-bg);
+	text-align: center;
+	transition: border-color .15s ease, background-color .15s ease;
+}
+
+.tr-page .tr-drop:hover { border-color: var(--tr-accent); }
+
+.tr-page .tr-drop.trasloco-drag-drop-area.trasloco-drag-over {
+	border-style: solid;
+	border-color: var(--tr-accent);
+	background: #f0f6fc;
+}
+
+.tr-page .tr-drop-inner { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+
+.tr-page .tr-drop-icon {
+	width: 56px;
+	height: 56px;
+	font-size: 56px;
+	color: var(--tr-accent);
+}
+
+.tr-page .tr-drop-title { margin: 0; font-size: 18px; font-weight: 600; }
+.tr-page .tr-limit { max-width: 52ch; margin-top: 8px; }
+
+/* The base stylesheet sets a fixed height, absolute position and blocks clicks on children: undo it here */
+.tr-page .tr-drop { height: auto; background: var(--tr-bg); }
+.tr-page .tr-drop > * { pointer-events: auto; }
+.tr-page .tr-drop #trasloco-import-init { position: static; width: auto; }
+.tr-page .tr-drop #trasloco-import-init p { margin: 0; font-size: 13px; color: var(--tr-muted); }
+.tr-page .tr-drop #trasloco-import-init p.tr-drop-title { font-size: 18px; color: var(--tr-text); }
+.tr-page #trasloco-import-file { position: relative; overflow: hidden; }
+/* the real file input is transparent: show the focus ring on its label */
+.tr-page #trasloco-import-file:focus-within { outline: 2px solid var(--tr-accent-strong); outline-offset: 2px; }
+.tr-page #trasloco-import-file input[type="file"] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; clip: auto; clip-path: none; }
+
+/* ---------- Notices ---------- */
+.tr-page .tr-note {
+	display: flex;
+	align-items: flex-start;
+	gap: 12px;
+	margin: 0 0 16px;
+	padding: 16px;
+	border-left: 4px solid #dba617;
+	border-radius: 0 var(--tr-radius) var(--tr-radius) 0;
+	background: #fcf9e8;
+}
+
+.tr-page .tr-note p { margin: 0; max-width: 64ch; }
+.tr-page .tr-note .dashicons { flex: none; color: #996800; }
+.tr-page .tr-note-error { border-left-color: var(--tr-danger); background: #fcf0f1; }
+.tr-page .tr-note-error .dashicons { color: var(--tr-danger); }
+
+/* ---------- Backups table ---------- */
+.tr-page .tr-table {
+	width: 100%;
+	margin: 0 0 24px;
+	border: 1px solid var(--tr-line);
+	border-radius: var(--tr-radius);
+	border-collapse: separate;
+	border-spacing: 0;
+	background: #fff;
+	overflow-x: auto;
+}
+
+.tr-page .tr-table th {
+	padding: 12px 16px;
+	background: var(--tr-bg);
+	border-bottom: 1px solid var(--tr-line);
+	font-size: 12px;
+	font-weight: 600;
+	letter-spacing: .02em;
+	text-align: left;
+	text-transform: uppercase;
+	color: var(--tr-muted);
+}
+
+.tr-page .tr-table td { padding: 16px; border-bottom: 1px solid var(--tr-line); vertical-align: middle; }
+.tr-page .tr-table tr:last-child td { border-bottom: 0; }
+.tr-page .tr-table tbody tr:hover td { background: #f6f7f7; }
+.tr-page .tr-table .trasloco-column-name { overflow-wrap: anywhere; word-break: normal; font-weight: 600; }
+.tr-page .tr-table .trasloco-column-date,
+.tr-page .tr-table .trasloco-column-size { white-space: nowrap; color: var(--tr-muted); }
+.tr-page .tr-table tbody td.trasloco-backup-actions { width: auto; }
+.tr-page .tr-table tbody td.trasloco-backup-actions { white-space: normal; text-align: right; }
+.tr-page .tr-table tbody td.trasloco-backup-actions .tr-btn { min-height: 32px; margin: 4px 0 4px 8px; padding: 0 12px; border-radius: 6px; font-size: 13px; }
+.tr-page .tr-table tbody td.trasloco-backup-actions .tr-btn i { display: none; }
+/* the base stylesheet showed the label only on hover: always show it */
+.tr-page .tr-table tbody td.trasloco-backup-actions span { display: inline; width: auto; visibility: visible; transition: none; }
+
+.tr-page .trasloco-backups-create { padding: 24px; border: 1px dashed var(--tr-line); border-radius: var(--tr-radius); text-align: center; }
+.tr-page .trasloco-backups-create p { margin: 0 0 16px; }
+.tr-page .trasloco-backups-create p:last-child { margin: 0; }
+
+/* ---------- Progress window (built by the JS) ---------- */
+.trasloco-modal-container {
+	max-width: 520px !important;
+	padding: 32px !important;
+	border-radius: 12px !important;
+	font-size: 15px;
+	line-height: 1.5;
+}
+
+.trasloco-modal-container h1 { font-size: 20px; font-weight: 600; margin: 0 0 8px; }
+.trasloco-modal-container .trasloco-loader { margin-bottom: 16px; }
+
+/* Spinner drawn in CSS: the base stylesheet expected logo images that are not shipped */
+.trasloco-loader,
+.trasloco-modal-container section h1 .trasloco-loader {
+	box-sizing: border-box;
+	width: 48px;
+	height: 48px;
+	border: 4px solid #dcdcde;
+	border-top-color: var(--wp-admin-theme-color, #2271b1);
+	border-radius: 50%;
+	background: none !important;
+}
+
+.trasloco-modal-container section h1 .trasloco-loader { width: 24px; height: 24px; border-width: 3px; vertical-align: middle; }
+
+.tr-progress {
+	height: 8px;
+	margin: 16px 0 8px;
+	border-radius: 999px;
+	background: #dcdcde;
+	overflow: hidden;
+}
+
+.tr-progress > span {
+	display: block;
+	height: 100%;
+	width: 0;
+	border-radius: inherit;
+	background: var(--wp-admin-theme-color, #2271b1);
+	transition: width .3s ease;
+}
+
+/* ---------- Narrow screens ---------- */
+@media (max-width: 782px) {
+	.tr-page { margin-right: 12px; }
+	.tr-page .tr-card { padding: 16px; }
+	.tr-page .tr-checks,
+	.tr-page .tr-queries .trasloco-query .tr-query-fields { grid-template-columns: 1fr; }
+	.tr-page .tr-actions .tr-btn { width: 100%; }
+	.tr-page .tr-drop { padding: 32px 16px; }
+	.tr-page .tr-table thead { display: none; }
+	.tr-page .tr-table td { display: block; padding: 8px 16px; border: 0; }
+	.tr-page .tr-table tr { display: block; padding: 8px 0; border-bottom: 1px solid var(--tr-line); }
+	.tr-page .tr-table tr:last-child { border-bottom: 0; }
+	.tr-page .tr-table tbody td.trasloco-backup-actions { text-align: left; }
+	.tr-page .tr-table tbody td.trasloco-backup-actions .tr-btn { margin: 4px 8px 4px 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.tr-page *, .tr-progress > span { transition: none !important; }
+}

@@ -1,0 +1,9 @@
+# working folders the plugin creates at runtime
+storage/
+
+# test archives
+*.wpress
+
+# system files
+.DS_Store
+Thumbs.db
