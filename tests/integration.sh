@@ -33,10 +33,25 @@ mkdir -p "$ROOT/target/wp-content/trasloco-backups"
 cp "$ARCHIVE" "$ROOT/target/wp-content/trasloco-backups/"
 $WP trasloco restore "$(basename "$ARCHIVE")" --path="$ROOT/target"
 
-HOME_URL=$($WP option get home --path="$ROOT/target")
-test "$HOME_URL" = "http://new.example.test"
-$WP post list --path="$ROOT/target" --post_type=post --field=post_title | grep -F "Trasloco fixture: source post"
-$WP user get oldadmin --path="$ROOT/target" --field=user_login | grep -Fx oldadmin
-test -f "$ROOT/target/wp-content/uploads/test-fixtures/fixture.txt"
+echo "Destination tables:"
+$WP db tables --path="$ROOT/target" || true
+HOME_URL=$($WP option get home --path="$ROOT/target" || true)
+echo "Destination home URL: $HOME_URL"
+if [ "$HOME_URL" != "http://new.example.test" ]; then
+  echo "ERROR: destination URL was not preserved" >&2
+  exit 1
+fi
+if ! $WP post list --path="$ROOT/target" --post_type=post --field=post_title | grep -F "Trasloco fixture: source post"; then
+  echo "ERROR: source post missing from destination" >&2
+  exit 1
+fi
+if ! $WP user get oldadmin --path="$ROOT/target" --field=user_login | grep -Fx oldadmin; then
+  echo "ERROR: source account missing from destination" >&2
+  exit 1
+fi
+if [ ! -f "$ROOT/target/wp-content/uploads/test-fixtures/fixture.txt" ]; then
+  echo "ERROR: source media missing" >&2
+  exit 1
+fi
 grep -Fx "media is preserved" "$ROOT/target/wp-content/uploads/test-fixtures/fixture.txt"
 echo "WordPress backup + database + users + media migration passed."

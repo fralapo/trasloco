@@ -762,14 +762,11 @@ class Trasloco_Import_Database {
 			->set_new_replace_raw_values( $new_replace_raw_values )
 			->set_error_log( trasloco_storage_path( $params ) . DIRECTORY_SEPARATOR . 'database-errors.log' );
 
-		// Flush database
-		if ( isset( $config['Plugin']['Version'] ) && ( $version = $config['Plugin']['Version'] ) ) {
-			if ( $version !== 'develop' && version_compare( $version, '4.10', '<' ) ) {
-				$mysql->set_include_table_prefixes( array( trasloco_table_prefix() ) );
-				$mysql->flush();
-			}
-		}
-
+		// Do not pre-emptively DROP every destination table based on an old
+		// ServMask version comparison. Trasloco 1.x is below 4.10 too, and this
+		// deleted the wp_options table before restoring anything. Each archived
+		// table already has an explicit DROP/CREATE statement in database.sql.
+		// Deleting unrelated tables here is unsafe and prevents recovery.
 		// Set atomic tables (do not stop the current request for all listed tables if timeout has been exceeded)
 		$mysql->set_atomic_tables( array( trasloco_table_prefix() . 'options' ) );
 
