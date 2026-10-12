@@ -337,3 +337,24 @@ try {
 } finally {
     @unlink( $duplicate_package );
 }
+
+
+// A symlinked directory must not become a child of the content traversal;
+// otherwise backup jobs can escape wp-content and include secrets.
+require dirname( __DIR__ ) . '/lib/vendor/core/iterator/class-trasloco-recursive-directory-iterator.php';
+$outside = sys_get_temp_dir() . '/trasloco-outside-' . bin2hex( random_bytes( 8 ) );
+$inside = sys_get_temp_dir() . '/trasloco-inside-' . bin2hex( random_bytes( 8 ) );
+mkdir( $inside, 0700 );
+mkdir( $outside, 0700 );
+file_put_contents( $outside . '/secret.txt', 'not part of wp-content' );
+symlink( $outside, $inside . '/external' );
+$directory = new Trasloco_Recursive_Directory_Iterator( $inside );
+foreach ( $directory as $entry ) {
+    if ( $entry->isLink() ) {
+        ensure( $directory->hasChildren( true ) === false, 'export iterator follows external directory symlinks' );
+    }
+}
+unlink( $inside . '/external' );
+unlink( $outside . '/secret.txt' );
+rmdir( $inside );
+rmdir( $outside );

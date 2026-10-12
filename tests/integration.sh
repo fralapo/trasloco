@@ -26,8 +26,17 @@ EXPECTED_SITE=$($WP option get siteurl --path="$ROOT/target")
 $WP post create --path="$ROOT/source" --post_type=post --post_status=publish --post_title="Trasloco fixture: source post" --post_content="Migration round-trip verified"
 mkdir -p "$ROOT/source/wp-content/uploads/test-fixtures"
 printf 'media is preserved\n' > "$ROOT/source/wp-content/uploads/test-fixtures/fixture.txt"
+# File and directory symlinks must not pull secrets from outside wp-content.
+mkdir -p "$ROOT/private-outside-wp"
+printf 'TRASLOCO_OUTSIDE_SECRET_GUARD_20261012\n' > "$ROOT/private-outside-wp/private.txt"
+ln -s "$ROOT/private-outside-wp/private.txt" "$ROOT/source/wp-content/uploads/private-file-link.txt"
+ln -s "$ROOT/private-outside-wp" "$ROOT/source/wp-content/uploads/private-directory-link"
 $WP trasloco backup --path="$ROOT/source"
 ARCHIVE=$(find "$ROOT/source/wp-content/trasloco-backups" -maxdepth 1 -type f -name '*.wpress' -print -quit)
+if grep -aFq 'TRASLOCO_OUTSIDE_SECRET_GUARD_20261012' "$ARCHIVE"; then
+  echo "ERROR: backup exported data reached through an external symlink" >&2
+  exit 1
+fi
 if [ ! -s "$ARCHIVE" ]; then
   echo "Backup archive missing" >&2
   exit 1

@@ -119,7 +119,9 @@ class Trasloco_Export_Enumerate {
 
 		// Write path line
 		foreach ( $iterator as $item ) {
-			if ( $item->isFile() ) {
+			// Symbolic-link targets are not part of the portable site's
+			// own file tree and must never escape its export root.
+			if ( $item->isFile() && ! $item->isLink() ) {
 				if ( trasloco_write( $filemap, $iterator->getSubPathName() . PHP_EOL ) ) {
 					$total_files_count++;
 

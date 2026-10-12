@@ -97,8 +97,18 @@ class Trasloco_Export_Content {
 			while ( $path = trim( fgets( $filemap ) ) ) {
 				$file_bytes_written = 0;
 
+				// A file can be replaced with a symlink after enumeration.
+				// Fail the entire export rather than including outside content.
+				$source = WP_CONTENT_DIR . DIRECTORY_SEPARATOR . $path;
+				$root = realpath( WP_CONTENT_DIR );
+				$resolved = realpath( $source );
+				if ( $root === false || $resolved === false ||
+					strpos( $resolved, rtrim( $root, DIRECTORY_SEPARATOR ) . DIRECTORY_SEPARATOR ) !== 0 ||
+					is_link( $source ) ) {
+					throw new Trasloco_Archive_Exception( 'Export source path is a symlink or outside WordPress content.' );
+				}
 				// Add file to archive
-				if ( ( $completed = $archive->add_file( WP_CONTENT_DIR . DIRECTORY_SEPARATOR . $path, $path, $file_bytes_written, $file_bytes_offset ) ) ) {
+				if ( ( $completed = $archive->add_file( $source, $path, $file_bytes_written, $file_bytes_offset ) ) ) {
 					$file_bytes_offset = 0;
 
 					// Get filemap bytes offset
