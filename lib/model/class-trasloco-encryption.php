@@ -146,7 +146,7 @@ class Trasloco_Encryption {
             $cost = unpack( 'Nops/Nmem', self::exact( $in, 8 ) );
             // Prevent malicious envelopes from requesting unbounded CPU/RAM.
             if ( $cost['ops'] < 1 || $cost['ops'] > SODIUM_CRYPTO_PWHASH_OPSLIMIT_MODERATE ||
-                $cost['mem'] < SODIUM_CRYPTO_PWHASH_MEMLIMIT_MIN ||
+                $cost['mem'] < 8 * 1024 * 1024 ||
                 $cost['mem'] > SODIUM_CRYPTO_PWHASH_MEMLIMIT_MODERATE ) {
                 throw new RuntimeException( 'Unsupported archive key derivation parameters.' );
             }
