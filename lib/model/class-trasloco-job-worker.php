@@ -80,7 +80,12 @@ class Trasloco_Job_Worker {
             throw new RuntimeException( 'Backup cancelled before retention.' );
         }
         $model = new Trasloco_Backups();
-        foreach ( array_slice( $model->get_files(), $keep ) as $entry ) {
+        $prior = array_values( array_filter( $model->get_files(), function ( $entry ) use ( $params ) {
+            return $entry['filename'] !== $params['archive'];
+        } ) );
+        // Always protect the newly verified archive, even when creation
+        // timestamps tie and sort order is not deterministic.
+        foreach ( array_slice( $prior, $keep - 1 ) as $entry ) {
             $model->delete_file( $entry['filename'] );
         }
         return $params['archive'];

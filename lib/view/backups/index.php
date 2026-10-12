@@ -30,6 +30,30 @@
 		<p class="tr-lead"><?php echo wp_kses( sprintf( __( 'Every export is saved on this server, in the %s folder. Here you can download, restore or delete each file.', TRASLOCO_PLUGIN_NAME ), '<code>' . esc_html( TRASLOCO_BACKUPS_PATH ) . '</code>' ), array( 'code' => array() ) ); ?></p>
 	</header>
 
+	<section class="tr-card" aria-labelledby="tr-automatic-backups">
+		<h2 id="tr-automatic-backups"><?php esc_html_e( 'Automatic backups', TRASLOCO_PLUGIN_NAME ); ?></h2>
+		<p class="tr-hint"><?php esc_html_e( 'Create verified backups on a schedule and automatically retain the newest copies.', TRASLOCO_PLUGIN_NAME ); ?></p>
+		<?php if ( isset( $_GET['schedule_saved'] ) && $_GET['schedule_saved'] === '1' ) : ?>
+			<p role="status"><?php esc_html_e( 'Backup schedule saved.', TRASLOCO_PLUGIN_NAME ); ?></p>
+		<?php endif; ?>
+		<?php $tr_schedule = Trasloco_Scheduled_Backups::settings(); ?>
+		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+			<input type="hidden" name="action" value="trasloco_save_schedule" />
+			<?php wp_nonce_field( 'trasloco_save_schedule' ); ?>
+			<p><label for="tr-schedule-frequency"><strong><?php esc_html_e( 'Frequency', TRASLOCO_PLUGIN_NAME ); ?></strong></label></p>
+			<p><select id="tr-schedule-frequency" name="frequency">
+				<option value="off" <?php selected( $tr_schedule['frequency'], 'off' ); ?>><?php esc_html_e( 'Disabled', TRASLOCO_PLUGIN_NAME ); ?></option>
+				<option value="hourly" <?php selected( $tr_schedule['frequency'], 'hourly' ); ?>><?php esc_html_e( 'Hourly', TRASLOCO_PLUGIN_NAME ); ?></option>
+				<option value="daily" <?php selected( $tr_schedule['frequency'], 'daily' ); ?>><?php esc_html_e( 'Daily', TRASLOCO_PLUGIN_NAME ); ?></option>
+				<option value="weekly" <?php selected( $tr_schedule['frequency'], 'weekly' ); ?>><?php esc_html_e( 'Weekly', TRASLOCO_PLUGIN_NAME ); ?></option>
+			</select></p>
+			<p><label for="tr-schedule-keep"><strong><?php esc_html_e( 'Keep latest backups', TRASLOCO_PLUGIN_NAME ); ?></strong></label></p>
+			<p><input id="tr-schedule-keep" type="number" name="keep" min="1" max="100" required value="<?php echo esc_attr( $tr_schedule['keep'] ); ?>" /></p>
+			<p class="tr-hint"><?php esc_html_e( 'WordPress scheduled tasks depend on site traffic. Configure system cron for reliable timing on low-traffic sites.', TRASLOCO_PLUGIN_NAME ); ?></p>
+			<p><button type="submit" class="button button-primary"><?php esc_html_e( 'Save schedule', TRASLOCO_PLUGIN_NAME ); ?></button></p>
+		</form>
+	</section>
+
 	<?php include TRASLOCO_TEMPLATES_PATH . '/backups/legend.php'; ?>
 
 				<form action="" method="post" id="trasloco-backups-form" class="trasloco-clear">

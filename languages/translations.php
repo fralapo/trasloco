@@ -11,6 +11,66 @@
  */
 
 return array(
+	'Automatic backups' => array(
+		'it' => 'Backup automatici',
+		'es' => 'Copias automáticas',
+		'fr' => 'Sauvegardes automatiques',
+		'de' => 'Automatische Backups',
+	),
+	'Create verified backups on a schedule and automatically retain the newest copies.' => array(
+		'it' => 'Crea backup verificati a intervalli regolari e conserva automaticamente solo le copie più recenti.',
+		'es' => 'Crea copias verificadas de forma programada y conserva automáticamente las más recientes.',
+		'fr' => 'Créez des sauvegardes vérifiées et ne conservez automatiquement que les dernières.',
+		'de' => 'Erstellen Sie überprüfte Backups nach Zeitplan und behalten Sie nur die neuesten.',
+	),
+	'Backup schedule saved.' => array(
+		'it' => 'Pianificazione dei backup salvata.',
+		'es' => 'Programación guardada.',
+		'fr' => 'Planification enregistrée.',
+		'de' => 'Backup-Zeitplan gespeichert.',
+	),
+	'Frequency' => array(
+		'it' => 'Frequenza',
+		'es' => 'Frecuencia',
+		'fr' => 'Fréquence',
+		'de' => 'Häufigkeit',
+	),
+	'Disabled' => array(
+		'it' => 'Disattivato',
+		'es' => 'Desactivado',
+		'fr' => 'Désactivé',
+		'de' => 'Deaktiviert',
+	),
+	'Hourly' => array(
+		'it' => 'Ogni ora',
+		'es' => 'Cada hora',
+		'fr' => 'Toutes les heures',
+		'de' => 'Stündlich',
+	),
+	'Daily' => array(
+		'it' => 'Ogni giorno',
+		'es' => 'Cada día',
+		'fr' => 'Chaque jour',
+		'de' => 'Täglich',
+	),
+	'Keep latest backups' => array(
+		'it' => 'Conserva gli ultimi backup',
+		'es' => 'Conservar las últimas copias',
+		'fr' => 'Conserver les dernières sauvegardes',
+		'de' => 'Neueste Backups behalten',
+	),
+	'WordPress scheduled tasks depend on site traffic. Configure system cron for reliable timing on low-traffic sites.' => array(
+		'it' => 'Le attività pianificate dipendono dalle visite al sito. Per orari affidabili configura cron di sistema.',
+		'es' => 'Las tareas dependen del tráfico del sitio. Configura cron del sistema para cumplir los horarios.',
+		'fr' => 'Les tâches dépendent du trafic du site. Configurez cron pour un calendrier fiable.',
+		'de' => 'Geplante Aufgaben hängen vom Traffic ab. Nutzen Sie System-Cron für zuverlässige Zeitpläne.',
+	),
+	'Save schedule' => array(
+		'it' => 'Salva pianificazione',
+		'es' => 'Guardar programación',
+		'fr' => 'Enregistrer la planification',
+		'de' => 'Zeitplan speichern',
+	),
 	'Integrity' => array(
 		'it' => 'Integrità',
 		'es' => 'Integridad',
