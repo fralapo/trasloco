@@ -127,6 +127,14 @@ Trasloco_Scheduled_Backups::register();
 require_once dirname( __FILE__ ) . '/lib/model/class-trasloco-job-worker.php';
 Trasloco_Job_Worker::register();
 
+// Deactivated plugins must not leave scheduled exports running later.
+// Keep backup archives and job history intact for future reactivation.
+register_deactivation_hook( __FILE__, function () {
+    wp_clear_scheduled_hook( Trasloco_Scheduled_Backups::HOOK );
+    wp_clear_scheduled_hook( 'trasloco_reconcile_jobs' );
+    wp_unschedule_hook( Trasloco_Job_Worker::HOOK );
+} );
+
 // Non-destructive archive inventory for restore planning.
 require_once dirname( __FILE__ ) . '/lib/model/class-trasloco-archive-inspector.php';
 

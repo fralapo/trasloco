@@ -335,4 +335,18 @@ if $WP post list --path="$ROOT/target" --post_type=post --field=post_title | gre
   echo "ERROR: recovery point did not restore the destination database" >&2
   exit 1
 fi
+# Plugin deactivation removes recurring timers and queued workers only.
+$WP plugin deactivate trasloco --path="$ROOT/source"
+$WP eval '
+foreach ( array( "trasloco_scheduled_backup_tick", "trasloco_reconcile_jobs" ) as $hook ) {
+    if ( wp_next_scheduled( $hook ) ) {
+        throw new Exception( "Deactivated plugin left an active cron event: " . $hook );
+    }
+}
+foreach ( (array) _get_cron_array() as $events ) {
+    if ( isset( $events["trasloco_run_job"] ) ) {
+        throw new Exception( "Deactivated plugin left worker events queued" );
+    }
+}
+' --path="$ROOT/source"
 echo "WordPress migration, recovery rehearsal, jobs and integrity checks passed."
