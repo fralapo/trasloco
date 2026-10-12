@@ -62,3 +62,7 @@ The extraction routines reject on-disk symbolic-link path components before writ
 ## Integrity gate before replacement
 
 Before replacing a site from a **local** backup, Trasloco checks its SHA-256 manifest if one is present and refuses a mismatch before creating the recovery snapshot or touching destination files/database. Legacy backups and uploaded files without sidecar manifests remain supported; they undergo structural validation but do **not** have cryptographic origin authentication. SHA-256 sidecars are not signatures and can be forged by anyone who can modify both files.
+
+## Worker backup concurrency
+
+Server-side scheduled backups and automatic recovery snapshots share an exclusive non-blocking `flock` mutex in the backups directory. When another server-side export holds the lock, the new job fails before starting its export rather than risk overlapping writes. Filesystem locks require a local/shared filesystem that supports `flock`; multiple independent servers and older interactive AJAX export flows are **not yet covered** by this lock. A future durable import/export orchestration layer must coordinate those paths too.

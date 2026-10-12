@@ -57,6 +57,30 @@ class Trasloco_Job_Worker {
      * Return an array for programmatic/CLI inspection; WP-Cron ignores it.
      */
 
+    /**
+     * Exclusive lock for server-side exports and recovery snapshots. File
+     * descriptor ownership is process-scoped and released on PHP process exit.
+     * Do not silently wait and generate two backups from inconsistent data.
+     */
+    private static function acquire_backup_lock() {
+        if ( ! wp_mkdir_p( TRASLOCO_BACKUPS_PATH ) ) {
+            throw new RuntimeException( 'Unable to create backup directory for exclusive lock.' );
+        }
+        $path = TRASLOCO_BACKUPS_PATH . DIRECTORY_SEPARATOR . '.trasloco-export.lock';
+        if ( is_link( $path ) ) {
+            throw new RuntimeException( 'Backup lock may not be a symbolic link.' );
+        }
+        $handle = @fopen( $path, 'c+' );
+        if ( $handle === false ) {
+            throw new RuntimeException( 'Backup lock file cannot be opened.' );
+        }
+        if ( ! @flock( $handle, LOCK_EX | LOCK_NB ) ) {
+            fclose( $handle );
+            throw new RuntimeException( 'Another server-side backup is already running.' );
+        }
+        return $handle;
+    }
+
     /** Reuse tested synchronous WP-CLI export pipeline without AJAX exits. */
     private static function backup( $id, $owner, $payload ) {
         $is_recovery = ! empty( $payload['recovery_point'] );
@@ -144,7 +168,13 @@ class Trasloco_Job_Worker {
         }
         try {
             if ( $record['kind'] === 'backup' ) {
-                $name = self::backup( $id, $owner, $record['payload'] );
+                $backup_lock = self::acquire_backup_lock();
+                try {
+                    $name = self::backup( $id, $owner, $record['payload'] );
+                } finally {
+                    flock( $backup_lock, LOCK_UN );
+                    fclose( $backup_lock );
+                }
                 if ( ! Trasloco_Job_Store::finish( $id, $owner ) ) {
                     return array( 'status' => 'not_claimed' );
                 }

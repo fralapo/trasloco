@@ -256,6 +256,26 @@ if ( $ok->get_status() !== 200 || ! array_key_exists( "latest_backup", $data ) )
 if ( strpos( wp_json_encode( $data ), ABSPATH ) !== false ) { throw new Exception( "Server paths disclosed in health API" ); }
 ' --path="$ROOT/source"
 
+# An existing export must prevent a second server-side backup from racing.
+$WP eval '
+$path = TRASLOCO_BACKUPS_PATH . "/.trasloco-export.lock";
+$holder = fopen( $path, "c+" );
+if ( ! $holder || ! flock( $holder, LOCK_EX | LOCK_NB ) ) {
+    throw new Exception( "Could not acquire fixture export lock" );
+}
+$id = Trasloco_Job_Store::create( "backup", array( "retention" => 1 ), "ci-overlap-blocked-00001" );
+$result = Trasloco_Job_Worker::run( $id );
+if ( $result["status"] !== "failed" ) {
+    throw new Exception( "Concurrent server-side backup was allowed" );
+}
+$stored = Trasloco_Job_Store::get( $id );
+if ( $stored["state"] !== "failed" ) {
+    throw new Exception( "Concurrent attempt did not fail safely" );
+}
+flock( $holder, LOCK_UN );
+fclose( $holder );
+' --path="$ROOT/source"
+
 # Failed scheduled jobs fire an alert hook without deleting good backups.
 $WP eval '
 $GLOBALS["tr_fail_notified"] = false;
