@@ -252,6 +252,44 @@ if ( Trasloco_Job_Store::claim( $id, "runner-000000002" ) ) { throw new Exceptio
 if ( Trasloco_Job_Store::get( $id )["state"] !== "completed" ) { throw new Exception( "Completion status mismatch" ); }
 ' --path="$ROOT/target"
 
+# Safety regression: an expired backup lease must NEVER be reclaimed.
+# A previous process could still be writing its archive when the scheduler
+# runs, so a second worker would be able to destroy or duplicate work.
+$WP eval '
+global $wpdb;
+$backup = Trasloco_Job_Store::create(
+    "backup", array( "retention" => 2 ), "ci-expired-backup-lease-0001"
+);
+$verify = Trasloco_Job_Store::create(
+    "verify", array( "archive" => "missing.wpress" ), "ci-expired-verify-lease-0001"
+);
+if ( is_wp_error( $backup ) || is_wp_error( $verify ) ) {
+    throw new Exception( "Unable to create stale lease fixtures" );
+}
+$table = Trasloco_Job_Store::table();
+foreach ( array( $backup, $verify ) as $id ) {
+    $wpdb->update( $table, array(
+        "state" => "running", "lease_until" => time() - 120,
+        "lease_owner" => "former-worker-12345", "attempts" => 1,
+    ), array( "id" => $id ) );
+}
+if ( Trasloco_Job_Store::claim( $backup, "new-worker-1234567" ) ) {
+    throw new Exception( "An expired backup was dangerously restarted" );
+}
+if ( ! Trasloco_Job_Store::claim( $verify, "new-worker-1234567" ) ) {
+    throw new Exception( "Read-only verification could not recover an expired lease" );
+}
+if ( Trasloco_Job_Store::get( $verify )["attempts"] !== 2 ||
+     ! Trasloco_Job_Store::finish( $verify, "new-worker-1234567" ) ) {
+    throw new Exception( "Verification lease was not transferred correctly" );
+}
+if ( Trasloco_Job_Store::fail_abandoned_backups() < 1 ||
+     Trasloco_Job_Store::get( $backup )["state"] !== "failed" ||
+     Trasloco_Job_Store::claim( $backup, "new-worker-1234567" ) ) {
+    throw new Exception( "Abandoned backup was not left in a terminal state" );
+}
+' --path="$ROOT/source"
+
 # REST verify jobs must reject anonymous writers and permit only administrators.
 $WP eval '
 wp_set_current_user( 0 );

@@ -259,12 +259,17 @@ class Trasloco_Job_Store {
         }
         $now = time();
         $table = self::table();
-        // Atomic acquisition, including reclaiming expired leases.
+        // Atomic acquisition. Only read-only verification may reclaim an
+        // expired running lease. A backup/restore/transfer can have modified
+        // files or database state before its lease expired; replaying it
+        // automatically risks duplicate/destructive work. Such jobs must
+        // instead be marked abandoned and reviewed by an operator.
         return 1 === $wpdb->query( $wpdb->prepare(
             "UPDATE {$table} SET state = 'running', lease_owner = %s, lease_until = %d,
             attempts = attempts + 1, updated_at = %s
             WHERE id = %d AND (kind <> 'verify' OR attempts < %d)
-            AND (state = 'pending' OR (state = 'running' AND lease_until < %d))",
+            AND (state = 'pending' OR
+                 (kind = 'verify' AND state = 'running' AND lease_until < %d))",
             $worker, $now + $lease_seconds, gmdate( 'Y-m-d H:i:s' ), $id, self::MAX_VERIFY_ATTEMPTS, $now
         ) );
     }

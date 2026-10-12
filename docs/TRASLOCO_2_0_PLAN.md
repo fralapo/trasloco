@@ -163,3 +163,5 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 - [x] Safe symlink policy: when linked content is encountered, a full export fails visibly instead of silently omitting required files or dereferencing secrets. Integration verifies failure, then a clean successful backup after removing test links.
 
 - [x] Compressor now rejects files disappearing between enumeration and content copy, source seek/read failures, and empty non-EOF reads rather than publishing a misleadingly complete export. A standalone regression exercises the missing-source failure.
+
+- [x] P0 audit fix: expired in-progress backup leases can no longer be claimed by a second worker; only non-destructive verification may reclaim an interrupted lease. MySQL/MariaDB regression covers stale leases, safe retry and terminal abandoned state.
