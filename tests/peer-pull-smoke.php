@@ -24,7 +24,7 @@ if ( ! is_dir( $folder ) && ! mkdir( $folder, 0700 ) ) {
     throw new RuntimeException( 'Could not create resumable fixture directory.' );
 }
 file_put_contents( $folder . '/transfer.json', json_encode( $expected ) );
-$half = min( 524288, $expected['bytes'] );
+$half = min( 524288, max( 1, (int) floor( $expected['bytes'] / 2 ) ) );
 $handle = fopen( $source, 'rb' );
 file_put_contents( $folder . '/download.part', fread( $handle, $half ) );
 fclose( $handle );
@@ -40,8 +40,7 @@ add_filter( 'pre_http_request', function ( $pre, $args, $url ) use ( $name, $sou
     if ( strpos( $url, '/manifest' ) !== false ) {
         $payload = $expected;
     } else {
-        $offset = (int) (string) parse_url( $url, PHP_URL_QUERY );
-        // Query contains offset=N, parse it safely.
+        // Query contains offset=N; parse it safely.
         parse_str( (string) parse_url( $url, PHP_URL_QUERY ), $query );
         $offset = isset( $query['offset'] ) ? (int) $query['offset'] : -1;
         if ( $firstOffset === null ) {

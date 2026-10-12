@@ -40,6 +40,7 @@ fi
 $WP trasloco verify "$(basename "$ARCHIVE")" --path="$ROOT/source"
 $WP eval '$archive = basename(glob(WP_CONTENT_DIR . "/trasloco-backups/*.wpress")[0]); $user = get_user_by("login","oldadmin"); wp_set_current_user($user->ID); $res = rest_do_request(new WP_REST_Request("GET","/trasloco/v1/backups/".$archive."/manifest")); if ($res->get_status() !== 200 || empty($res->get_data()["sha256"])) { throw new RuntimeException("Peer manifest failed"); } $request = new WP_REST_Request("GET","/trasloco/v1/backups/".$archive."/chunk"); $request->set_param("offset",0); $response = rest_do_request($request); $chunk = $response->get_data(); if ($response->get_status() !== 200 || !hash_equals(hash("sha256",base64_decode($chunk["data"])), $chunk["sha256"])) { throw new RuntimeException("Peer fragment failed"); } wp_set_current_user(0); if (rest_do_request(new WP_REST_Request("GET","/trasloco/v1/backups/".$archive."/manifest"))->get_status() < 400) { throw new RuntimeException("Anonymous transfer permitted"); }' --path="$ROOT/source"
 test -s "$ARCHIVE.manifest.json"
+$WP eval-file "$ROOT/source/wp-content/plugins/trasloco/tests/peer-pull-smoke.php" --path="$ROOT/source"
 mkdir -p "$ROOT/offsite"
 $WP config set TRASLOCO_REMOTE_DRIVER local --type=constant --path="$ROOT/source"
 $WP config set TRASLOCO_REMOTE_DIRECTORY "$ROOT/offsite" --type=constant --path="$ROOT/source"
