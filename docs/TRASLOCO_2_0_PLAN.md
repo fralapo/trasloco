@@ -136,3 +136,5 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 - [ ] Phase 2B-2: full independently bootable restore + staged SQL/file rollback remains a P0 release blocker.
 
 - [ ] Compatibility check: MySQL 8.0 and MariaDB 11.4 integration CI matrix introduced; mark complete only after both matrix jobs pass and compare behavior.
+
+- [x] Read-only administrator/CLI preflight report with backup directory status, public-root risk, disk free space, required extensions and cron mode; does not return paths or secrets. A positive report is not restore certification.

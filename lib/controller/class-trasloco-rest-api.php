@@ -6,6 +6,11 @@
  */
 class Trasloco_REST_API {
     public static function register() {
+        register_rest_route( 'trasloco/v1', '/preflight', array(
+            'methods' => 'GET',
+            'callback' => array( __CLASS__, 'preflight' ),
+            'permission_callback' => array( __CLASS__, 'can_manage' ),
+        ) );
         register_rest_route( 'trasloco/v1', '/health', array(
             'methods' => 'GET',
             'callback' => array( __CLASS__, 'get_health' ),
@@ -146,6 +151,10 @@ class Trasloco_REST_API {
         } catch ( Exception $e ) {
             return new WP_Error( 'trasloco_invalid_preview', 'The archive could not be inspected.', array( 'status' => 400 ) );
         }
+    }
+
+    public static function preflight( $request ) {
+        return rest_ensure_response( Trasloco_Preflight::report() );
     }
 
     public static function can_manage() {

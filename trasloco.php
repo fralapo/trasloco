@@ -135,6 +135,9 @@ register_deactivation_hook( __FILE__, function () {
     wp_unschedule_hook( Trasloco_Job_Worker::HOOK );
 } );
 
+// Bounded preflight diagnostics shared by WP-CLI and administrator API.
+require_once dirname( __FILE__ ) . '/lib/model/class-trasloco-preflight.php';
+
 // Non-destructive archive inventory for restore planning.
 require_once dirname( __FILE__ ) . '/lib/model/class-trasloco-archive-inspector.php';
 

@@ -493,4 +493,23 @@ foreach ( (array) _get_cron_array() as $events ) {
     }
 }
 ' --path="$ROOT/source"
+
+# Diagnostics are private, bounded and do not expose server filesystem paths.
+$WP eval '
+wp_set_current_user( 0 );
+$deny = rest_do_request( new WP_REST_Request( "GET", "/trasloco/v1/preflight" ) );
+if ( $deny->get_status() < 400 ) { throw new Exception( "Preflight exposed to anonymous visitor" ); }
+$admins = get_users( array( "role" => "administrator", "number" => 1 ) );
+wp_set_current_user( $admins[0]->ID );
+$response = rest_do_request( new WP_REST_Request( "GET", "/trasloco/v1/preflight" ) );
+$report = $response->get_data();
+if ( $response->get_status() !== 200 || ! isset( $report["backup_directory"] ) ||
+    ! isset( $report["backup_web_access"] ) || ! is_array( $report["issues"] ) ) {
+    throw new Exception( "Administrator preflight diagnostics unavailable" );
+}
+if ( strpos( wp_json_encode( $report ), ABSPATH ) !== false ) {
+    throw new Exception( "Preflight leaked an absolute server path" );
+}
+' --path="$ROOT/target"
+$WP trasloco doctor --format=json --path="$ROOT/target" | grep -F '"backup_directory"'
 echo "WordPress migration, recovery rehearsal, jobs and integrity checks passed."

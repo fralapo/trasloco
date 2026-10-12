@@ -345,6 +345,31 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 		}
 
 		/**
+         * Show non-destructive hosting safety diagnostics.
+         * This command never prints credentials or private filesystem paths.
+         *
+         * @subcommand doctor
+         */
+        public function doctor( array $args, array $assoc_args ) {
+            $report = Trasloco_Preflight::report();
+            if ( isset( $assoc_args['format'] ) && $assoc_args['format'] === 'json' ) {
+                WP_CLI::line( wp_json_encode( $report, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) );
+                return;
+            }
+            foreach ( array( 'backup_directory', 'backup_web_access', 'php_64_bit',
+                'mysqli_available', 'sodium_available', 'wp_cron' ) as $field ) {
+                WP_CLI::line( $field . ': ' . ( is_bool( $report[$field] )
+                    ? ( $report[$field] ? 'yes' : 'no' ) : $report[$field] ) );
+            }
+            WP_CLI::line( 'free_space_bytes: ' .
+                ( $report['free_space_bytes'] === null ? 'unknown' : $report['free_space_bytes'] ) );
+            foreach ( $report['issues'] as $issue ) {
+                WP_CLI::warning( $issue );
+            }
+            WP_CLI::log( $report['warning'] );
+        }
+
+		/**
 		 * Verify a backup against its SHA-256 manifest.
 		 *
 		 * ## OPTIONS
