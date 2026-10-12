@@ -18,6 +18,8 @@ jobs:
           php-version: ${{ matrix.php }}
           tools: none
           coverage: none
+      - name: Shell integration syntax
+        run: bash -n tests/integration.sh
       - name: PHP syntax
         run: find . -type f -name '*.php' -not -path './storage/*' -print0 | xargs -0 -n 1 php -l
       - name: Translation consistency
