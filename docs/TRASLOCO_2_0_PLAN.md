@@ -98,3 +98,6 @@ Updated 2026-10-12. This plan is an implementation dependency map, not a claim t
 
 - [x] Phase 9A: read-only archive file inventory and admin REST preview with explicit database-diff limitations.
 - [ ] Phase 9B: true file checksum diff, SQL changeset preview and selective preflight exclusions.
+
+- [x] Phase 8A: WP-CLI selective media/plugin/theme extraction into a new private directory without overwriting live site content.
+- [ ] Phase 8B: selective database table restore, UI, collision handling and live-site consistency checks.

@@ -284,6 +284,66 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 			}
 		}
 
+
+		/**
+		 * Extract a chosen uploads/themes/plugins file or directory into a
+		 * private temporary folder. NEVER overwrites live WordPress content.
+		 *
+		 * ## OPTIONS
+		 * <archive>
+		 * <relative-file-or-directory>
+		 *
+		 * @subcommand extract-files
+		 */
+		public function extract_files( array $args, array $assoc_args ) {
+			if ( count( $args ) < 2 || ! is_string( $args[1] ) ) {
+				WP_CLI::error( 'Specify an archive and a relative path under uploads/, themes/, plugins/ or mu-plugins/.' );
+			}
+			$relative = str_replace( '\\', '/', $args[1] );
+			if ( strlen( $relative ) > 512 || strpos( $relative, "\0" ) !== false ||
+				preg_match( '#^(/|[A-Za-z]:)#', $relative ) ||
+				! preg_match( '#^(uploads|themes|plugins|mu-plugins)/[^/]+#', $relative ) ||
+				in_array( '..', explode( '/', $relative ), true ) ) {
+				WP_CLI::error( 'Unsafe or unsupported restore path.' );
+			}
+			try {
+				$source = trasloco_backup_path( array( 'archive' => $args[0] ) );
+				$directory = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'trasloco-file-restore-' . wp_generate_password( 20, false, false );
+				if ( ! mkdir( $directory, 0700 ) ) {
+					WP_CLI::error( 'Unable to create private extraction folder.' );
+				}
+				$archive = new Trasloco_Extractor( $source );
+				if ( ! $archive->is_valid() ) {
+					$archive->close();
+					WP_CLI::error( 'Invalid archive structure.' );
+				}
+				add_filter( 'trasloco_completed_timeout', '__return_zero' );
+				try {
+					$completed = $archive->extract_by_files_array( $directory, array( $relative ) );
+				} finally {
+					remove_filter( 'trasloco_completed_timeout', '__return_zero' );
+					$archive->close();
+				}
+				if ( ! $completed ) {
+					WP_CLI::error( 'Selective extraction did not complete.' );
+				}
+				$iterator = new RecursiveIteratorIterator(
+					new RecursiveDirectoryIterator( $directory, FilesystemIterator::SKIP_DOTS )
+				);
+				$count = 0;
+				foreach ( $iterator as $item ) {
+					if ( $item->isFile() ) { $count++; }
+				}
+				if ( $count < 1 ) {
+					Trasloco_Directory::delete( $directory );
+					WP_CLI::error( 'No files matched the requested path.' );
+				}
+				WP_CLI::success( 'Files extracted to: ' . $directory );
+			} catch ( Exception $e ) {
+				WP_CLI::error( $e->getMessage() );
+			}
+		}
+
 		/**
 		 * Verify a backup against its SHA-256 manifest.
 		 *

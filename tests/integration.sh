@@ -33,6 +33,11 @@ if [ ! -s "$ARCHIVE" ]; then
   exit 1
 fi
 $WP trasloco verify "$(basename "$ARCHIVE")" --path="$ROOT/source"
+EXTRACT_REPORT=$($WP trasloco extract-files "$(basename "$ARCHIVE")" "uploads/test-fixtures/fixture.txt" --path="$ROOT/source")
+EXTRACT_DIR="${EXTRACT_REPORT##*Files extracted to: }"
+test -f "$EXTRACT_DIR/uploads/test-fixtures/fixture.txt"
+grep -Fx "media is preserved" "$EXTRACT_DIR/uploads/test-fixtures/fixture.txt"
+rm -rf -- "$EXTRACT_DIR"
 if $WP eval 'exit( ! function_exists( "sodium_crypto_secretstream_xchacha20poly1305_init_push" ) );' --path="$ROOT/source"; then
   TRASLOCO_ARCHIVE_PASSPHRASE='integration-crypt-password-2026' $WP trasloco encrypt "$(basename "$ARCHIVE")" --path="$ROOT/source"
   test -s "$ARCHIVE.enc"
