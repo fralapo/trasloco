@@ -131,3 +131,6 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 - [x] Phase 1C-3: all newly exported .wpress archives publish version 2 SHA-256/chunk manifests. Original archive bytes and legacy v1 verification remain compatible. CI exercises WP-CLI export, V2 manifest, encryption round trip, full restore and recovery.
 
 - [x] Phase 9C: read-only full header preflight before recovery snapshot or destructive import; rejects malformed/unsafe late archive entries and caps file inventory at one million entries, with malicious fixture regression.
+
+- [x] Phase 2B-1: WordPress- and MySQL-independent PHP CLI rescue inspection and private extraction of raw package/database metadata (non-destructive, tested against traversal).
+- [ ] Phase 2B-2: full independently bootable restore + staged SQL/file rollback remains a P0 release blocker.

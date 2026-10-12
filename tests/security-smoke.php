@@ -222,6 +222,33 @@ try {
 } catch ( Trasloco_Archive_Exception $expected ) {}
 unlink( $inspect_archive );
 
+
+require dirname( __DIR__ ) . '/lib/vendor/core/archiver/class-trasloco-offline-recovery.php';
+$offline = tempnam( sys_get_temp_dir(), 'tr-offline-' );
+$packet = pack( 'a255a14a12a4096', 'package.json', '2', '0', '.' ) . '{}';
+$packet .= pack( 'a255a14a12a4096', 'database.sql', '9', '0', '.' ) . 'SELECT 1;';
+$packet .= str_repeat( chr( 0 ), 4377 );
+file_put_contents( $offline . '.wpress', $packet );
+unlink( $offline );
+$offline .= '.wpress';
+$dest = sys_get_temp_dir() . '/tr-offline-out-' . bin2hex( random_bytes( 8 ) );
+$report = Trasloco_Offline_Recovery::extract_metadata( $offline, $dest );
+ensure( $report['integrity'] === 'unverified_legacy', 'offline legacy backup is not trusted as verified' );
+ensure( file_get_contents( $dest . '/package.json' ) === '{}', 'offline package extraction' );
+ensure( file_get_contents( $dest . '/database.sql' ) === 'SELECT 1;', 'offline database extraction' );
+ensure( ! is_file( $dest . '/wp-config.php' ), 'offline utility extracts only selected root metadata' );
+unlink( $dest . '/database.sql' );
+unlink( $dest . '/package.json' );
+rmdir( $dest );
+$bad = pack( 'a255a14a12a4096', 'package.json', '2', '0', '.' ) . '{}';
+$bad .= pack( 'a255a14a12a4096', 'danger.php', '1', '0', '../outside' ) . 'X';
+file_put_contents( $offline, $bad . str_repeat( chr( 0 ), 4377 ) );
+try {
+    Trasloco_Offline_Recovery::inspect( $offline );
+    ensure( false, 'offline rescue accepts traversal' );
+} catch ( RuntimeException $expected ) {}
+unlink( $offline );
+
 // Performance guard: archive inventory must not compute every SHA-256 on page load.
 ensure( strpos( file_get_contents( dirname( __DIR__ ) . '/lib/view/backups/index.php' ), 'Trasloco_Integrity::verify(' ) === false,
     'Backup list must not synchronously hash each archive' );
