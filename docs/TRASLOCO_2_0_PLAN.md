@@ -95,3 +95,6 @@ Updated 2026-10-12. This plan is an implementation dependency map, not a claim t
 
 - [x] Scheduled backup failure alert hook with administrator email notification (subject to WordPress mail delivery).
 - [ ] Per-site notification settings, webhook integrations and delivery retries.
+
+- [x] Phase 9A: read-only archive file inventory and admin REST preview with explicit database-diff limitations.
+- [ ] Phase 9B: true file checksum diff, SQL changeset preview and selective preflight exclusions.

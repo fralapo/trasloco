@@ -127,6 +127,9 @@ Trasloco_Scheduled_Backups::register();
 require_once dirname( __FILE__ ) . '/lib/model/class-trasloco-job-worker.php';
 Trasloco_Job_Worker::register();
 
+// Non-destructive archive inventory for restore planning.
+require_once dirname( __FILE__ ) . '/lib/model/class-trasloco-archive-inspector.php';
+
 // Read-only automation API: WordPress enforces user authentication and permissions.
 require_once dirname( __FILE__ ) . '/lib/controller/class-trasloco-rest-api.php';
 add_action( 'rest_api_init', array( 'Trasloco_REST_API', 'register' ) );

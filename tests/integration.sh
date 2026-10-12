@@ -207,4 +207,24 @@ if ( $result["status"] !== "failed" || ! $GLOBALS["tr_fail_notified"] ) {
     throw new Exception( "Backup failure alert was not emitted" );
 }
 ' --path="$ROOT/source"
+
+# Non-destructive preview reports inventory without modifying the site.
+$WP eval '
+$backups = (new Trasloco_Backups())->get_files();
+$file = basename( $backups[0]["filename"] );
+$report = Trasloco_Archive_Inspector::inspect( trasloco_backup_path( array( "archive" => $file ) ), 30 );
+if ( $report["files_in_archive"] < 3 || $report["uncompressed_bytes"] <= 0 ) {
+    throw new Exception( "Archive preview did not enumerate files" );
+}
+if ( strpos( $report["warning"], "does not compare" ) === false ) {
+    throw new Exception( "Missing explicit preview limitation" );
+}
+wp_set_current_user( 0 );
+$unauth = rest_do_request( new WP_REST_Request( "GET", "/trasloco/v1/backups/" . $file . "/preview" ) );
+if ( $unauth->get_status() < 400 ) { throw new Exception( "Anonymous preview was allowed" ); }
+$admins = get_users( array( "role" => "administrator", "number" => 1 ) );
+wp_set_current_user( $admins[0]->ID );
+$resp = rest_do_request( new WP_REST_Request( "GET", "/trasloco/v1/backups/" . $file . "/preview" ) );
+if ( $resp->get_status() !== 200 ) { throw new Exception( "Authenticated archive preview failed" ); }
+' --path="$ROOT/source"
 echo "WordPress backup + database + users + media migration passed."

@@ -16,6 +16,11 @@ class Trasloco_REST_API {
             'callback' => array( __CLASS__, 'list_backups' ),
             'permission_callback' => array( __CLASS__, 'can_manage' ),
         ) );
+        register_rest_route( 'trasloco/v1', '/backups/(?P<archive>[A-Za-z0-9_.-]+)/preview', array(
+            'methods' => 'GET',
+            'callback' => array( __CLASS__, 'preview_backup' ),
+            'permission_callback' => array( __CLASS__, 'can_manage' ),
+        ) );
         register_rest_route( 'trasloco/v1', '/backups/(?P<archive>[A-Za-z0-9_.-]+)/verify', array(
             'methods' => 'POST',
             'callback' => array( __CLASS__, 'queue_verification' ),
@@ -105,6 +110,16 @@ class Trasloco_REST_API {
             'failed_jobs' => $failed,
             'active_jobs' => $pending,
         ) );
+    }
+
+
+    public static function preview_backup( $request ) {
+        try {
+            $path = trasloco_backup_path( array( 'archive' => $request->get_param( 'archive' ) ) );
+            return rest_ensure_response( Trasloco_Archive_Inspector::inspect( $path, 30 ) );
+        } catch ( Exception $e ) {
+            return new WP_Error( 'trasloco_invalid_preview', 'The archive could not be inspected.', array( 'status' => 400 ) );
+        }
     }
 
     public static function can_manage() {
