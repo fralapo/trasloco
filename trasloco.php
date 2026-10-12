@@ -107,6 +107,10 @@ require_once dirname( __FILE__ ) . DIRECTORY_SEPARATOR . 'functions.php';
 // Include exceptions
 require_once dirname( __FILE__ ) . DIRECTORY_SEPARATOR . 'exceptions.php';
 
+// Stream-based storage contract for private local archives and future providers.
+require_once dirname( __FILE__ ) . '/lib/model/storage/interface-trasloco-storage-adapter.php';
+require_once dirname( __FILE__ ) . '/lib/model/storage/class-trasloco-local-storage.php';
+
 // Durable job records. Jobs are not executed until an explicit, tested worker is added.
 require_once dirname( __FILE__ ) . '/lib/model/class-trasloco-job-store.php';
 add_action( 'init', array( 'Trasloco_Job_Store', 'maybe_install' ) );

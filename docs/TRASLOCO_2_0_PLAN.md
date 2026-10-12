@@ -67,7 +67,8 @@ Updated 2026-10-12. This plan is an implementation dependency map, not a claim t
 - [x] Phase 0A: documented architecture and persistent-work design.
 - [x] Phase 0B-1: persistent job ledger, idempotent insertion and atomic owner leases, tested on MySQL.
 - [x] Phase 0B-2A: queued verification worker with leases, checkpoint, REST status/cancel and scheduled execution.
-- [ ] Phase 0B-2B: resumable, bounded-time chunk hashing; storage adapters and safe retry scheduling.
+- [x] Phase 0B-2B-1: common stream adapter with tested local atomic writer and path/symlink defenses.
+- [ ] Phase 0B-2B-2: bounded-time chunk hashing, remote adapters, durable retries.
 - [x] Phase 1A: create local SHA-256 sidecar manifests and add WP-CLI verification with WordPress integration test.
 - [ ] Phase 1B: verified UI, restore rehearsals and full archive content checks.
 - [x] Initial feature 14 foundation: read-only admin-scoped REST inventory with integration permission test.

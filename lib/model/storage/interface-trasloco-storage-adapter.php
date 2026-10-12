@@ -1,0 +1,12 @@
+<?php
+/**
+ * Stream-based storage contract shared by local and future cloud providers.
+ * No HTTP credentials or remote URLs belong in backup manifests.
+ */
+interface Trasloco_Storage_Adapter {
+    public function put_stream( $key, $handle );
+    public function open_read( $key );
+    public function exists( $key );
+    public function delete( $key );
+    public function enumerate();
+}

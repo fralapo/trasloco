@@ -113,4 +113,32 @@ if ( ! Trasloco_Job_Store::cancel( $id2 ) || Trasloco_Job_Worker::run( $id2 )["s
     throw new Exception( "Cancelled job was executed" );
 }
 ' --path="$ROOT/source"
+
+# Stream adapter: atomic write, read and traversal/symlink rejection.
+$WP eval '
+$root = sys_get_temp_dir() . "/trasloco-storage-check-" . wp_generate_password( 12, false );
+if ( ! mkdir( $root, 0700 ) ) { throw new Exception( "Could not create test storage" ); }
+$store = new Trasloco_Local_Storage( $root );
+$in = fopen( "php://temp", "w+b" );
+fwrite( $in, "binary payload" );
+rewind( $in );
+if ( $store->put_stream( "fixture.wpress", $in ) !== strlen( "binary payload" ) ) { throw new Exception( "Storage write failed" ); }
+fclose( $in );
+$out = $store->open_read( "fixture.wpress" );
+if ( stream_get_contents( $out ) !== "binary payload" ) { throw new Exception( "Storage read failed" ); }
+fclose( $out );
+if ( $store->enumerate() !== array( "fixture.wpress" ) ) { throw new Exception( "Storage inventory mismatch" ); }
+try {
+    $store->exists( "../other.wpress" );
+    throw new Exception( "Traversal was allowed" );
+} catch ( InvalidArgumentException $expected ) {}
+symlink( $root . "/fixture.wpress", $root . "/alias.wpress" );
+try {
+    $store->open_read( "alias.wpress" );
+    throw new Exception( "Symlink was allowed" );
+} catch ( InvalidArgumentException $expected ) {}
+if ( ! $store->delete( "fixture.wpress" ) || $store->exists( "fixture.wpress" ) ) { throw new Exception( "Delete failed" ); }
+unlink( $root . "/alias.wpress" );
+rmdir( $root );
+' --path="$ROOT/source"
 echo "WordPress backup + database + users + media migration passed."
