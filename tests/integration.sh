@@ -284,6 +284,36 @@ if ( $after <= $before ) { throw new Exception( "No pre-update checkpoint was cr
 update_option( Trasloco_Scheduled_Backups::OPTION, array( "frequency" => "off", "keep" => 2, "before_updates" => false ) );
 ' --path="$ROOT/source"
 
+# REST inventory supports bounded, backwards-compatible pagination.
+$WP eval '
+$admins = get_users( array( "role" => "administrator", "number" => 1 ) );
+wp_set_current_user( $admins[0]->ID );
+$request = new WP_REST_Request( "GET", "/trasloco/v1/backups" );
+$request->set_param( "page", 1 );
+$request->set_param( "per_page", 1 );
+$result = rest_do_request( $request );
+$data = $result->get_data();
+if ( $result->get_status() !== 200 || count( $data["backups"] ) !== 1 ||
+    $data["page"] !== 1 || $data["per_page"] !== 1 ||
+    (int) $result->get_headers()["X-WP-Total"] < 1 ) {
+    throw new Exception( "Paged backup listing failed" );
+}
+$invalid = new WP_REST_Request( "GET", "/trasloco/v1/backups" );
+$invalid->set_param( "per_page", 0 );
+if ( rest_do_request( $invalid )->get_status() !== 400 ) {
+    throw new Exception( "Invalid page size accepted" );
+}
+$invalid->set_param( "per_page", 101 );
+if ( rest_do_request( $invalid )->get_status() !== 400 ) {
+    throw new Exception( "Unbounded page size accepted" );
+}
+$invalid->set_param( "per_page", 1 );
+$invalid->set_param( "page", -5 );
+if ( rest_do_request( $invalid )->get_status() !== 400 ) {
+    throw new Exception( "Negative page accepted" );
+}
+' --path="$ROOT/source"
+
 # The agency health endpoint is private and does not disclose internal paths.
 $WP eval '
 wp_set_current_user( 0 );

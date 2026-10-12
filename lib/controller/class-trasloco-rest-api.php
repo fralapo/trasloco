@@ -179,22 +179,45 @@ class Trasloco_REST_API {
     }
 
     public static function list_backups( $request ) {
+        // Preserve the original first 100 results for existing clients, but
+        // allow bounded paging for large multi-client agency installations.
+        $raw_page = $request->get_param( 'page' );
+        $raw_limit = $request->get_param( 'per_page' );
+        $page = $raw_page === null ? 1 : filter_var(
+            $raw_page, FILTER_VALIDATE_INT, array( 'options' => array( 'min_range' => 1, 'max_range' => 10000 ) )
+        );
+        $per_page = $raw_limit === null ? 100 : filter_var(
+            $raw_limit, FILTER_VALIDATE_INT, array( 'options' => array( 'min_range' => 1, 'max_range' => 100 ) )
+        );
+        if ( $page === false || $per_page === false ) {
+            return new WP_Error( 'trasloco_invalid_pagination',
+                'page must be 1–10000 and per_page must be 1–100.',
+                array( 'status' => 400 ) );
+        }
         $model = new Trasloco_Backups();
+        $backups = $model->get_files();
+        $total = count( $backups );
         $items = array();
-        foreach ( $model->get_files() as $backup ) {
-            if ( count( $items ) >= 100 ) {
-                break;
-            }
+        foreach ( array_slice( $backups, ( $page - 1 ) * $per_page, $per_page ) as $backup ) {
             try {
                 $metadata = self::metadata( $backup['filename'] );
                 if ( $metadata !== null ) {
                     $items[] = $metadata;
                 }
             } catch ( Exception $e ) {
-                // Skip malformed/legacy paths; never return server paths.
+                // Malformed archive metadata never discloses server paths.
             }
         }
-        return rest_ensure_response( array( 'backups' => $items, 'limit' => 100 ) );
+        $response = rest_ensure_response( array(
+            'backups' => $items,
+            'limit' => $per_page,
+            'page' => $page,
+            'per_page' => $per_page,
+            'total' => $total,
+        ) );
+        $response->header( 'X-WP-Total', $total );
+        $response->header( 'X-WP-TotalPages', (int) ceil( $total / $per_page ) );
+        return $response;
     }
 
     public static function get_backup( $request ) {

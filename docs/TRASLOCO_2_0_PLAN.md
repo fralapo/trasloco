@@ -142,3 +142,5 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 - [ ] Runtime compatibility matrix (experimental until green): PHP 7.4, 8.2 and 8.4 crossed with MySQL 8.0 and MariaDB 11.4. Evaluate failures before expanding support claims.
 
 - [x] Phase 2B-1B: independent CLI offline staging of uploads/themes/plugins into a new private directory with bounded bytes, no overwrite and malicious-path tests; no live-file or SQL restore.
+
+- [x] Phase 14A-2: bounded administrator REST backup inventory pagination with total/total-pages headers, stable default response and invalid query rejection.
