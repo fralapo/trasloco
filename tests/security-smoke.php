@@ -256,8 +256,7 @@ try {
     Trasloco_Offline_Recovery::stage_content( $stage_archive, $too_small, 1 );
     ensure( false, 'content size limit bypassed' );
 } catch ( RuntimeException $expected ) {}
-@rmdir( $too_small . '/uploads' );
-@rmdir( $too_small );
+ensure( ! file_exists( $too_small ), 'failed content staging cleaned up its partial directory' );
 unlink( $content_out . '/uploads/docs/fixture.txt' );
 rmdir( $content_out . '/uploads/docs' );
 rmdir( $content_out . '/uploads' );

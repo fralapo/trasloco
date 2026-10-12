@@ -144,3 +144,5 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 - [x] Phase 2B-1B: independent CLI offline staging of uploads/themes/plugins into a new private directory with bounded bytes, no overwrite and malicious-path tests; no live-file or SQL restore.
 
 - [x] Phase 14A-2: bounded administrator REST backup inventory pagination with total/total-pages headers, stable default response and invalid query rejection.
+
+- [x] Offline staging now removes its private files/directories on failed safety limits or interrupted reads, so a partial stage is not presented as a successful recovery copy.

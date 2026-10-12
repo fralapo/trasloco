@@ -134,10 +134,16 @@ class Trasloco_Offline_Recovery {
         }
         @chmod( $destination, 0700 );
         $length = filesize( $archive );
-        $input = fopen( $archive, 'rb' );
+        $input = @fopen( $archive, 'rb' );
+        if ( $input === false ) {
+            @rmdir( $destination );
+            throw new RuntimeException( 'Cannot open archive for staged recovery.' );
+        }
         $position = 0;
         $bytes = 0;
         $count = 0;
+        $created_files = array();
+        $created_directories = array();
         try {
             while ( $position < $length - self::HEADER_BYTES ) {
                 if ( fseek( $input, $position, SEEK_SET ) !== 0 ) {
@@ -186,8 +192,11 @@ class Trasloco_Offline_Recovery {
                         if ( is_link( $cursor ) ) {
                             throw new RuntimeException( 'Symlink in staging directory.' );
                         }
-                        if ( ! is_dir( $cursor ) && ! mkdir( $cursor, 0700 ) ) {
-                            throw new RuntimeException( 'Cannot create private staging directory.' );
+                        if ( ! is_dir( $cursor ) ) {
+                            if ( ! mkdir( $cursor, 0700 ) ) {
+                                throw new RuntimeException( 'Cannot create private staging directory.' );
+                            }
+                            $created_directories[] = $cursor;
                         }
                     }
                     $target = $cursor . DIRECTORY_SEPARATOR . $name;
@@ -198,6 +207,7 @@ class Trasloco_Offline_Recovery {
                     if ( $out === false ) {
                         throw new RuntimeException( 'Cannot create staged content file.' );
                     }
+                    $created_files[] = $target;
                     @chmod( $target, 0600 );
                     try {
                         $left = $size;
@@ -230,6 +240,17 @@ class Trasloco_Offline_Recovery {
             if ( $position !== $length - self::HEADER_BYTES ) {
                 throw new RuntimeException( 'Staging ended at an invalid archive offset.' );
             }
+        } catch ( Throwable $e ) {
+            // No partial recovery tree is ever presented as a complete stage.
+            // Everything underneath destination was created by this function.
+            foreach ( array_reverse( $created_files ) as $file ) {
+                if ( ! is_link( $file ) ) { @unlink( $file ); }
+            }
+            foreach ( array_reverse( $created_directories ) as $folder ) {
+                if ( ! is_link( $folder ) ) { @rmdir( $folder ); }
+            }
+            @rmdir( $destination );
+            throw $e;
         } finally {
             fclose( $input );
         }
