@@ -23,6 +23,13 @@ class Trasloco_Archive_Inspector {
         $not_present = 0;
         $groups = array();
         $sample = array();
+        // Duplicate root metadata makes archive interpretation ambiguous.
+        // These entries define how the database and site are restored.
+        $reserved_root = array(
+            'package.json' => true, 'database.sql' => true,
+            'multisite.json' => true, 'blogs.json' => true,
+        );
+        $seen_root = array();
         try {
             while ( $position < $length - 4377 ) {
                 if ( fseek( $handle, $position, SEEK_SET ) !== 0 ) {
@@ -61,6 +68,12 @@ class Trasloco_Archive_Inspector {
                 $size = (int) $size_str;
                 if ( $size < 0 || $position + 4377 + $size > $length - 4377 ) {
                     throw new Trasloco_Archive_Exception( 'Invalid archive entry length.' );
+                }
+                if ( $folder === '' && isset( $reserved_root[ $filename ] ) ) {
+                    if ( isset( $seen_root[ $filename ] ) ) {
+                        throw new Trasloco_Archive_Exception( 'Duplicate root metadata in archive.' );
+                    }
+                    $seen_root[ $filename ] = true;
                 }
                 $relative = ltrim( ( $folder === '' ? '' : $folder . '/' ) . $filename, '/' );
                 $group = $folder === '' ? 'root' : explode( '/', $folder )[0];

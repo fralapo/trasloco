@@ -155,3 +155,5 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 - [x] Restoring corrupted .wpress archives: malformed dot/control/empty path components are blocked by preflight and extractor; incomplete reads and writes abort instead of being counted as successful. Added regression fixtures.
 
 - [x] Local storage publication now fails closed on filename collisions and cleans partial plaintext temporary files; integration checks archive content remains unchanged.
+
+- [x] Preflight rejects duplicate root restore metadata (package.json, database.sql, multisite.json and blogs.json) before creating a recovery point or overwriting the destination.

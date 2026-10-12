@@ -320,3 +320,20 @@ try {
     @rmdir( $folder );
     @unlink( $incomplete );
 }
+
+
+// The same .wpress can contain multiple copies of root package.json, which
+// could be interpreted differently by package/database restore stages.
+// Refuse ambiguity before a recovery snapshot or destination modifications.
+$duplicate_package = tempnam( sys_get_temp_dir(), 'tr-duplicate-root-' );
+$package_record = pack( 'a255a14a12a4096', 'package.json', '2', '0', '.' ) . '{}';
+file_put_contents( $duplicate_package,
+    $package_record . $package_record . str_repeat( chr( 0 ), 4377 ) );
+try {
+    Trasloco_Archive_Inspector::inspect( $duplicate_package, 0 );
+    ensure( false, 'duplicate root restore metadata was accepted' );
+} catch ( Trasloco_Archive_Exception $expected ) {
+    // Expected: multiple package.json entries cannot be restored safely.
+} finally {
+    @unlink( $duplicate_package );
+}
