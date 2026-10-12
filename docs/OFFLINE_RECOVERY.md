@@ -11,3 +11,7 @@ The utility uses **only PHP CLI**. It does not load WordPress, connect to MySQL,
 5. If a sidecar checksum mismatches, stop: do not attempt extraction of that corrupted archive.
 
 **Remaining blocker:** One-click disaster recovery with broken WordPress/MySQL and automatic rollback after partial SQL/file replacement is **not** provided. Those operations require tested platform-specific database recovery procedures and must not be improvised on production sites.
+
+### Automated independent smoke test
+
+The WordPress/MySQL integration workflow also runs `php tools/rescue-extract.php` directly against a real newly created `.wpress` archive, verifies the package/SQL output and removes the temporary rescue folder. This verifies standalone PHP CLI operation, not automatic disaster recovery.
