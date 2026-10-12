@@ -68,3 +68,7 @@ Before replacing a site from a **local** backup, Trasloco checks its SHA-256 man
 Server-side scheduled backups and automatic recovery snapshots share an exclusive non-blocking `flock` mutex in the backups directory. When another server-side export holds the lock, the new job fails before starting its export rather than risk overlapping writes. Filesystem locks require a local/shared filesystem that supports `flock`; multiple independent servers and older interactive AJAX export flows are **not yet covered** by this lock. A future durable import/export orchestration layer must coordinate those paths too.
 
 When Nginx is detected and the backups directory appears to reside under the site's web document root, administrators now receive a translated warning. This is a best-effort heuristic; proxies, container mounts or unusual document roots can bypass detection. A real logged-out HTTP test remains mandatory.
+
+## Full backups and linked WordPress content
+
+Full backup export intentionally **stops** if any symbolic link is present under `wp-content`. Symlinked plugins, themes or uploads can point outside the WordPress content root, and silently skipping them would produce a misleadingly incomplete backup. The exporter checks for links before applying its exclusion filters; regular archive exports do not dereference those links. Remove links or put physical copies of their content inside `wp-content`, rerun the backup and verify an independent restore. This protection does not prevent all filesystem races against a malicious process with write access.
