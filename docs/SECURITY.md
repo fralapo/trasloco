@@ -72,3 +72,7 @@ When Nginx is detected and the backups directory appears to reside under the sit
 ## Full backups and linked WordPress content
 
 Full backup export intentionally **stops** if any symbolic link is present under `wp-content`. Symlinked plugins, themes or uploads can point outside the WordPress content root, and silently skipping them would produce a misleadingly incomplete backup. The exporter checks for links before applying its exclusion filters; regular archive exports do not dereference those links. Remove links or put physical copies of their content inside `wp-content`, rerun the backup and verify an independent restore. This protection does not prevent all filesystem races against a malicious process with write access.
+
+## Malformed archive diagnostics
+
+Extraction errors deliberately do not echo untrusted archive entry names. Archive filenames can contain NUL bytes, newlines, terminal escapes or private-looking text; exposing them through WP-CLI/HTTP error messages is unsafe. Errors remain actionable by reporting the archive as malformed, while details should only be inspected in an isolated offline tool.

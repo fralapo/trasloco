@@ -528,7 +528,9 @@ class Trasloco_Extractor extends Trasloco_Archiver {
 
 			// Refuse entries that would be written outside the destination folder
 			if ( ! $this->is_safe_entry( $data['path'], $data['filename'] ) ) {
-				throw new Trasloco_Archive_Exception( sprintf( 'Unsafe file path in archive: %s/%s', $data['path'], $data['filename'] ) );
+				// Untrusted filenames may contain terminal escapes or secret-looking data.
+				// Never echo a raw malformed archive path to logs or WP-CLI output.
+				throw new Trasloco_Archive_Exception( 'Unsafe file path in archive.' );
 			}
 
 			// Set file name

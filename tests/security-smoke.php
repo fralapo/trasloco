@@ -458,3 +458,21 @@ try {
     );
     ensure( false, 'missing package metadata allowed before destructive restore' );
 } catch ( Trasloco_Import_Exception $expected ) {}
+
+
+// Malformed paths must never be echoed verbatim into logs/error messages
+// (NUL bytes, line breaks and terminal escape sequences are attacker-owned).
+$bad_log_archive = sys_get_temp_dir() . '/tr-log-safety-' . bin2hex( random_bytes( 8 ) );
+$bad_log_header = pack( 'a255a14a12a4096', "dangerous\\nname.txt", '1', '0', 'uploads' );
+file_put_contents( $bad_log_archive, $bad_log_header . 'X' . str_repeat( chr( 0 ), 4377 ) );
+$bad_reader = new Trasloco_Extractor( $bad_log_archive );
+try {
+    $bad_reader->extract_one_file_to( sys_get_temp_dir() );
+    ensure( false, 'control-character archive entry was accepted' );
+} catch ( Trasloco_Archive_Exception $expected ) {
+    ensure( $expected->getMessage() === 'Unsafe file path in archive.',
+        'untrusted archive filenames leaked through exception messages' );
+} finally {
+    $bad_reader->close();
+    unlink( $bad_log_archive );
+}
