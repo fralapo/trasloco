@@ -64,6 +64,22 @@ if $WP eval 'exit( ! function_exists( "sodium_crypto_secretstream_xchacha20poly1
   RESTORED="${ARCHIVE%.wpress}-decrypted.wpress"
   cmp -s "$ARCHIVE" "$RESTORED"
   $WP trasloco verify "$(basename "$RESTORED")" --path="$ROOT/source"
+  # A broken WordPress must not prevent decrypting its authenticated backup.
+  INDEPENDENT="$ROOT/offline-decrypted.wpress"
+  TRASLOCO_ARCHIVE_PASSPHRASE='integration-crypt-password-2026' php "$GITHUB_WORKSPACE/tools/rescue-decrypt.php" "$ARCHIVE.enc" "$INDEPENDENT"
+  cmp -s "$ARCHIVE" "$INDEPENDENT"
+  # Refuse to overwrite an existing recovery artifact.
+  if TRASLOCO_ARCHIVE_PASSPHRASE='integration-crypt-password-2026' php "$GITHUB_WORKSPACE/tools/rescue-decrypt.php" "$ARCHIVE.enc" "$INDEPENDENT"; then
+    echo "ERROR: independent decrypt overwrote an existing archive" >&2
+    exit 1
+  fi
+  # Wrong passphrase must not leave behind a partial plaintext archive.
+  if TRASLOCO_ARCHIVE_PASSPHRASE='wrong-passphrase-for-test' php "$GITHUB_WORKSPACE/tools/rescue-decrypt.php" "$ARCHIVE.enc" "$ROOT/incorrect.wpress"; then
+    echo "ERROR: independent decrypt accepted the wrong password" >&2
+    exit 1
+  fi
+  test ! -e "$ROOT/incorrect.wpress"
+  rm "$INDEPENDENT"
 fi
 test -s "$ARCHIVE.manifest.json"
 mkdir -p "$ROOT/target/wp-content/trasloco-backups"
