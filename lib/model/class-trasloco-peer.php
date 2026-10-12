@@ -77,9 +77,23 @@ class Trasloco_Peer {
             throw new RuntimeException( 'Remote site did not supply a verified backup manifest.' );
         }
         $identity = hash( 'sha256', rtrim( $base, '/' ) . '|' . $username . '|' . $archive );
-        $folder = TRASLOCO_STORAGE_PATH . DIRECTORY_SEPARATOR . 'peer-' . $identity;
-        if ( ! is_dir( $folder ) && ! wp_mkdir_p( $folder ) ) {
+        // Do not place partially downloaded archives beneath the webroot.
+        // Nginx does not honor .htaccess, even inside plugin storage.
+        $root = defined( 'TRASLOCO_PRIVATE_TRANSFER_DIR' ) ? TRASLOCO_PRIVATE_TRANSFER_DIR : sys_get_temp_dir();
+        $root = realpath( $root );
+        $content_root = realpath( WP_CONTENT_DIR );
+        $webroot = realpath( ABSPATH );
+        if ( $root === false || ! is_dir( $root ) || ! is_writable( $root ) ||
+             ( $content_root && ( $root === $content_root || strpos( $root, $content_root . DIRECTORY_SEPARATOR ) === 0 ) ) ||
+             ( $webroot && ( $root === $webroot || strpos( $root, $webroot . DIRECTORY_SEPARATOR ) === 0 ) ) ) {
+            throw new RuntimeException( 'Transfer directory must exist and be outside the public WordPress tree.' );
+        }
+        $folder = $root . DIRECTORY_SEPARATOR . 'trasloco-peer-' . $identity;
+        if ( ! is_dir( $folder ) && ! @mkdir( $folder, 0700 ) ) {
             throw new RuntimeException( 'Cannot create private transfer directory.' );
+        }
+        if ( is_link( $folder ) || ! is_writable( $folder ) ) {
+            throw new RuntimeException( 'Private transfer directory is unsafe.' );
         }
         $payload = $folder . DIRECTORY_SEPARATOR . 'download.part';
         $metadata = $folder . DIRECTORY_SEPARATOR . 'transfer.json';
