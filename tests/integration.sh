@@ -66,6 +66,9 @@ printf '%s\n' "$ERROR" | grep -F 'requires database.sql'
 test "$($WP option get home --path="$ROOT/target")" = "$EXPECTED_HOME"
 $WP user get newadmin --path="$ROOT/target" --field=user_login | grep -Fx newadmin
 test ! -e "$ROOT/target/wp-content/uploads/test-fixtures/fixture.txt"
+# Do not let the deliberately malformed negative fixture enter recovery
+# inventory: filesystem iteration order varies across MySQL/PHP CI workers.
+rm -f "$ROOT/target/wp-content/trasloco-backups/$(basename "$MISSING_SQL")" "$MISSING_SQL"
 # Recover an actual WordPress backup using only system PHP (no WP bootstrap).
 # The rescue command supports a deterministic private directory so operators can
 # plan storage and rehearse recovery instead of relying on transient /tmp paths.
@@ -163,7 +166,7 @@ if [ "$($WP option get home --path="$ROOT/target")" != "$EXPECTED_HOME" ]; then
 fi
 rm "$BAD_DIR/corrupted.wpress" "$BAD_DIR/corrupted.wpress.manifest.json"
 $WP trasloco restore "$(basename "$ARCHIVE")" --path="$ROOT/target"
-RECOVERY=$(find "$ROOT/target/wp-content/trasloco-backups" -maxdepth 1 -type f -name '*.wpress' ! -name "$(basename "$ARCHIVE")" -print -quit)
+RECOVERY=$(find "$ROOT/target/wp-content/trasloco-backups" -maxdepth 1 -type f -name 'recovery-*.wpress' -print -quit)
 test -n "$RECOVERY"
 test -s "$RECOVERY.manifest.json"
 [[ "$(basename "$RECOVERY")" == recovery-*.wpress ]]
