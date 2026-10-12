@@ -216,6 +216,24 @@ class Trasloco_Main_Controller {
 				@file_put_contents( TRASLOCO_BACKUPS_HTACCESS, PHP_EOL . implode( PHP_EOL, $private_rules ) . PHP_EOL, FILE_APPEND | LOCK_EX );
 			}
 		}
+		// Upgrade existing IIS protection so manifest sidecars are not public.
+		if ( is_file( TRASLOCO_BACKUPS_WEBCONFIG ) ) {
+			$iis = @file_get_contents( TRASLOCO_BACKUPS_WEBCONFIG );
+			if ( is_string( $iis ) && strpos( $iis, 'fileExtension=".json"' ) === false &&
+				strpos( $iis, '<add fileExtension=".wpress" allowed="false" />' ) !== false ) {
+				$iis = str_replace( '<add fileExtension=".wpress" allowed="false" />',
+					'<add fileExtension=".wpress" allowed="false" /><add fileExtension=".json" allowed="false" />', $iis );
+				@file_put_contents( TRASLOCO_BACKUPS_WEBCONFIG, $iis, LOCK_EX );
+			}
+		}
+		// Upgrade Apache access rules created by previous 1.x hardening code.
+		if ( is_file( TRASLOCO_BACKUPS_HTACCESS ) ) {
+			$apache = @file_get_contents( TRASLOCO_BACKUPS_HTACCESS );
+			if ( is_string( $apache ) && strpos( $apache, '<FilesMatch "\\.wpress$">' ) !== false ) {
+				$apache = str_replace( '<FilesMatch "\\.wpress$">', '<FilesMatch "\\.wpress(\\.manifest\\.json)?$">', $apache );
+				@file_put_contents( TRASLOCO_BACKUPS_HTACCESS, $apache, LOCK_EX );
+			}
+		}
 		// Remove work folders of imports and exports that stopped halfway: nothing has written to them for a day
 		foreach ( (array) glob( TRASLOCO_STORAGE_PATH . DIRECTORY_SEPARATOR . '*', GLOB_ONLYDIR ) as $folder ) {
 			$last = (int) @filemtime( $folder );
