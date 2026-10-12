@@ -30,11 +30,67 @@ class Trasloco_Job_Worker {
     /**
      * Return an array for programmatic/CLI inspection; WP-Cron ignores it.
      */
+
+    /** Reuse tested synchronous WP-CLI export pipeline without AJAX exits. */
+    private static function backup( $id, $owner, $payload ) {
+        $keep = isset( $payload['retention'] ) ? (int) $payload['retention'] : 0;
+        if ( $keep < 1 || $keep > 100 ) {
+            throw new RuntimeException( 'Invalid retention policy.' );
+        }
+        if ( ! wp_mkdir_p( TRASLOCO_BACKUPS_PATH ) || ! wp_mkdir_p( TRASLOCO_STORAGE_PATH ) ) {
+            throw new RuntimeException( 'Unable to create backup storage.' );
+        }
+        if ( ! is_file( TRASLOCO_BACKUPS_HTACCESS ) ) {
+            Trasloco_File_Htaccess::create( TRASLOCO_BACKUPS_HTACCESS );
+        }
+        if ( ! is_file( TRASLOCO_BACKUPS_WEBCONFIG ) ) {
+            Trasloco_File_Webconfig::create( TRASLOCO_BACKUPS_WEBCONFIG );
+        }
+        if ( ! is_file( TRASLOCO_STORAGE_PATH . '/.htaccess' ) ) {
+            @file_put_contents( TRASLOCO_STORAGE_PATH . '/.htaccess',
+                "<IfModule mod_authz_core.c>\nRequire all denied\n</IfModule>\n", LOCK_EX );
+        }
+        if ( ! Trasloco_Job_Store::checkpoint( $id, $owner, 10, array( 'phase' => 'export' ) ) ) {
+            throw new RuntimeException( 'Backup cancelled.' );
+        }
+        trasloco_setup_environment();
+        $params = array();
+        remove_filter( 'trasloco_export', 'Trasloco_Export_Clean::execute', 300 );
+        add_filter( 'trasloco_completed_timeout', '__return_zero' );
+        try {
+            $params = apply_filters( 'trasloco_export', $params );
+        } finally {
+            remove_filter( 'trasloco_completed_timeout', '__return_zero' );
+            add_filter( 'trasloco_export', 'Trasloco_Export_Clean::execute', 300 );
+            if ( ! empty( $params['storage'] ) ) {
+                try {
+                    Trasloco_Directory::delete( trasloco_storage_path( $params ) );
+                } catch ( Exception $ignored ) {}
+            }
+        }
+        if ( empty( $params['archive'] ) ) {
+            throw new RuntimeException( 'Export did not return an archive.' );
+        }
+        $archive = trasloco_backup_path( $params );
+        require_once TRASLOCO_LIB_PATH . '/vendor/core/archiver/class-trasloco-integrity.php';
+        if ( Trasloco_Integrity::verify( $archive )['status'] !== 'verified' ) {
+            throw new RuntimeException( 'Backup did not pass integrity verification.' );
+        }
+        if ( ! Trasloco_Job_Store::checkpoint( $id, $owner, 95, array( 'phase' => 'retention', 'archive' => $params['archive'] ) ) ) {
+            throw new RuntimeException( 'Backup cancelled before retention.' );
+        }
+        $model = new Trasloco_Backups();
+        foreach ( array_slice( $model->get_files(), $keep ) as $entry ) {
+            $model->delete_file( $entry['filename'] );
+        }
+        return $params['archive'];
+    }
+
     public static function run( $id ) {
         $id = (int) $id;
         $record = Trasloco_Job_Store::workload( $id );
-        if ( ! $record || $record['kind'] !== 'verify' ||
-            ! is_array( $record['payload'] ) || ! isset( $record['payload']['archive'] ) ) {
+        if ( ! $record || ! in_array( $record['kind'], array( 'verify', 'backup' ), true ) ||
+            ! is_array( $record['payload'] ) ) {
             return array( 'status' => 'invalid' );
         }
 
@@ -44,7 +100,14 @@ class Trasloco_Job_Worker {
             return array( 'status' => 'not_claimed' );
         }
         try {
-            $filename = $record['payload']['archive'];
+            if ( $record['kind'] === 'backup' ) {
+                $name = self::backup( $id, $owner, $record['payload'] );
+                if ( ! Trasloco_Job_Store::finish( $id, $owner ) ) {
+                    return array( 'status' => 'not_claimed' );
+                }
+                return array( 'status' => 'completed', 'archive' => $name );
+            }
+            $filename = isset( $record['payload']['archive'] ) ? $record['payload']['archive'] : null;
             if ( ! is_string( $filename ) ) {
                 throw new RuntimeException( 'Invalid archive reference.' );
             }

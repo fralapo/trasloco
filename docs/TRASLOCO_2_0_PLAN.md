@@ -74,3 +74,6 @@ Updated 2026-10-12. This plan is an implementation dependency map, not a claim t
 - [x] Initial feature 14 foundation: read-only admin-scoped REST inventory with integration permission test.
 - [ ] Feature 14 mutating API (only after durable job engine and audit log).
 - [ ] Phases 2-15 as ordered above.
+
+- [x] Native WP-Cron automatic backup engine with job queue, SHA-256 verification and retention (UI to follow).
+- [ ] Validate scheduled operation timeouts on real hosting; WAF and server cron support.

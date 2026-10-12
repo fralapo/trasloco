@@ -115,6 +115,10 @@ require_once dirname( __FILE__ ) . '/lib/model/storage/class-trasloco-local-stor
 require_once dirname( __FILE__ ) . '/lib/model/class-trasloco-job-store.php';
 add_action( 'init', array( 'Trasloco_Job_Store', 'maybe_install' ) );
 
+// Scheduled backup settings and WP-Cron tick.
+require_once dirname( __FILE__ ) . '/lib/model/class-trasloco-scheduled-backups.php';
+Trasloco_Scheduled_Backups::register();
+
 // Verify job runner: hooked to WP-Cron or Action Scheduler when available.
 require_once dirname( __FILE__ ) . '/lib/model/class-trasloco-job-worker.php';
 Trasloco_Job_Worker::register();

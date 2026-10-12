@@ -141,4 +141,21 @@ if ( ! $store->delete( "fixture.wpress" ) || $store->exists( "fixture.wpress" ) 
 unlink( $root . "/alias.wpress" );
 rmdir( $root );
 ' --path="$ROOT/source"
+
+$WP eval '
+update_option( Trasloco_Scheduled_Backups::OPTION, array( "frequency" => "daily", "keep" => 2 ) );
+wp_clear_scheduled_hook( Trasloco_Scheduled_Backups::HOOK );
+Trasloco_Scheduled_Backups::sync();
+if ( ! wp_next_scheduled( Trasloco_Scheduled_Backups::HOOK ) ) { throw new Exception( "Schedule was not registered" ); }
+$id = Trasloco_Scheduled_Backups::enqueue();
+if ( ! is_int( $id ) || $id < 1 ) { throw new Exception( "Schedule failed to enqueue" ); }
+$result = Trasloco_Job_Worker::run( $id );
+if ( $result["status"] !== "completed" ) { throw new Exception( "Scheduled export failed: " . wp_json_encode( Trasloco_Job_Store::get( $id ) ) ); }
+$archive = trasloco_backup_path( array( "archive" => $result["archive"] ) );
+if ( Trasloco_Integrity::verify( $archive )["status"] !== "verified" ) { throw new Exception( "Scheduled archive is corrupt" ); }
+if ( count( (new Trasloco_Backups())->get_files() ) > 2 ) { throw new Exception( "Retention failed" ); }
+update_option( Trasloco_Scheduled_Backups::OPTION, array( "frequency" => "off", "keep" => 2 ) );
+Trasloco_Scheduled_Backups::sync();
+if ( wp_next_scheduled( Trasloco_Scheduled_Backups::HOOK ) ) { throw new Exception( "Disabled schedule still active" ); }
+' --path="$ROOT/source"
 echo "WordPress backup + database + users + media migration passed."
