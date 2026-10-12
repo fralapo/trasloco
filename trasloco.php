@@ -107,6 +107,10 @@ require_once dirname( __FILE__ ) . DIRECTORY_SEPARATOR . 'functions.php';
 // Include exceptions
 require_once dirname( __FILE__ ) . DIRECTORY_SEPARATOR . 'exceptions.php';
 
+// Durable job records. Jobs are not executed until an explicit, tested worker is added.
+require_once dirname( __FILE__ ) . '/lib/model/class-trasloco-job-store.php';
+add_action( 'init', array( 'Trasloco_Job_Store', 'maybe_install' ) );
+
 // Read-only automation API: WordPress enforces user authentication and permissions.
 require_once dirname( __FILE__ ) . '/lib/controller/class-trasloco-rest-api.php';
 add_action( 'rest_api_init', array( 'Trasloco_REST_API', 'register' ) );

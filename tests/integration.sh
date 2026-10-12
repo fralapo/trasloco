@@ -72,4 +72,18 @@ wp_set_current_user( $admins[0]->ID );
 $ok = rest_do_request( new WP_REST_Request( "GET", "/trasloco/v1/backups" ) );
 if ( $ok->get_status() !== 200 ) { throw new Exception( "REST backup inventory refused administrator" ); }
 ' --path="$ROOT/target"
+$WP eval '
+Trasloco_Job_Store::maybe_install();
+$id = Trasloco_Job_Store::create( "verify", array( "archive" => "fixture.wpress" ), "ci-checkpoint-job-0000001" );
+if ( is_wp_error( $id ) || ! $id ) { throw new Exception( "Could not create durable job" ); }
+$duplicate = Trasloco_Job_Store::create( "verify", array( "archive" => "fixture.wpress" ), "ci-checkpoint-job-0000001" );
+if ( $id !== $duplicate ) { throw new Exception( "Idempotent create failed" ); }
+if ( ! Trasloco_Job_Store::claim( $id, "runner-000000001" ) ) { throw new Exception( "Lease failed" ); }
+if ( Trasloco_Job_Store::claim( $id, "runner-000000002" ) ) { throw new Exception( "Duplicate lease was accepted" ); }
+if ( Trasloco_Job_Store::checkpoint( $id, "runner-000000002", 50 ) ) { throw new Exception( "Wrong owner checkpoint accepted" ); }
+if ( ! Trasloco_Job_Store::checkpoint( $id, "runner-000000001", 50, array( "phase" => "digest" ) ) ) { throw new Exception( "Checkpoint failed" ); }
+if ( ! Trasloco_Job_Store::finish( $id, "runner-000000001" ) ) { throw new Exception( "Completion failed" ); }
+if ( Trasloco_Job_Store::claim( $id, "runner-000000002" ) ) { throw new Exception( "Completed job was reclaimed" ); }
+if ( Trasloco_Job_Store::get( $id )["state"] !== "completed" ) { throw new Exception( "Completion status mismatch" ); }
+' --path="$ROOT/target"
 echo "WordPress backup + database + users + media migration passed."

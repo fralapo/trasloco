@@ -65,7 +65,8 @@ Updated 2026-10-12. This plan is an implementation dependency map, not a claim t
 ## Progress
 - [x] Foundation hardening from PR #1: operation tokens, private download, first end-to-end CI, core UX.
 - [x] Phase 0A: documented architecture and persistent-work design.
-- [ ] Phase 0B: persistent job lease engine and adapters.
+- [x] Phase 0B-1: persistent job ledger, idempotent insertion and atomic owner leases, tested on MySQL.
+- [ ] Phase 0B-2: verified stage worker, storage adapters, pause/cancel and retry scheduling.
 - [x] Phase 1A: create local SHA-256 sidecar manifests and add WP-CLI verification with WordPress integration test.
 - [ ] Phase 1B: verified UI, restore rehearsals and full archive content checks.
 - [x] Initial feature 14 foundation: read-only admin-scoped REST inventory with integration permission test.
