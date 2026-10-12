@@ -165,3 +165,5 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 - [x] Compressor now rejects files disappearing between enumeration and content copy, source seek/read failures, and empty non-EOF reads rather than publishing a misleadingly complete export. A standalone regression exercises the missing-source failure.
 
 - [x] P0 audit fix: expired in-progress backup leases can no longer be claimed by a second worker; only non-destructive verification may reclaim an interrupted lease. MySQL/MariaDB regression covers stale leases, safe retry and terminal abandoned state.
+
+- [x] Offline emergency recovery now rejects the same malformed path components and DEL/control characters as live import preflight, including unsafe late archive entries. Regression verifies private staging does not create partial recovery output.

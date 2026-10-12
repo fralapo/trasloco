@@ -265,13 +265,35 @@ unlink( $stage_archive );
 unlink( $dest . '/database.sql' );
 unlink( $dest . '/package.json' );
 rmdir( $dest );
-$bad = pack( 'a255a14a12a4096', 'package.json', '2', '0', '.' ) . '{}';
-$bad .= pack( 'a255a14a12a4096', 'danger.php', '1', '0', '../outside' ) . 'X';
-file_put_contents( $offline, $bad . str_repeat( chr( 0 ), 4377 ) );
-try {
-    Trasloco_Offline_Recovery::inspect( $offline );
-    ensure( false, 'offline rescue accepts traversal' );
-} catch ( RuntimeException $expected ) {}
+// Offline rescue and live importer must reject the same malformed archive
+// entries, including invalid entries that appear AFTER valid metadata.
+$valid_root = pack( 'a255a14a12a4096', 'package.json', '2', '0', '.' ) . '{}';
+foreach ( array(
+    array( 'danger.php', '../outside' ),
+    array( '.', 'uploads' ),
+    array( "control\x7fname.txt", 'uploads' ),
+    array( 'asset.txt', 'uploads/./nested' ),
+    array( 'asset.txt', 'uploads//nested' ),
+    array( 'asset.txt', 'uploads/../nested' ),
+    array( 'asset.txt', 'uploads/' . chr( 0x7f ) . 'nested' ),
+    array( 'asset.txt', 'uploads\\..\\outside' ),
+) as $malformed ) {
+    $bad = $valid_root .
+        pack( 'a255a14a12a4096', $malformed[0], '1', '0', $malformed[1] ) . 'X' .
+        str_repeat( chr( 0 ), 4377 );
+    file_put_contents( $offline, $bad );
+    try {
+        Trasloco_Offline_Recovery::inspect( $offline );
+        ensure( false, 'Offline rescue accepted malformed archive entry: ' . json_encode( $malformed ) );
+    } catch ( RuntimeException $expected ) {}
+    $unsafe_stage = sys_get_temp_dir() . '/tr-reject-stage-' . bin2hex( random_bytes( 8 ) );
+    try {
+        Trasloco_Offline_Recovery::stage_content( $offline, $unsafe_stage, 1024 );
+        ensure( false, 'Offline staging accepted malformed archive entry' );
+    } catch ( RuntimeException $expected ) {
+        ensure( ! file_exists( $unsafe_stage ), 'Unsafe offline staging created a partial directory' );
+    }
+}
 unlink( $offline );
 
 // Performance guard: archive inventory must not compute every SHA-256 on page load.

@@ -73,11 +73,17 @@ class Trasloco_Offline_Recovery {
                 if ( $folder === '.' ) {
                     $folder = '';
                 }
-                if ( $name === '' || $name === '..' ||
+                // Match the live restore preflight. A standalone rescue
+                // report must not call a malformed archive safe just because
+                // it only extracts package.json and database.sql.
+                $components = $folder === '' ? array() : explode( '/', $folder );
+                if ( $name === '' || $name === '.' || $name === '..' ||
                     strpbrk( $name, "/\\\0" ) !== false ||
-                    preg_match( '/[\x00-\x1f]/', $name . $folder ) ||
+                    preg_match( '/[\x00-\x1f\x7f]/', $name . $folder ) ||
                     preg_match( '#^(/|[a-zA-Z]:)#', $folder ) ||
-                    in_array( '..', explode( '/', $folder ), true ) ||
+                    in_array( '..', $components, true ) ||
+                    in_array( '.', $components, true ) ||
+                    in_array( '', $components, true ) ||
                     ! ctype_digit( $size_string ) ) {
                     throw new RuntimeException( 'Archive has an unsafe or malformed entry.' );
                 }
@@ -163,15 +169,12 @@ class Trasloco_Offline_Recovery {
                 $parts = explode( '/', $folder );
                 if ( $name === '' || $name === '.' || $name === '..' ||
                     strpbrk( $name, "/\\\0" ) !== false ||
-                    preg_match( '/[\x00-\x1f]/', $name . $folder ) ||
+                    preg_match( '/[\x00-\x1f\x7f]/', $name . $folder ) ||
                     preg_match( '#^(/|[A-Za-z]:)#', $folder ) ||
                     in_array( '..', $parts, true ) || in_array( '.', $parts, true ) ||
                     in_array( '', $parts, true ) ||
                     ! ctype_digit( $size_str ) ) {
-                    if ( $folder !== '' ) {
-                        throw new RuntimeException( 'Unsafe staged file path.' );
-                    }
-                    // Root metadata was already validated by inspect().
+                    throw new RuntimeException( 'Unsafe staged file path.' );
                 }
                 $size = filter_var( $size_str, FILTER_VALIDATE_INT, array(
                     'options' => array( 'min_range' => 0 ),
