@@ -86,4 +86,31 @@ if ( ! Trasloco_Job_Store::finish( $id, "runner-000000001" ) ) { throw new Excep
 if ( Trasloco_Job_Store::claim( $id, "runner-000000002" ) ) { throw new Exception( "Completed job was reclaimed" ); }
 if ( Trasloco_Job_Store::get( $id )["state"] !== "completed" ) { throw new Exception( "Completion status mismatch" ); }
 ' --path="$ROOT/target"
+
+# REST verify jobs must reject anonymous writers and permit only administrators.
+$WP eval '
+wp_set_current_user( 0 );
+$unauthorized = rest_do_request( new WP_REST_Request( "POST", "/trasloco/v1/backups/sample.wpress/verify" ) );
+if ( $unauthorized->get_status() < 400 ) { throw new Exception( "Anonymous user queued verification" ); }
+$admins = get_users( array( "role" => "administrator", "number" => 1 ) );
+wp_set_current_user( $admins[0]->ID );
+$files = (new Trasloco_Backups())->get_files();
+$archive = basename( $files[0]["filename"] );
+$req = new WP_REST_Request( "POST", "/trasloco/v1/backups/" . $archive . "/verify" );
+$queued = rest_do_request( $req );
+if ( $queued->get_status() !== 202 ) { throw new Exception( "Verification job not queued: " . wp_json_encode( $queued->get_data() ) ); }
+$id = $queued->get_data()["job_id"];
+$done = Trasloco_Job_Worker::run( $id );
+if ( $done["status"] !== "completed" || Trasloco_Job_Store::get( $id )["state"] !== "completed" ) {
+    throw new Exception( "Background verification failed: " . wp_json_encode( $done ) );
+}
+$status = rest_do_request( new WP_REST_Request( "GET", "/trasloco/v1/jobs/" . $id ) );
+if ( $status->get_status() !== 200 || $status->get_data()["state"] !== "completed" ) {
+    throw new Exception( "Job status not available via REST" );
+}
+$id2 = Trasloco_Job_Store::create( "verify", array( "archive" => $archive ), "ci-cancelled-job-00001" );
+if ( ! Trasloco_Job_Store::cancel( $id2 ) || Trasloco_Job_Worker::run( $id2 )["status"] !== "not_claimed" ) {
+    throw new Exception( "Cancelled job was executed" );
+}
+' --path="$ROOT/source"
 echo "WordPress backup + database + users + media migration passed."

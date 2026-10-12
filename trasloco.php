@@ -111,6 +111,10 @@ require_once dirname( __FILE__ ) . DIRECTORY_SEPARATOR . 'exceptions.php';
 require_once dirname( __FILE__ ) . '/lib/model/class-trasloco-job-store.php';
 add_action( 'init', array( 'Trasloco_Job_Store', 'maybe_install' ) );
 
+// Verify job runner: hooked to WP-Cron or Action Scheduler when available.
+require_once dirname( __FILE__ ) . '/lib/model/class-trasloco-job-worker.php';
+Trasloco_Job_Worker::register();
+
 // Read-only automation API: WordPress enforces user authentication and permissions.
 require_once dirname( __FILE__ ) . '/lib/controller/class-trasloco-rest-api.php';
 add_action( 'rest_api_init', array( 'Trasloco_REST_API', 'register' ) );

@@ -93,6 +93,49 @@ class Trasloco_Job_Store {
         return $row;
     }
 
+
+    /**
+     * Internal use only. Never expose serialized payload in REST responses.
+     */
+    public static function workload( $id ) {
+        global $wpdb;
+        $table = self::table();
+        $row = $wpdb->get_row( $wpdb->prepare(
+            "SELECT id, kind, state, payload, attempts FROM {$table} WHERE id = %d", $id
+        ), ARRAY_A );
+        if ( ! $row ) {
+            return null;
+        }
+        $row['payload'] = json_decode( $row['payload'], true );
+        return $row;
+    }
+
+    /** Cancel a pending or running job; running workers lose commit permission. */
+    public static function cancel( $id ) {
+        global $wpdb;
+        $table = self::table();
+        return 1 === $wpdb->query( $wpdb->prepare(
+            "UPDATE {$table} SET state = 'cancelled', lease_owner = '', lease_until = 0,
+            updated_at = %s WHERE id = %d AND state IN ('pending', 'running')",
+            gmdate( 'Y-m-d H:i:s' ), $id
+        ) );
+    }
+
+    /** Extend an owned lease during streamed work. */
+    public static function renew( $id, $worker, $lease_seconds = 600 ) {
+        global $wpdb;
+        if ( ! is_int( $lease_seconds ) || $lease_seconds < 30 || $lease_seconds > 3600 ) {
+            return false;
+        }
+        $now = time();
+        $table = self::table();
+        return 1 === $wpdb->query( $wpdb->prepare(
+            "UPDATE {$table} SET lease_until = %d, updated_at = %s
+            WHERE id = %d AND state = 'running' AND lease_owner = %s AND lease_until >= %d",
+            $now + $lease_seconds, gmdate( 'Y-m-d H:i:s' ), $id, $worker, $now
+        ) );
+    }
+
     public static function claim( $id, $worker, $lease_seconds = 300 ) {
         global $wpdb;
         if ( ! is_string( $worker ) || ! preg_match( '/^[a-zA-Z0-9:_-]{12,64}$/D', $worker ) ||

@@ -11,12 +11,70 @@ class Trasloco_REST_API {
             'callback' => array( __CLASS__, 'list_backups' ),
             'permission_callback' => array( __CLASS__, 'can_manage' ),
         ) );
+        register_rest_route( 'trasloco/v1', '/backups/(?P<archive>[A-Za-z0-9_.-]+)/verify', array(
+            'methods' => 'POST',
+            'callback' => array( __CLASS__, 'queue_verification' ),
+            'permission_callback' => array( __CLASS__, 'can_manage' ),
+            'args' => array( 'archive' => array( 'required' => true, 'type' => 'string' ) ),
+        ) );
+        register_rest_route( 'trasloco/v1', '/jobs/(?P<id>[0-9]+)', array(
+            'methods' => 'GET',
+            'callback' => array( __CLASS__, 'get_job' ),
+            'permission_callback' => array( __CLASS__, 'can_manage' ),
+        ) );
+        register_rest_route( 'trasloco/v1', '/jobs/(?P<id>[0-9]+)/cancel', array(
+            'methods' => 'POST',
+            'callback' => array( __CLASS__, 'cancel_job' ),
+            'permission_callback' => array( __CLASS__, 'can_manage' ),
+        ) );
         register_rest_route( 'trasloco/v1', '/backups/(?P<archive>[A-Za-z0-9_.-]+)', array(
             'methods' => 'GET',
             'callback' => array( __CLASS__, 'get_backup' ),
             'permission_callback' => array( __CLASS__, 'can_manage' ),
             'args' => array( 'archive' => array( 'required' => true, 'type' => 'string' ) ),
         ) );
+    }
+
+
+    public static function queue_verification( $request ) {
+        $archive = $request->get_param( 'archive' );
+        try {
+            $path = trasloco_backup_path( array( 'archive' => $archive ) );
+            if ( ! is_file( $path ) || ! is_readable( $path ) ) {
+                return new WP_Error( 'trasloco_not_found', 'Backup not found.', array( 'status' => 404 ) );
+            }
+        } catch ( Exception $e ) {
+            return new WP_Error( 'trasloco_invalid_archive', 'Invalid archive filename.', array( 'status' => 400 ) );
+        }
+        // Every user action starts a new verification; a retrying caller may
+        // provide one stable idempotency key in the REST request body.
+        $key = $request->get_param( 'idempotency_key' );
+        if ( $key === null || $key === '' ) {
+            $key = wp_generate_password( 32, false, false );
+        }
+        $id = Trasloco_Job_Store::create( 'verify', array( 'archive' => $archive ), $key );
+        if ( is_wp_error( $id ) ) {
+            return $id;
+        }
+        if ( ! Trasloco_Job_Worker::schedule( $id ) ) {
+            return new WP_Error( 'trasloco_schedule_failed', 'Job saved but no worker could be scheduled. Use WP-CLI to run it.', array( 'status' => 503, 'job_id' => $id ) );
+        }
+        return new WP_REST_Response( array( 'job_id' => $id, 'state' => Trasloco_Job_Store::get( $id )['state'] ), 202 );
+    }
+
+    public static function get_job( $request ) {
+        $job = Trasloco_Job_Store::get( (int) $request->get_param( 'id' ) );
+        return $job === null
+            ? new WP_Error( 'trasloco_job_not_found', 'Job not found.', array( 'status' => 404 ) )
+            : rest_ensure_response( $job );
+    }
+
+    public static function cancel_job( $request ) {
+        $id = (int) $request->get_param( 'id' );
+        if ( ! Trasloco_Job_Store::cancel( $id ) ) {
+            return new WP_Error( 'trasloco_job_not_cancellable', 'Job not found or already completed.', array( 'status' => 409 ) );
+        }
+        return rest_ensure_response( Trasloco_Job_Store::get( $id ) );
     }
 
     public static function can_manage() {
