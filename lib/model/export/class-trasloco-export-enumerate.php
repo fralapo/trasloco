@@ -105,6 +105,21 @@ class Trasloco_Export_Enumerate {
 		// Create map file
 		$filemap = trasloco_open( trasloco_filemap_path( $params ), 'w' );
 
+		// Inspect the complete source before applying export filters. A link
+		// omitted by LEAVES_ONLY still makes a complete backup impossible.
+		$scan = new RecursiveIteratorIterator(
+			new RecursiveDirectoryIterator( WP_CONTENT_DIR, FilesystemIterator::SKIP_DOTS ),
+			RecursiveIteratorIterator::SELF_FIRST,
+			RecursiveIteratorIterator::CATCH_GET_CHILD
+		);
+		foreach ( $scan as $entry ) {
+			if ( $entry->isLink() ) {
+				throw new Trasloco_Archive_Exception(
+					'Backup stopped: linked files in wp-content must be resolved first.'
+				);
+			}
+		}
+
 		// Iterate over content directory
 		$iterator = new Trasloco_Recursive_Directory_Iterator( WP_CONTENT_DIR );
 
