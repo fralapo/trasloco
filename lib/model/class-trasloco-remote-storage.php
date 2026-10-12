@@ -138,7 +138,8 @@ class Trasloco_Storage_S3 implements Trasloco_Storage_Backend {
         if ( defined( 'TRASLOCO_S3_KEY' ) && defined( 'TRASLOCO_S3_SECRET' ) ) {
             $config['credentials'] = array( 'key' => TRASLOCO_S3_KEY, 'secret' => TRASLOCO_S3_SECRET );
         }
-        $this->client = new \\Aws\\S3\\S3Client( $config );
+        $client_class = 'Aws\\S3\\S3Client';
+        $this->client = new $client_class( $config );
     }
 
     public function upload( $source, $object ) {
@@ -146,7 +147,8 @@ class Trasloco_Storage_S3 implements Trasloco_Storage_Backend {
             throw new RuntimeException( 'Invalid source backup.' );
         }
         $key = $this->prefix . Trasloco_Storage::validate_object( $object );
-        $uploader = new \\Aws\\S3\\ObjectUploader( $this->client, $source, array(
+        $uploader_class = 'Aws\\S3\\ObjectUploader';
+        $uploader = new $uploader_class( $this->client, $source, array(
             'bucket' => $this->bucket, 'key' => $key,
         ) );
         $uploader->upload();
