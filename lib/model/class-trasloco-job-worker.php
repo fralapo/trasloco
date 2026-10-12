@@ -11,6 +11,32 @@ class Trasloco_Job_Worker {
 
     public static function register() {
         add_action( self::HOOK, array( __CLASS__, 'run' ), 10, 1 );
+        add_filter( 'cron_schedules', array( __CLASS__, 'cron_intervals' ) );
+        add_action( 'init', array( __CLASS__, 'ensure_reconciler' ), 40 );
+        add_action( 'trasloco_reconcile_jobs', array( __CLASS__, 'reconcile' ) );
+    }
+
+
+    public static function cron_intervals( $schedules ) {
+        $schedules['trasloco_five_minutes'] = array(
+            'interval' => 300,
+            'display' => 'Every five minutes (Trasloco)',
+        );
+        return $schedules;
+    }
+
+    public static function ensure_reconciler() {
+        if ( ! wp_next_scheduled( 'trasloco_reconcile_jobs' ) ) {
+            wp_schedule_event( time() + 300, 'trasloco_five_minutes', 'trasloco_reconcile_jobs' );
+        }
+    }
+
+    /** Safe to run repeatedly; claim() keeps worker ownership atomic. */
+    public static function reconcile() {
+        Trasloco_Job_Store::fail_abandoned_backups();
+        foreach ( Trasloco_Job_Store::recoverable_verifications( 10 ) as $id ) {
+            self::schedule( $id );
+        }
     }
 
     public static function schedule( $id ) {

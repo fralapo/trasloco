@@ -27,6 +27,16 @@ class Trasloco_REST_API {
             'permission_callback' => array( __CLASS__, 'can_manage' ),
             'args' => array( 'archive' => array( 'required' => true, 'type' => 'string' ) ),
         ) );
+        register_rest_route( 'trasloco/v1', '/jobs', array(
+            'methods' => 'GET',
+            'callback' => array( __CLASS__, 'list_jobs' ),
+            'permission_callback' => array( __CLASS__, 'can_manage' ),
+        ) );
+        register_rest_route( 'trasloco/v1', '/jobs/(?P<id>[0-9]+)/retry', array(
+            'methods' => 'POST',
+            'callback' => array( __CLASS__, 'retry_job' ),
+            'permission_callback' => array( __CLASS__, 'can_manage' ),
+        ) );
         register_rest_route( 'trasloco/v1', '/jobs/(?P<id>[0-9]+)', array(
             'methods' => 'GET',
             'callback' => array( __CLASS__, 'get_job' ),
@@ -70,6 +80,22 @@ class Trasloco_REST_API {
             return new WP_Error( 'trasloco_schedule_failed', 'Job saved but no worker could be scheduled. Use WP-CLI to run it.', array( 'status' => 503, 'job_id' => $id ) );
         }
         return new WP_REST_Response( array( 'job_id' => $id, 'state' => Trasloco_Job_Store::get( $id )['state'] ), 202 );
+    }
+
+
+    public static function list_jobs( $request ) {
+        return rest_ensure_response( array( 'jobs' => Trasloco_Job_Store::recent( 20 ) ) );
+    }
+
+    public static function retry_job( $request ) {
+        $id = (int) $request->get_param( 'id' );
+        if ( ! Trasloco_Job_Store::retry_verification( $id ) ) {
+            return new WP_Error( 'trasloco_retry_not_allowed', 'Only failed or cancelled verification jobs may be retried (up to three attempts).', array( 'status' => 409 ) );
+        }
+        if ( ! Trasloco_Job_Worker::schedule( $id ) ) {
+            return new WP_Error( 'trasloco_schedule_failed', 'Retry recorded but worker scheduling failed.', array( 'status' => 503 ) );
+        }
+        return new WP_REST_Response( Trasloco_Job_Store::get( $id ), 202 );
     }
 
     public static function get_job( $request ) {

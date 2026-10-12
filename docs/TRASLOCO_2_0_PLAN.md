@@ -101,3 +101,6 @@ Updated 2026-10-12. This plan is an implementation dependency map, not a claim t
 
 - [x] Phase 8A: WP-CLI selective media/plugin/theme extraction into a new private directory without overwriting live site content.
 - [ ] Phase 8B: selective database table restore, UI, collision handling and live-site consistency checks.
+
+- [x] Bounded scheduled reconciliation of verification jobs, cancellation/retry and safe abandonment of crashed backups.
+- [ ] True byte-level continuation of interrupted backups, resumable multipart remote uploads and crash replay tests.

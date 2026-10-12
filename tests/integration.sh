@@ -232,4 +232,16 @@ wp_set_current_user( $admins[0]->ID );
 $resp = rest_do_request( new WP_REST_Request( "GET", "/trasloco/v1/backups/" . $file . "/preview" ) );
 if ( $resp->get_status() !== 200 ) { throw new Exception( "Authenticated archive preview failed" ); }
 ' --path="$ROOT/source"
+
+# Reconcile only idempotent verification jobs; do not repeat backups.
+$WP eval '
+$id = Trasloco_Job_Store::create( "verify", array( "archive" => "missing.wpress" ), "ci-reconcile-pending-verify-0001" );
+if ( is_wp_error( $id ) ) { throw new Exception( "Cannot create test verification" ); }
+if ( ! in_array( $id, Trasloco_Job_Store::recoverable_verifications(), true ) ) { throw new Exception( "Pending verification not recoverable" ); }
+$failed = Trasloco_Job_Worker::run( $id );
+if ( $failed["status"] !== "failed" ) { throw new Exception( "Missing archive verification did not fail" ); }
+if ( ! Trasloco_Job_Store::retry_verification( $id ) ) { throw new Exception( "Verification retry not supported" ); }
+$recent = Trasloco_Job_Store::recent();
+if ( empty( $recent ) || ! isset( $recent[0]["id"] ) ) { throw new Exception( "Recent job listing failed" ); }
+' --path="$ROOT/source"
 echo "WordPress backup + database + users + media migration passed."

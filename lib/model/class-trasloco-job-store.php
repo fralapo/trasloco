@@ -136,6 +136,66 @@ class Trasloco_Job_Store {
         ) );
     }
 
+
+    /** Recoverable verification jobs; destructive backups are never replayed. */
+    public static function recoverable_verifications( $limit = 10 ) {
+        global $wpdb;
+        $table = self::table();
+        $limit = max( 1, min( 50, (int) $limit ) );
+        $now = time();
+        return array_map( 'intval', $wpdb->get_col( $wpdb->prepare(
+            "SELECT id FROM {$table} WHERE kind = 'verify' AND
+            (state = 'pending' OR (state = 'running' AND lease_until < %d))
+            ORDER BY id ASC LIMIT %d",
+            $now, $limit
+        ) ) );
+    }
+
+    /** Mark abandoned backup workers as failed, rather than duplicating a
+     * potentially multi-gigabyte operation automatically. */
+    public static function fail_abandoned_backups() {
+        global $wpdb;
+        $table = self::table();
+        return (int) $wpdb->query( $wpdb->prepare(
+            "UPDATE {$table} SET state = 'failed', lease_owner = '', lease_until = 0,
+            failure = 'Backup worker lease expired; inspect files before retrying.',
+            updated_at = %s WHERE kind = 'backup' AND state = 'running' AND lease_until < %d",
+            gmdate( 'Y-m-d H:i:s' ), time()
+        ) );
+    }
+
+    /** Reopen failed/cancelled verification jobs (at most three attempts).
+     * Backups and restores are intentionally excluded to avoid duplicates. */
+    public static function retry_verification( $id ) {
+        global $wpdb;
+        $table = self::table();
+        return 1 === $wpdb->query( $wpdb->prepare(
+            "UPDATE {$table} SET state = 'pending', failure = NULL,
+            lease_owner = '', lease_until = 0, updated_at = %s
+            WHERE id = %d AND kind = 'verify' AND attempts < 3
+            AND state IN ('failed','cancelled')",
+            gmdate( 'Y-m-d H:i:s' ), $id
+        ) );
+    }
+
+    /** Bounded recent job listing; excludes payloads, credentials and paths. */
+    public static function recent( $limit = 20 ) {
+        global $wpdb;
+        $table = self::table();
+        $limit = max( 1, min( 100, (int) $limit ) );
+        $ids = $wpdb->get_col( $wpdb->prepare(
+            "SELECT id FROM {$table} ORDER BY id DESC LIMIT %d", $limit
+        ) );
+        $result = array();
+        foreach ( $ids as $id ) {
+            $job = self::get( (int) $id );
+            if ( $job !== null ) {
+                $result[] = $job;
+            }
+        }
+        return $result;
+    }
+
     public static function claim( $id, $worker, $lease_seconds = 300 ) {
         global $wpdb;
         if ( ! is_string( $worker ) || ! preg_match( '/^[a-zA-Z0-9:_-]{12,64}$/D', $worker ) ||
