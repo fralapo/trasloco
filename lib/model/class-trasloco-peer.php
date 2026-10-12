@@ -103,7 +103,9 @@ class Trasloco_Peer {
         }
         if ( is_file( $metadata ) ) {
             $prior = json_decode( (string) file_get_contents( $metadata ), true );
-            if ( ! is_array( $prior ) || $prior !== $expected ) {
+            if ( ! is_array( $prior ) || ! isset( $prior['bytes'], $prior['sha256'], $prior['archive'] ) ||
+                 $prior['bytes'] !== $expected['bytes'] || $prior['sha256'] !== $expected['sha256'] ||
+                 $prior['archive'] !== $expected['archive'] ) {
                 throw new RuntimeException( 'Remote backup changed: existing transfer cannot safely resume.' );
             }
         } elseif ( ! file_exists( $payload ) ) {
