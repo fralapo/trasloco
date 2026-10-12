@@ -95,3 +95,7 @@ WP-CLI now supports `wp trasloco restore-media backup.wpress path/inside/uploads
 ## Agency dashboard increment
 
 The new `Trasloco_Agency` module offers an opt-in, administrator-only overview of up to 15 externally configured client sites, using their HTTPS read-only health API and per-site application passwords. It does not yet operate as a multi-tenant remote command platform. See `docs/AGENCY.md`.
+
+## Site-to-site transfer implementation
+
+WordPress REST now provides admin-authenticated verified manifests and 512 KiB hashed fragments. Destination WP-CLI can pull and resume directly via dedicated WordPress Application Passwords, holding partial bytes outside the public webroot and verifying complete SHA-256 before publication. Visual pairing and cross-host live tests are pending.

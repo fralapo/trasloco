@@ -15,3 +15,6 @@ On WordPress 6.9+, the read-only ability `trasloco/site-readiness` is registered
 Only site administrators may initiate operations. Backups are never downloadable using these REST endpoints. Remote callers must employ TLS, scoped application passwords and revocation; account passwords must never be embedded in source. Backups may take time to finish under WP-Cron; use system cron for predictable delivery. API permissions alone do not establish availability or safety for public multi-tenant agency orchestration.
 
 - `POST /wp-json/trasloco/v1/backups/{archive}.wpress/preview`: read-only preflight of archive integrity and source/destination PHP version, theme, active plugins, URL and disk-space. Does not modify destination. Requires administrator capability.
+
+- GET /wp-json/trasloco/v1/backups/{archive}.wpress/manifest: SHA-256 verified source metadata (admin only).
+- GET /wp-json/trasloco/v1/backups/{archive}.wpress/chunk?offset=N: authenticated, hashed, bounded transfer fragment.

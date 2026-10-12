@@ -400,6 +400,23 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 			}
 		}
 
+
+		/**
+		 * Pull a full verified .wpress from a source WordPress over HTTPS.
+		 * @subcommand pull-site
+		 */
+		public function pull_site( array $args, array $assoc_args ) {
+			if ( count( $args ) !== 2 ) {
+				WP_CLI::error( 'Usage: wp trasloco pull-site <https://source.site/> <backup.wpress>' );
+			}
+			try {
+				$path = Trasloco_Peer::pull( $args[0], $args[1], getenv( 'TRASLOCO_PEER_USER' ), getenv( 'TRASLOCO_PEER_APP_PASSWORD' ) );
+				WP_CLI::success( 'Verified peer backup downloaded: ' . $path );
+			} catch ( Exception $e ) {
+				WP_CLI::error( $e->getMessage() );
+			}
+		}
+
 		/**
 		 * Restores a backup.
 		 *
