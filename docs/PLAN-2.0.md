@@ -87,3 +87,7 @@ Unverified on Apache/IIS/Nginx live configurations; multisite; WAF; huge archive
 ## Recovery-point implementation progress
 
 WP-CLI `wp trasloco restore ...` now runs source preflight and creates a verified full snapshot of the destination *before* destructive import. It refuses to restore when the recovery point fails. Opt out only via explicit `--skip-recovery-point` (unsafe). The recovery file remains in the normal backup directory with a SHA-256 sidecar; it is not an automatic transactional rollback. WordPress web UI restores and post-crash automatic bootstrap are separate pending stages. The WordPress/MySQL integration test confirms the recovery archive remains readable after replacing destination database/users.
+
+## Selective media restore progress
+
+WP-CLI now supports `wp trasloco restore-media backup.wpress path/inside/uploads.jpg` for a single allowlisted non-executable upload under `wp-content/uploads/`. Requires manifest verification and refuses existing destinations, unsafe relative paths, symbolic links and entries over 1 GiB. No DB tables touched. Granular database restore, conflict-aware overwrite and browser-based selection are pending.

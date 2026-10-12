@@ -85,6 +85,14 @@ if [ ! -f "$ROOT/target/wp-content/uploads/test-fixtures/fixture.txt" ]; then
   exit 1
 fi
 grep -Fx "media is preserved" "$ROOT/target/wp-content/uploads/test-fixtures/fixture.txt"
+# Selectively restore a deleted media file without touching tables.
+rm "$ROOT/target/wp-content/uploads/test-fixtures/fixture.txt"
+$WP trasloco restore-media "$(basename "$ARCHIVE")" test-fixtures/fixture.txt --path="$ROOT/target"
+grep -Fx "media is preserved" "$ROOT/target/wp-content/uploads/test-fixtures/fixture.txt"
+if $WP trasloco restore-media "$(basename "$ARCHIVE")" test-fixtures/fixture.txt --path="$ROOT/target"; then
+  echo "ERROR: selective restore overwrote an existing destination" >&2
+  exit 1
+fi
 # Reuse the existing full-export stages in a durable, background-style job.
 $WP eval 'if ( ! Trasloco_Background::start() ) { throw new RuntimeException("Could not queue backup"); }' --path="$ROOT/source"
 for ATTEMPT in $(seq 1 65); do

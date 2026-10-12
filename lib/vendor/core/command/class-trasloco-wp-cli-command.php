@@ -384,6 +384,23 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 		}
 
 		/**
+		 * Restore one non-executable media file from a verified backup.
+		 * Never overwrites an existing destination.
+		 * @subcommand restore-media
+		 */
+		public function restore_media( array $args, array $assoc_args ) {
+			if ( count( $args ) !== 2 ) {
+				WP_CLI::error( 'Usage: wp trasloco restore-media <archive.wpress> <path/within/uploads.jpg>' );
+			}
+			try {
+				$dest = Trasloco_Selective::restore_media( $args[0], $args[1] );
+				WP_CLI::success( 'Recovered media: ' . $dest );
+			} catch ( Exception $e ) {
+				WP_CLI::error( $e->getMessage() );
+			}
+		}
+
+		/**
 		 * Restores a backup.
 		 *
 		 * Example:
