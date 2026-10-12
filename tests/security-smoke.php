@@ -277,3 +277,46 @@ unlink( $offline );
 // Performance guard: archive inventory must not compute every SHA-256 on page load.
 ensure( strpos( file_get_contents( dirname( __DIR__ ) . '/lib/view/backups/index.php' ), 'Trasloco_Integrity::verify(' ) === false,
     'Backup list must not synchronously hash each archive' );
+
+
+// Restore safety regression: a well-terminated archive is still unsafe if a
+// file name is "." or if any path component is "." / empty / control-bearing.
+foreach ( array(
+    array( '.', 'uploads/docs' ),
+    array( "bad\nname.txt", 'uploads/docs' ),
+    array( 'safe.txt', 'uploads/./docs' ),
+    array( 'safe.txt', 'uploads//docs' ),
+    array( 'safe.txt', 'uploads/' . "\t" . 'docs' ),
+) as $unsafe ) {
+    $crafted = tempnam( sys_get_temp_dir(), 'tr-header-' );
+    $payload = pack( 'a255a14a12a4096', $unsafe[0], '1', '0', $unsafe[1] ) . 'X';
+    file_put_contents( $crafted, $payload . str_repeat( chr( 0 ), 4377 ) );
+    try {
+        Trasloco_Archive_Inspector::inspect( $crafted, 0 );
+        ensure( false, 'preflight accepted malformed path/header: ' . json_encode( $unsafe ) );
+    } catch ( Trasloco_Archive_Exception $expected ) {
+        // No destination file writes should happen on a malformed archive.
+    } finally {
+        @unlink( $crafted );
+    }
+}
+
+// Restore safety regression: extracting a file from a prematurely truncated
+// archive must fail, never report that the declared 12 bytes were copied.
+$incomplete = tempnam( sys_get_temp_dir(), 'tr-short-entry-' );
+$folder = sys_get_temp_dir() . '/tr-short-extract-' . bin2hex( random_bytes( 8 ) );
+mkdir( $folder, 0700 );
+file_put_contents( $incomplete,
+    pack( 'a255a14a12a4096', 'short.txt', '12', '0', '.' ) . 'A' );
+$extractor = new Trasloco_Extractor( $incomplete );
+try {
+    $extractor->extract_one_file_to( $folder );
+    ensure( false, 'extractor treated a truncated archive entry as complete' );
+} catch ( Trasloco_Not_Readable_Exception $expected ) {
+    // The import must abort rather than silently accepting an incomplete file.
+} finally {
+    $extractor->close();
+    @unlink( $folder . '/short.txt' );
+    @rmdir( $folder );
+    @unlink( $incomplete );
+}
