@@ -395,6 +395,8 @@ wp_set_current_user( $admins[0]->ID );
 $files = (new Trasloco_Backups())->get_files();
 $_POST["archive"] = basename( $files[0]["filename"] );
 $_POST["trasloco_verify_nonce"] = wp_create_nonce( "trasloco_verify_archive" );
+// WP-CLI does not merge manually assigned $_POST into $_REQUEST.
+$_REQUEST["trasloco_verify_nonce"] = $_POST["trasloco_verify_nonce"];
 $_SERVER["REQUEST_METHOD"] = "POST";
 Trasloco_Job_Worker::submit_verification();
 ' --path="$ROOT/source"
