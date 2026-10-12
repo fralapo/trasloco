@@ -46,7 +46,7 @@ class Trasloco_Backups_Controller {
 			wp_die( 'Not allowed', '', array( 'response' => 403 ) );
 		}
 		$archive = isset( $_GET['archive'] ) && is_string( $_GET['archive'] ) ? wp_unslash( $_GET['archive'] ) : '';
-		check_admin_referer( 'trasloco_download_' . $archive );
+		check_admin_referer( 'trasloco_download_file' );
 		try {
 			$path = trasloco_backup_path( array( 'archive' => $archive ) );
 		} catch ( Exception $e ) {

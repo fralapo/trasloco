@@ -15,6 +15,8 @@ function current_user_can( $capability ) { return $GLOBALS['allow_admin'] && $ca
 function get_option( $name ) { return $name === TRASLOCO_SECRET_KEY ? 'a-mock-secret-123' : ( $name === TRASLOCO_AUTH_PASSWORD ? ( $GLOBALS['encrypted_password'] ?? false ) : false ); }
 function wp_salt( $scheme = 'auth' ) { return 'fixed-test-salt'; }
 function __( $message, $domain = '' ) { return $message; }
+function admin_url( $path ) { return 'https://example.test/wp-admin/' . $path; }
+function wp_nonce_url( $url, $action ) { return $url . '&_wpnonce=mock'; }
 function validate_file( $name ) {
     return is_string( $name ) && strpos( $name, '..' ) === false && strpos( $name, '/' ) === false && strpos( $name, chr(92) ) === false ? 0 : 1;
 }
@@ -54,6 +56,13 @@ $signature = hash_hmac( 'sha256', 'import|' . $expired, wp_salt( 'auth' ) . '|' 
 ensure( denied( 'v1.' . $expired . '.' . $signature, 'import' ), 'reject expired token' );
 $GLOBALS['allow_admin'] = false;
 ensure( trasloco_issue_operation_token( 'import' ) === '', 'restrict token issuance' );
+$GLOBALS['allow_admin'] = true;
+
+$admin_link = trasloco_backup_url( array( 'archive' => 'valid.wpress' ) );
+ensure( strpos( $admin_link, '_wpnonce=mock' ) !== false, 'admin links include session nonce' );
+$GLOBALS['allow_admin'] = false;
+$background_link = trasloco_backup_url( array( 'archive' => 'valid.wpress' ) );
+ensure( strpos( $background_link, '_wpnonce=' ) === false, 'background links omit invalid anonymous nonce' );
 $GLOBALS['allow_admin'] = true;
 
 ensure( substr( trasloco_backup_path( array( 'archive' => 'valid.wpress' ) ), -12 ) === 'valid.wpress', 'allow archive basename' );

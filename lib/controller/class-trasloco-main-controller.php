@@ -589,7 +589,8 @@ class Trasloco_Main_Controller {
 				'url' => wp_make_link_relative( admin_url( 'admin-ajax.php?action=trasloco_export' ) ),
 			),
 			'status'     => array(
-				'url' => wp_make_link_relative( add_query_arg( array( 'secret_key' => trasloco_issue_operation_token( 'export' ), 'operation' => 'export' ), admin_url( 'admin-ajax.php?action=trasloco_status' ) ) ),
+				'url' => wp_make_link_relative( add_query_arg( array( 'secret_key' => trasloco_issue_operation_token( 'export' ),
+			'download_nonce' => wp_create_nonce( 'trasloco_download_file' ), 'operation' => 'export' ), admin_url( 'admin-ajax.php?action=trasloco_status' ) ) ),
 			),
 			'secret_key' => trasloco_issue_operation_token( 'export' ),
 		) );

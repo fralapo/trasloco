@@ -223,7 +223,9 @@ function trasloco_archive_name( $params ) {
 function trasloco_backup_url( $params ) {
 	$archive = $params['archive'];
 	trasloco_backup_path( array( 'archive' => $archive ) );
-	return wp_nonce_url( admin_url( 'admin-post.php?action=trasloco_download&archive=' . rawurlencode( $archive ) ), 'trasloco_download_' . $archive );
+	$url = admin_url( 'admin-post.php?action=trasloco_download&archive=' . rawurlencode( $archive ) );
+	// Background exports have no browser session; attach a login-bound nonce in the UI.
+	return current_user_can( 'manage_options' ) ? wp_nonce_url( $url, 'trasloco_download_file' ) : $url;
 }
 
 /**

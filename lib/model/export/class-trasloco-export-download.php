@@ -49,7 +49,7 @@ class Trasloco_Export_Download {
 			}
 
 			// Set archive details
-			$link = trasloco_backup_url( $params );
+			$link = esc_url( trasloco_backup_url( $params ) );
 			$size = trasloco_backup_size( $params );
 			$name = trasloco_site_name( $blog_id );
 
