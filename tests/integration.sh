@@ -381,6 +381,26 @@ $c = Trasloco_Job_Worker::run( $id );
 if ( $c["status"] !== "completed" || Trasloco_Job_Store::get( $id )["state"] !== "completed" ) {
     throw new Exception( "Resumable verification did not complete" );
 }
+// Tamper a valid archive, and rewrite only its per-chunk digest in an
+// otherwise well-formed manifest. Global checksum must still reject it.
+$original = file_get_contents( $path, false, null, 0, 1 );
+$handle = fopen( $path, "r+b" );
+fwrite( $handle, $original === "A" ? "Z" : "A" );
+fclose( $handle );
+$body = json_decode( file_get_contents( $manifest ), true );
+$body["chunks"][0] = hash_file( "sha256", $path, false ) === false ? "" : hash( "sha256", substr( file_get_contents( $path ), 0, Trasloco_Integrity::CHUNK_BYTES ) );
+file_put_contents( $manifest, wp_json_encode( $body ) );
+$bad = Trasloco_Job_Store::create( "verify", array( "archive" => basename( $path ) ), "ci-v2-check-global-hash-000001" );
+if ( is_wp_error( $bad ) ) { throw new Exception( "Cannot create global-hash regression job" ); }
+for ( $step = 0; $step < 4; $step++ ) {
+    $outcome = Trasloco_Job_Worker::run( $bad );
+    if ( $outcome["status"] !== "pending" ) {
+        break;
+    }
+}
+if ( Trasloco_Job_Store::get( $bad )["state"] !== "failed" ) {
+    throw new Exception( "Resumable worker did not reject a rewritten chunk list with stale global SHA-256" );
+}
 unlink( $path );
 unlink( $manifest );
 ' --path="$ROOT/source"

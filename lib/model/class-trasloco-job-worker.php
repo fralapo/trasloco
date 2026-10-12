@@ -226,8 +226,18 @@ class Trasloco_Job_Worker {
             throw new RuntimeException( 'Archive or manifest modified during staged verification.' );
         }
         if ( $index === $total ) {
-            // The per-chunk digests cover the entire byte range; whole SHA-256
-            // was computed at backup creation. This is not a signed origin proof.
+            // A chunk manifest can be edited independently of its whole-file
+            // digest. Recheck the original global SHA-256 before marking this
+            // operation complete. It still does not authenticate origin.
+            $whole = @hash_file( 'sha256', $archive );
+            if ( ! is_string( $whole ) || ! hash_equals( $manifest['sha256'], $whole ) ) {
+                throw new RuntimeException( 'Archive whole-file checksum mismatch.' );
+            }
+            clearstatcache( true, $archive );
+            if ( filesize( $archive ) !== $size || filemtime( $archive ) !== $mtime ||
+                 hash_file( 'sha256', Trasloco_Integrity::manifest_path( $archive ) ) !== $manifest['_manifest_sha256'] ) {
+                throw new RuntimeException( 'Archive or manifest changed during final verification.' );
+            }
             if ( ! Trasloco_Job_Store::finish( $id, $owner ) ) {
                 return array( 'status' => 'not_claimed' );
             }
