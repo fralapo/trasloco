@@ -137,4 +137,15 @@ if ( function_exists( 'sodium_crypto_secretstream_xchacha20poly1305_init_push' )
     unlink( $source );
     unlink( $encrypted );
 }
+// Access rule regression: backup directory must deny ALL files, not only .wpress.
+require dirname( __DIR__ ) . '/lib/vendor/core/filesystem/class-trasloco-file.php';
+require dirname( __DIR__ ) . '/lib/vendor/core/filesystem/class-trasloco-file-htaccess.php';
+$test_access = tempnam( sys_get_temp_dir(), 'trasloco-access-' );
+unlink( $test_access );
+Trasloco_File_Htaccess::create( $test_access );
+$rules = file_get_contents( $test_access );
+ensure( strpos( $rules, '# Trasloco private directory' ) !== false, 'Apache private directory marker' );
+ensure( strpos( $rules, 'Require all denied' ) !== false, 'Apache 2.4 full deny' );
+ensure( strpos( $rules, 'Order allow,deny' ) !== false, 'Apache 2.2 full deny' );
+unlink( $test_access );
 echo "Security and archive smoke tests passed.\n";

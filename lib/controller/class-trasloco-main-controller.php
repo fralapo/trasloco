@@ -212,6 +212,18 @@ class Trasloco_Main_Controller {
 				@file_put_contents( TRASLOCO_BACKUPS_HTACCESS, PHP_EOL . implode( PHP_EOL, $private_rules ) . PHP_EOL, FILE_APPEND | LOCK_EX );
 			}
 		}
+		// Existing Apache installations need a full directory denial too:
+		// decrypt/write operations create private temporary filenames whose
+		// extensions are not necessarily .wpress.
+		if ( is_file( TRASLOCO_BACKUPS_HTACCESS ) ) {
+			$existing = @file_get_contents( TRASLOCO_BACKUPS_HTACCESS );
+			if ( is_string( $existing ) && strpos( $existing, '# Trasloco private directory' ) === false ) {
+				$deny = array( '# Trasloco private directory',
+					'<IfModule mod_authz_core.c>', 'Require all denied', '</IfModule>',
+					'<IfModule !mod_authz_core.c>', 'Order allow,deny', 'Deny from all', '</IfModule>' );
+				@file_put_contents( TRASLOCO_BACKUPS_HTACCESS, PHP_EOL . implode( PHP_EOL, $deny ) . PHP_EOL, FILE_APPEND | LOCK_EX );
+			}
+		}
 		// Remove work folders of imports and exports that stopped halfway: nothing has written to them for a day
 		foreach ( (array) glob( TRASLOCO_STORAGE_PATH . DIRECTORY_SEPARATOR . '*', GLOB_ONLYDIR ) as $folder ) {
 			$last = (int) @filemtime( $folder );

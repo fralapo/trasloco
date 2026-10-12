@@ -47,3 +47,10 @@ define( 'TRASLOCO_BACKUPS_DIR', '/srv/private/wordpress-backups' );
 ```
 
 Create the directory with permissions that allow the PHP/CLI runtime to write it. This is **opt-in**: existing archives are not moved automatically. If changing the path, move your existing backups separately and verify permissions. The WordPress Backups screen and WP-CLI use the configured path.
+
+
+## Decrypted temporary data
+
+Archives and their temporary files must **never** be available over HTTP, even for a short time. Updated Apache and IIS rules deny the **entire** backup directory. For Apache, a legacy folder's rules are appended with a new directory-deny directive; for IIS, update an older `web.config` manually, since the plugin does not overwrite existing custom configuration. Nginx requires the vhost denial rule above, including temporary filenames.
+
+Run a logged-out HTTP check for `/wp-content/trasloco-backups/index.php` and for a temporary test file with an arbitrary extension; both must return 403/404. Do not decrypt to a publicly accessible directory unless its HTTP access has been disabled.
