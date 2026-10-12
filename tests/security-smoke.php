@@ -91,6 +91,43 @@ ensure( ! $archiver->is_valid(), 'detect missing EOF marker' );
 $archiver->close();
 unlink( $path );
 
+// Regression for on-disk symlinks redirecting an otherwise safe archive path.
+require dirname( __DIR__ ) . '/lib/vendor/core/archiver/class-trasloco-extractor.php';
+$root = sys_get_temp_dir() . '/trasloco-symlink-' . bin2hex( random_bytes( 8 ) );
+$destination = $root . '/destination';
+$outside = $root . '/outside';
+mkdir( $destination . '/uploads', 0700, true );
+mkdir( $outside, 0700, true );
+$crafted = $root . '/attack.wpress';
+$header = pack( 'a255a14a12a4096', 'target.txt', '5', '0', 'uploads/link' );
+file_put_contents( $crafted, $header . 'hello' . str_repeat( chr( 0 ), 4377 ) );
+if ( function_exists( 'symlink' ) && @symlink( $outside, $destination . '/uploads/link' ) ) {
+    $extract = new Trasloco_Extractor( $crafted );
+    try {
+        $extract->extract_one_file_to( $destination );
+        ensure( false, 'symlink directory was followed during extraction' );
+    } catch ( Trasloco_Archive_Exception $expected ) {
+        ensure( ! is_file( $outside . '/target.txt' ), 'no outside file created by archive' );
+    } finally {
+        $extract->close();
+    }
+    $extract = new Trasloco_Extractor( $crafted );
+    try {
+        $extract->extract_by_files_array( $destination, array( 'uploads/link/target.txt' ) );
+        ensure( false, 'symlink directory was followed during selective extraction' );
+    } catch ( Trasloco_Archive_Exception $expected ) {
+        ensure( ! is_file( $outside . '/target.txt' ), 'no outside file created by selective extraction' );
+    } finally {
+        $extract->close();
+    }
+    unlink( $destination . '/uploads/link' );
+}
+unlink( $crafted );
+rmdir( $destination . '/uploads' );
+rmdir( $destination );
+rmdir( $outside );
+rmdir( $root );
+
 require dirname( __DIR__ ) . '/lib/vendor/core/archiver/class-trasloco-integrity.php';
 $integrity_archive = tempnam( sys_get_temp_dir(), 'trasloco-integrity-' );
 file_put_contents( $integrity_archive, 'Original backup bytes' );

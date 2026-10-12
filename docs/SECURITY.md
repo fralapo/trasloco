@@ -54,3 +54,7 @@ Create the directory with permissions that allow the PHP/CLI runtime to write it
 Archives and their temporary files must **never** be available over HTTP, even for a short time. Updated Apache and IIS rules deny the **entire** backup directory. For Apache, a legacy folder's rules are appended with a new directory-deny directive; for IIS, update an older `web.config` manually, since the plugin does not overwrite existing custom configuration. Nginx requires the vhost denial rule above, including temporary filenames.
 
 Run a logged-out HTTP check for `/wp-content/trasloco-backups/index.php` and for a temporary test file with an arbitrary extension; both must return 403/404. Do not decrypt to a publicly accessible directory unless its HTTP access has been disabled.
+
+## Extraction symlink defense
+
+The extraction routines reject on-disk symbolic-link path components before writing. Existing symlink-based WordPress deployments may need a documented, physical extraction destination; the importer fails closed rather than follow links. Regression tests cover full and selected archive-file extraction through a symlink pointing outside the destination. This is a filesystem-level check, not a replacement for server isolation: malicious processes with concurrent write permissions could still race between validation and fopen. Use private storage and trusted hosting.

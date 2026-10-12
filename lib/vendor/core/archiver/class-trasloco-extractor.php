@@ -234,6 +234,10 @@ class Trasloco_Extractor extends Trasloco_Archiver {
 						// Escape Windows directory separator in file name
 						$file_name = $this->escape_windows_directory_separator( $location . DIRECTORY_SEPARATOR . $file_name );
 
+						// Existing symlink components must never redirect an extraction
+						// outside the trusted destination, even for safe archive names.
+						$this->assert_safe_destination( $location, $file_name );
+
 						// Check if location doesn't exist, then create it
 						if ( false === is_dir( $file_path ) ) {
 							@mkdir( $file_path, $this->get_permissions_for_directory(), true );
@@ -350,6 +354,10 @@ class Trasloco_Extractor extends Trasloco_Archiver {
 
 						// Escape Windows directory separator in file name
 						$file_name = $this->escape_windows_directory_separator( $location . DIRECTORY_SEPARATOR . $file_name );
+
+						// Existing symlink components must never redirect an extraction
+						// outside the trusted destination, even for safe archive names.
+						$this->assert_safe_destination( $location, $file_name );
 
 						// Check if location doesn't exist, then create it
 						if ( false === is_dir( $file_path ) ) {
@@ -582,6 +590,38 @@ class Trasloco_Extractor extends Trasloco_Archiver {
 		}
 
 		return 0644;
+	}
+
+	/**
+	 * Deny extraction through any existing symlink or non-directory parent.
+	 * The archive header may be safe while an on-disk directory redirects to
+	 * another location. Perform this check immediately before mkdir/fopen.
+	 */
+	protected function assert_safe_destination( $location, $filename ) {
+		$root = realpath( $location );
+		if ( $root === false ) {
+			throw new Trasloco_Archive_Exception( 'Invalid extraction root.' );
+		}
+		$location_normal = rtrim( str_replace( '\\', '/', $location ), '/' ) . '/';
+		$filename_normal = str_replace( '\\', '/', $filename );
+		if ( strpos( $filename_normal, $location_normal ) !== 0 ) {
+			throw new Trasloco_Archive_Exception( 'Archive entry escapes the extraction root.' );
+		}
+		$relative = substr( $filename_normal, strlen( $location_normal ) );
+		$parts = explode( '/', $relative );
+		$cursor = $root;
+		foreach ( $parts as $index => $part ) {
+			if ( $part === '' || $part === '.' || $part === '..' || strpos( $part, "\0" ) !== false ) {
+				throw new Trasloco_Archive_Exception( 'Invalid extraction path component.' );
+			}
+			$cursor .= DIRECTORY_SEPARATOR . $part;
+			if ( is_link( $cursor ) ) {
+				throw new Trasloco_Archive_Exception( 'Refusing to extract through a symbolic link.' );
+			}
+			if ( $index < count( $parts ) - 1 && file_exists( $cursor ) && ! is_dir( $cursor ) ) {
+				throw new Trasloco_Archive_Exception( 'Extraction path contains a file instead of a directory.' );
+			}
+		}
 	}
 
 	/**
