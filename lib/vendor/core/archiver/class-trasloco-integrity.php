@@ -222,16 +222,46 @@ class Trasloco_Integrity {
         if ( $data['manifest_version'] === self::CHUNKED_VERSION ) {
             try {
                 $chunked = self::chunked_manifest( $archive );
-                foreach ( $chunked['chunks'] as $index => $digest ) {
-                    if ( ! self::verify_chunk( $archive, $chunked, $index ) ) {
-                        return array( 'status' => 'corrupt', 'message' => 'Archive chunk SHA-256 does not match manifest.' );
-                    }
-                }
             } catch ( Trasloco_Archive_Exception $e ) {
                 return array( 'status' => 'invalid', 'message' => 'Invalid or unsupported chunk manifest.' );
             }
+            $stream = @fopen( $archive, 'rb' );
+            if ( $stream === false ) {
+                return array( 'status' => 'missing', 'message' => 'Cannot read the archive.' );
+            }
+            // Hash all bytes once, accumulating whole-file and individual
+            // chunk digests together. This avoids two full disk scans and
+            // repeated file opens for multi-gigabyte archives.
+            $full = hash_init( 'sha256' );
+            $remaining = $chunked['size_bytes'];
+            try {
+                foreach ( $chunked['chunks'] as $expected ) {
+                    $part_left = min( $remaining, self::CHUNK_BYTES );
+                    $part_hash = hash_init( 'sha256' );
+                    while ( $part_left > 0 ) {
+                        $bytes = fread( $stream, min( $part_left, 1048576 ) );
+                        if ( ! is_string( $bytes ) || $bytes === '' ) {
+                            return array( 'status' => 'corrupt', 'message' => 'Archive ended during verification.' );
+                        }
+                        hash_update( $full, $bytes );
+                        hash_update( $part_hash, $bytes );
+                        $part_left -= strlen( $bytes );
+                        $remaining -= strlen( $bytes );
+                    }
+                    if ( ! hash_equals( $expected, hash_final( $part_hash ) ) ) {
+                        return array( 'status' => 'corrupt', 'message' => 'Archive chunk SHA-256 does not match manifest.' );
+                    }
+                }
+                if ( $remaining !== 0 || fread( $stream, 1 ) !== '' ) {
+                    return array( 'status' => 'corrupt', 'message' => 'Archive size changed during verification.' );
+                }
+                $hash = hash_final( $full );
+            } finally {
+                fclose( $stream );
+            }
+        } else {
+            $hash = hash_file( 'sha256', $archive );
         }
-        $hash = hash_file( 'sha256', $archive );
         if ( ! is_string( $hash ) || ! hash_equals( $data['sha256'], $hash ) ) {
             return array( 'status' => 'corrupt', 'message' => 'Archive SHA-256 does not match manifest.' );
         }
