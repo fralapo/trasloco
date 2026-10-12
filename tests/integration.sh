@@ -97,6 +97,11 @@ if $WP eval 'exit( ! function_exists( "sodium_crypto_secretstream_xchacha20poly1
 fi
 test -s "$ARCHIVE.manifest.json"
 mkdir -p "$ROOT/target/wp-content/trasloco-backups"
+# Distinct target-only media should be present in its pre-import recovery
+# snapshot, even if the live import subsequently replaces that file tree.
+mkdir -p "$ROOT/target/wp-content/uploads/target-before-import"
+printf 'target media survived independent rescue\n' > "$ROOT/target/wp-content/uploads/target-before-import/safety-marker.txt"
+cp "$ROOT/target/wp-content/uploads/target-before-import/safety-marker.txt" "$ROOT/target-safety-marker.expected"
 cp "$ARCHIVE" "$ROOT/target/wp-content/trasloco-backups/"
 cp "$ARCHIVE.manifest.json" "$ROOT/target/wp-content/trasloco-backups/"
 # A damaged local backup with a sidecar must not enter destructive restore.
@@ -119,6 +124,13 @@ test -n "$RECOVERY"
 test -s "$RECOVERY.manifest.json"
 [[ "$(basename "$RECOVERY")" == recovery-*.wpress ]]
 $WP trasloco verify "$(basename "$RECOVERY")" --path="$ROOT/target"
+# The independently bootable PHP rescue must read the recovery point created
+# *before* import, preserving original target-only files and original SQL.
+RECOVERY_STAGE="$ROOT/offline-recovery-point"
+php "$GITHUB_WORKSPACE/tools/rescue-extract.php" "$RECOVERY" --content --output="$RECOVERY_STAGE" >/dev/null
+test -s "$RECOVERY_STAGE/database.sql"
+test -s "$RECOVERY_STAGE/package.json"
+cmp -s "$ROOT/target-safety-marker.expected" "$RECOVERY_STAGE/content/uploads/target-before-import/safety-marker.txt"
 
 echo "Destination tables:"
 $WP db tables --path="$ROOT/target" || true

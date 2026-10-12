@@ -148,3 +148,6 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 - [x] Offline staging now removes its private files/directories on failed safety limits or interrupted reads, so a partial stage is not presented as a successful recovery copy.
 
 - [x] Offline encrypted recovery: standalone PHP CLI decrypts authenticated .wpress.enc archives without WordPress/MySQL, validates .wpress structure, rejects existing targets and wrong keys; WP integration exercises the full round trip.
+
+- [x] Independent offline rescue rehearsals on actual WP-CLI exports and on mandatory pre-import recovery snapshots, including target-only media checks and real SQL metadata. Output can be placed in an explicitly selected private directory without overwriting existing files.
+- [ ] This is NOT an independent bootable site restore; production release still requires isolated SQL + WordPress recovery and hosting-level tests.
