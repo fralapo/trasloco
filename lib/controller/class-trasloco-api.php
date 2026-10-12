@@ -36,7 +36,7 @@ class Trasloco_API {
             $hpos = 'unknown';
             if ( class_exists( '\\Automattic\\WooCommerce\\Utilities\\OrderUtil' ) &&
                  method_exists( '\\Automattic\\WooCommerce\\Utilities\\OrderUtil', 'custom_orders_table_usage_is_enabled' ) ) {
-                $hpos = \\Automattic\\WooCommerce\\Utilities\\OrderUtil::custom_orders_table_usage_is_enabled() ? 'enabled' : 'disabled';
+                $hpos = call_user_func( array( '\\Automattic\\WooCommerce\\Utilities\\OrderUtil', 'custom_orders_table_usage_is_enabled' ) ) ? 'enabled' : 'disabled';
             }
         }
         $job = get_option( Trasloco_Background::ACTIVE, false );
