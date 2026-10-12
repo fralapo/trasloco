@@ -224,6 +224,28 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 		}
 
 		/**
+		 * Verify a backup against its SHA-256 manifest.
+		 *
+		 * ## OPTIONS
+		 * <archive>
+		 * Existing archive basename inside the configured backup folder.
+		 *
+		 * @subcommand verify
+		 */
+		public function verify( array $args, array $assoc_args ) {
+			if ( empty( $args[0] ) ) {
+				WP_CLI::error( 'Specify an archive filename.' );
+			}
+			$archive = trasloco_backup_path( array( 'archive' => $args[0] ) );
+			require_once TRASLOCO_LIB_PATH . '/vendor/core/archiver/class-trasloco-integrity.php';
+			$result = Trasloco_Integrity::verify( $archive );
+			if ( $result['status'] !== 'verified' ) {
+				WP_CLI::error( $result['status'] . ': ' . $result['message'] );
+			}
+			WP_CLI::success( $result['message'] );
+		}
+
+		/**
 		 * Restores a backup.
 		 *
 		 * Example:

@@ -32,6 +32,8 @@ if [ ! -s "$ARCHIVE" ]; then
   echo "Backup archive missing" >&2
   exit 1
 fi
+$WP trasloco verify "$(basename "$ARCHIVE")" --path="$ROOT/source"
+test -s "$ARCHIVE.manifest.json"
 mkdir -p "$ROOT/target/wp-content/trasloco-backups"
 cp "$ARCHIVE" "$ROOT/target/wp-content/trasloco-backups/"
 $WP trasloco restore "$(basename "$ARCHIVE")" --path="$ROOT/target"

@@ -48,6 +48,10 @@ class Trasloco_Export_Download {
 				}
 			}
 
+			// Publish a verifiable SHA-256 sidecar for future backups.
+			require_once TRASLOCO_LIB_PATH . '/vendor/core/archiver/class-trasloco-integrity.php';
+			Trasloco_Integrity::create( trasloco_backup_path( $params ) );
+
 			// Set archive details
 			$link = esc_url( trasloco_backup_url( $params ) );
 			$size = trasloco_backup_size( $params );

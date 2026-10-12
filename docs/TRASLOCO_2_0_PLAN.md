@@ -66,5 +66,6 @@ Updated 2026-10-12. This plan is an implementation dependency map, not a claim t
 - [x] Foundation hardening from PR #1: operation tokens, private download, first end-to-end CI, core UX.
 - [x] Phase 0A: documented architecture and persistent-work design.
 - [ ] Phase 0B: persistent job lease engine and adapters.
-- [ ] Phase 1: integrity manifests and verification.
+- [x] Phase 1A: create local SHA-256 sidecar manifests and add WP-CLI verification with WordPress integration test.
+- [ ] Phase 1B: verified UI, restore rehearsals and full archive content checks.
 - [ ] Phases 2-15 as ordered above.
