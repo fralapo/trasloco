@@ -21,13 +21,23 @@ $WP core install --path="$SITE" --url=http://rescue.example.test \
   --title="Clean disaster recovery installation" --admin_user=temporary_rescue_admin \
   --admin_password=temporary_test_password --admin_email=rescue@example.test
 $WP plugin activate trasloco --path="$SITE"
+EXPECTED_HOME="$($WP option get home --path="$SITE")"
+EXPECTED_SITE="$($WP option get siteurl --path="$SITE")"
+echo "Fresh disaster site home: $EXPECTED_HOME"
+echo "Fresh disaster site URL: $EXPECTED_SITE"
 mkdir -p "$SITE/wp-content/trasloco-backups"
 cp "$ARCHIVE" "$ARCHIVE.manifest.json" "$SITE/wp-content/trasloco-backups/"
 NAME="$(basename "$ARCHIVE")"
 $WP trasloco verify "$NAME" --path="$SITE"
 $WP trasloco restore "$NAME" --path="$SITE"
-test "$($WP option get home --path="$SITE")" = http://rescue.example.test
-test "$($WP option get siteurl --path="$SITE")" = http://rescue.example.test
+RESTORED_HOME="$($WP option get home --path="$SITE")"
+RESTORED_SITE="$($WP option get siteurl --path="$SITE")"
+echo "Disaster restore home: $RESTORED_HOME"
+echo "Disaster restore siteurl: $RESTORED_SITE"
+if [ "$RESTORED_HOME" != "$EXPECTED_HOME" ] || [ "$RESTORED_SITE" != "$EXPECTED_SITE" ]; then
+  echo "ERROR: disaster restore did not preserve the fresh destination URLs" >&2
+  exit 1
+fi
 $WP user get oldadmin --path="$SITE" --field=user_login | grep -Fx oldadmin
 $WP post list --path="$SITE" --post_type=post --field=post_title | \
   grep -F "Trasloco fixture: source post"
