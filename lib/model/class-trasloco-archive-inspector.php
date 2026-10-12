@@ -60,7 +60,7 @@ class Trasloco_Archive_Inspector {
                 $groups[ $group ]++;
                 // package and SQL metadata are not destination wp-content files.
                 if ( $group !== 'root' ) {
-                    if ( file_exists( WP_CONTENT_DIR . DIRECTORY_SEPARATOR . str_replace( '/', DIRECTORY_SEPARATOR, $relative ) ) ) {
+                    if ( defined( 'WP_CONTENT_DIR' ) && file_exists( WP_CONTENT_DIR . DIRECTORY_SEPARATOR . str_replace( '/', DIRECTORY_SEPARATOR, $relative ) ) ) {
                         $existing++;
                     } else {
                         $not_present++;
