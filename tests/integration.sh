@@ -33,15 +33,29 @@ if [ ! -s "$ARCHIVE" ]; then
   exit 1
 fi
 $WP trasloco verify "$(basename "$ARCHIVE")" --path="$ROOT/source"
-# Rescue extraction must actually work independently from WordPress/MySQL,
-# using only PHP CLI and the untouched .wpress bytes.
-RESCUE_REPORT=$(php "$GITHUB_WORKSPACE/tools/rescue-extract.php" "$ARCHIVE")
-RESCUE_DIR="$(printf '%s' "$RESCUE_REPORT" | head -n 1 | sed 's/^Recovery metadata saved in: //')"
-test -n "$RESCUE_DIR"
+# Recover an actual WordPress backup using only system PHP (no WP bootstrap).
+# The rescue command supports a deterministic private directory so operators can
+# plan storage and rehearse recovery instead of relying on transient /tmp paths.
+RESCUE_DIR="$ROOT/offline-rehearsal"
+RESCUE_REPORT=$(php "$GITHUB_WORKSPACE/tools/rescue-extract.php" "$ARCHIVE" --content --output="$RESCUE_DIR")
+printf '%s\n' "$RESCUE_REPORT" | grep -F "Recovery metadata saved in: $RESCUE_DIR"
+printf '%s\n' "$RESCUE_REPORT" | grep -F 'Archive integrity: sha256_verified'
 test -s "$RESCUE_DIR/database.sql"
 test -s "$RESCUE_DIR/package.json"
-chmod -R u+rwX "$RESCUE_DIR"
-rm -rf -- "$RESCUE_DIR"
+test -f "$RESCUE_DIR/content/uploads/test-fixtures/fixture.txt"
+cmp -s "$ROOT/source/wp-content/uploads/test-fixtures/fixture.txt" "$RESCUE_DIR/content/uploads/test-fixtures/fixture.txt"
+# Safe recovery never overwrites a previous rehearsal and never creates a
+# relative destination that could accidentally point into a live site.
+if php "$GITHUB_WORKSPACE/tools/rescue-extract.php" "$ARCHIVE" --output="$RESCUE_DIR" >/dev/null 2>&1; then
+  echo "ERROR: rescue overwrote an existing directory" >&2
+  exit 1
+fi
+if php "$GITHUB_WORKSPACE/tools/rescue-extract.php" "$ARCHIVE" --output=relative-recovery >/dev/null 2>&1; then
+  echo "ERROR: rescue accepted a relative output directory" >&2
+  exit 1
+fi
+test -s "$RESCUE_DIR/database.sql"
+test -f "$RESCUE_DIR/content/uploads/test-fixtures/fixture.txt"
 $WP eval '
 require_once TRASLOCO_LIB_PATH . "/vendor/core/archiver/class-trasloco-integrity.php";
 $files = (new Trasloco_Backups())->get_files();
