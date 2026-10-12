@@ -68,7 +68,7 @@
 											<?php endif; ?>
 										</td>
 										<td class="trasloco-column-actions trasloco-backup-actions">
-											<a href="<?php echo trasloco_backup_url( array( 'archive' => esc_attr( $backup['filename'] ) ) ); ?>" class="tr-btn tr-btn-ghost trasloco-backup-download" aria-label="<?php echo esc_attr( sprintf( __( 'Download %s', TRASLOCO_PLUGIN_NAME ), basename( $backup['filename'] ) ) ); ?>">
+											<a href="<?php echo esc_url( trasloco_backup_url( array( 'archive' => $backup['filename'] ) ) ); ?>" class="tr-btn tr-btn-ghost trasloco-backup-download" aria-label="<?php echo esc_attr( sprintf( __( 'Download %s', TRASLOCO_PLUGIN_NAME ), basename( $backup['filename'] ) ) ); ?>">
 												<i class="trasloco-icon-arrow-down" aria-hidden="true"></i>
 												<span><?php _e( 'Download', TRASLOCO_PLUGIN_NAME ); ?></span>
 											</a>

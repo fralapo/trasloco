@@ -420,7 +420,7 @@ class Trasloco_Main_Controller {
 		add_menu_page(
 			'Trasloco',
 			'Trasloco',
-			'export',
+			'manage_options',
 			'trasloco_export',
 			'Trasloco_Export_Controller::index',
 			// Monochrome SVG: WordPress recolors it to match the admin color scheme
@@ -433,7 +433,7 @@ class Trasloco_Main_Controller {
 			'trasloco_export',
 			__( 'Export', TRASLOCO_PLUGIN_NAME ),
 			__( 'Export', TRASLOCO_PLUGIN_NAME ),
-			'export',
+			'manage_options',
 			'trasloco_export',
 			'Trasloco_Export_Controller::index'
 		);
@@ -443,7 +443,7 @@ class Trasloco_Main_Controller {
 			'trasloco_export',
 			__( 'Import', TRASLOCO_PLUGIN_NAME ),
 			__( 'Import', TRASLOCO_PLUGIN_NAME ),
-			'import',
+			'manage_options',
 			'trasloco_import',
 			'Trasloco_Import_Controller::index'
 		);
@@ -453,7 +453,7 @@ class Trasloco_Main_Controller {
 			'trasloco_export',
 			__( 'Backups', TRASLOCO_PLUGIN_NAME ),
 			__( 'Backups', TRASLOCO_PLUGIN_NAME ),
-			'import',
+			'manage_options',
 			'trasloco_backups',
 			'Trasloco_Backups_Controller::index'
 		);
@@ -463,7 +463,7 @@ class Trasloco_Main_Controller {
 			'trasloco_export',
 			__( 'Guide', TRASLOCO_PLUGIN_NAME ),
 			__( 'Guide', TRASLOCO_PLUGIN_NAME ),
-			'export',
+			'manage_options',
 			'trasloco_guide',
 			'Trasloco_Main_Controller::guide'
 		);
@@ -544,14 +544,14 @@ class Trasloco_Main_Controller {
 			'ajax'       => array(
 				'url' => wp_make_link_relative( admin_url( 'admin-ajax.php?action=trasloco_feedback' ) ),
 			),
-			'secret_key' => get_option( TRASLOCO_SECRET_KEY ),
+			'secret_key' => trasloco_issue_operation_token( 'export' ),
 		) );
 
 		wp_localize_script( 'trasloco_export', 'trasloco_report', array(
 			'ajax'       => array(
 				'url' => wp_make_link_relative( admin_url( 'admin-ajax.php?action=trasloco_report' ) ),
 			),
-			'secret_key' => get_option( TRASLOCO_SECRET_KEY ),
+			'secret_key' => trasloco_issue_operation_token( 'export' ),
 		) );
 
 		wp_localize_script( 'trasloco_export', 'trasloco_export', array(
@@ -559,9 +559,9 @@ class Trasloco_Main_Controller {
 				'url' => wp_make_link_relative( admin_url( 'admin-ajax.php?action=trasloco_export' ) ),
 			),
 			'status'     => array(
-				'url' => wp_make_link_relative( add_query_arg( array( 'secret_key' => get_option( TRASLOCO_SECRET_KEY ) ), admin_url( 'admin-ajax.php?action=trasloco_status' ) ) ),
+				'url' => wp_make_link_relative( add_query_arg( array( 'secret_key' => trasloco_issue_operation_token( 'export' ), 'operation' => 'export' ), admin_url( 'admin-ajax.php?action=trasloco_status' ) ) ),
 			),
-			'secret_key' => get_option( TRASLOCO_SECRET_KEY ),
+			'secret_key' => trasloco_issue_operation_token( 'export' ),
 		) );
 
 		wp_localize_script( 'trasloco_export', 'trasloco_locale', array(
@@ -616,14 +616,14 @@ class Trasloco_Main_Controller {
 			'ajax'       => array(
 				'url' => wp_make_link_relative( admin_url( 'admin-ajax.php?action=trasloco_feedback' ) ),
 			),
-			'secret_key' => get_option( TRASLOCO_SECRET_KEY ),
+			'secret_key' => trasloco_issue_operation_token( 'import' ),
 		) );
 
 		wp_localize_script( 'trasloco_import', 'trasloco_report', array(
 			'ajax'       => array(
 				'url' => wp_make_link_relative( admin_url( 'admin-ajax.php?action=trasloco_report' ) ),
 			),
-			'secret_key' => get_option( TRASLOCO_SECRET_KEY ),
+			'secret_key' => trasloco_issue_operation_token( 'import' ),
 		) );
 
 		wp_localize_script( 'trasloco_import', 'trasloco_uploader', array(
@@ -632,7 +632,7 @@ class Trasloco_Main_Controller {
 			'url'         => wp_make_link_relative( admin_url( 'admin-ajax.php?action=trasloco_import' ) ),
 			'params'      => array(
 				'priority'   => 5,
-				'secret_key' => get_option( TRASLOCO_SECRET_KEY ),
+				'secret_key' => trasloco_issue_operation_token( 'import' ),
 			),
 			'filters'     => array(
 				'trasloco_archive_extension' => array( 'wpress' ),
@@ -645,9 +645,9 @@ class Trasloco_Main_Controller {
 				'url' => wp_make_link_relative( admin_url( 'admin-ajax.php?action=trasloco_import' ) ),
 			),
 			'status'     => array(
-				'url' => wp_make_link_relative( add_query_arg( array( 'secret_key' => get_option( TRASLOCO_SECRET_KEY ) ), admin_url( 'admin-ajax.php?action=trasloco_status' ) ) ),
+				'url' => wp_make_link_relative( add_query_arg( array( 'secret_key' => trasloco_issue_operation_token( 'import' ), 'operation' => 'import' ), admin_url( 'admin-ajax.php?action=trasloco_status' ) ) ),
 			),
-			'secret_key' => get_option( TRASLOCO_SECRET_KEY ),
+			'secret_key' => trasloco_issue_operation_token( 'import' ),
 		) );
 
 		wp_localize_script( 'trasloco_import', 'trasloco_locale', array(
@@ -714,14 +714,14 @@ class Trasloco_Main_Controller {
 			'ajax'       => array(
 				'url' => wp_make_link_relative( admin_url( 'admin-ajax.php?action=trasloco_feedback' ) ),
 			),
-			'secret_key' => get_option( TRASLOCO_SECRET_KEY ),
+			'secret_key' => trasloco_issue_operation_token( 'import' ),
 		) );
 
 		wp_localize_script( 'trasloco_backups', 'trasloco_report', array(
 			'ajax'       => array(
 				'url' => wp_make_link_relative( admin_url( 'admin-ajax.php?action=trasloco_report' ) ),
 			),
-			'secret_key' => get_option( TRASLOCO_SECRET_KEY ),
+			'secret_key' => trasloco_issue_operation_token( 'import' ),
 		) );
 
 		wp_localize_script( 'trasloco_backups', 'trasloco_import', array(
@@ -729,16 +729,16 @@ class Trasloco_Main_Controller {
 				'url' => wp_make_link_relative( admin_url( 'admin-ajax.php?action=trasloco_import' ) ),
 			),
 			'status'     => array(
-				'url' => wp_make_link_relative( add_query_arg( array( 'secret_key' => get_option( TRASLOCO_SECRET_KEY ) ), admin_url( 'admin-ajax.php?action=trasloco_status' ) ) ),
+				'url' => wp_make_link_relative( add_query_arg( array( 'secret_key' => trasloco_issue_operation_token( 'import' ), 'operation' => 'import' ), admin_url( 'admin-ajax.php?action=trasloco_status' ) ) ),
 			),
-			'secret_key' => get_option( TRASLOCO_SECRET_KEY ),
+			'secret_key' => trasloco_issue_operation_token( 'import' ),
 		) );
 
 		wp_localize_script( 'trasloco_backups', 'trasloco_backups', array(
 			'ajax'       => array(
 				'url' => wp_make_link_relative( admin_url( 'admin-ajax.php?action=trasloco_backups' ) ),
 			),
-			'secret_key' => get_option( TRASLOCO_SECRET_KEY ),
+			'secret_key' => trasloco_issue_operation_token( 'backups' ),
 		) );
 
 		wp_localize_script( 'trasloco_backups', 'trasloco_locale', array(
@@ -807,13 +807,14 @@ class Trasloco_Main_Controller {
 		add_action( 'wp_ajax_nopriv_trasloco_export', 'Trasloco_Export_Controller::export' );
 		add_action( 'wp_ajax_nopriv_trasloco_import', 'Trasloco_Import_Controller::import' );
 		add_action( 'wp_ajax_nopriv_trasloco_status', 'Trasloco_Status_Controller::status' );
-		add_action( 'wp_ajax_nopriv_trasloco_backups', 'Trasloco_Backups_Controller::delete' );
+		// Backup deletion requires an authenticated administrator.
 
 		// Private actions
 		add_action( 'wp_ajax_trasloco_export', 'Trasloco_Export_Controller::export' );
 		add_action( 'wp_ajax_trasloco_import', 'Trasloco_Import_Controller::import' );
 		add_action( 'wp_ajax_trasloco_status', 'Trasloco_Status_Controller::status' );
 		add_action( 'wp_ajax_trasloco_backups', 'Trasloco_Backups_Controller::delete' );
+		add_action( 'admin_post_trasloco_download', 'Trasloco_Backups_Controller::download' );
 	}
 
 	/**

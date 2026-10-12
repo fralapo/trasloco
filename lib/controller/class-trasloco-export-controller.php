@@ -56,7 +56,7 @@ class Trasloco_Export_Controller {
 
 		try {
 			// Ensure that unauthorized people cannot access export action
-			trasloco_verify_secret_key( $secret_key );
+			trasloco_verify_operation_token( $secret_key, 'export' );
 		} catch ( Trasloco_Not_Valid_Secret_Key_Exception $e ) {
 			exit;
 		}
@@ -111,7 +111,7 @@ class Trasloco_Export_Controller {
 						wp_remote_post( apply_filters( 'trasloco_http_export_url', admin_url( 'admin-ajax.php?action=trasloco_export' ) ), array(
 							'timeout'   => apply_filters( 'trasloco_http_export_timeout', 5 ),
 							'blocking'  => apply_filters( 'trasloco_http_export_blocking', false ),
-							'sslverify' => apply_filters( 'trasloco_http_export_sslverify', false ),
+							'sslverify' => apply_filters( 'trasloco_http_export_sslverify', true ),
 							'headers'   => apply_filters( 'trasloco_http_export_headers', array() ),
 							'body'      => apply_filters( 'trasloco_http_export_body', $params ),
 						) );

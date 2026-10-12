@@ -44,6 +44,7 @@ class Trasloco_File_Webconfig {
 			'</files>',
 			'</defaultDocument>',
 			'<directoryBrowse enabled="false" />',
+			'<security><requestFiltering><fileExtensions><add fileExtension=".wpress" allowed="false" /></fileExtensions></requestFiltering></security>',
 			'</system.webServer>',
 			'</configuration>',
 		) ) );

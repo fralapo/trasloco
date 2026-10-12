@@ -41,6 +41,15 @@ class Trasloco_File_Htaccess {
 			'</IfModule>',
 			'<IfModule mod_autoindex.c>',
 			'Options -Indexes',
+			'# Trasloco private archives',
+			'<FilesMatch "\\.wpress$">',
+			'<IfModule mod_authz_core.c>',
+			'Require all denied',
+			'</IfModule>',
+			'<IfModule !mod_authz_core.c>',
+			'Deny from all',
+			'</IfModule>',
+			'</FilesMatch>',
 			'</IfModule>',
 		) ) );
 	}
