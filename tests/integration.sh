@@ -338,6 +338,20 @@ if $WP post list --path="$ROOT/target" --post_type=post --field=post_title | gre
   echo "ERROR: recovery point did not restore the destination database" >&2
   exit 1
 fi
+# Best-effort admin warning for Nginx deployments where backups are web-accessible.
+$WP eval '
+$users = get_users( array( "role" => "administrator", "number" => 1 ) );
+wp_set_current_user( $users[0]->ID );
+$_SERVER["SERVER_SOFTWARE"] = "nginx/1.25";
+$_SERVER["DOCUMENT_ROOT"] = ABSPATH;
+ob_start();
+$controller = new Trasloco_Main_Controller();
+$controller->nginx_backup_security_notice();
+$warning = ob_get_clean();
+if ( strpos( $warning, "Nginx" ) === false || strpos( $warning, "TRASLOCO_BACKUPS_DIR" ) === false ) {
+    throw new Exception( "Missing Nginx backups security warning" );
+}
+' --path="$ROOT/source"
 # Plugin deactivation removes recurring timers and queued workers only.
 $WP plugin deactivate trasloco --path="$ROOT/source"
 $WP eval '

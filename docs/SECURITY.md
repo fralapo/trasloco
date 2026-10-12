@@ -66,3 +66,5 @@ Before replacing a site from a **local** backup, Trasloco checks its SHA-256 man
 ## Worker backup concurrency
 
 Server-side scheduled backups and automatic recovery snapshots share an exclusive non-blocking `flock` mutex in the backups directory. When another server-side export holds the lock, the new job fails before starting its export rather than risk overlapping writes. Filesystem locks require a local/shared filesystem that supports `flock`; multiple independent servers and older interactive AJAX export flows are **not yet covered** by this lock. A future durable import/export orchestration layer must coordinate those paths too.
+
+When Nginx is detected and the backups directory appears to reside under the site's web document root, administrators now receive a translated warning. This is a best-effort heuristic; proxies, container mounts or unusual document roots can bypass detection. A real logged-out HTTP test remains mandatory.

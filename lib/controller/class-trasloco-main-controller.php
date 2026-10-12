@@ -147,6 +147,7 @@ class Trasloco_Main_Controller {
 			add_action( 'network_admin_notices', array( $this, 'multisite_notice' ) );
 		} else {
 			add_action( 'admin_menu', array( $this, 'admin_menu' ) );
+            add_action( 'admin_notices', array( $this, 'nginx_backup_security_notice' ) );
 		}
 
 		// Add HTTP export headers
@@ -346,6 +347,32 @@ class Trasloco_Main_Controller {
 				return add_action( 'admin_notices', array( $this, 'wordpress_htaccess_notice' ) );
 			}
 		}
+	}
+
+	/**
+	 * Best-effort warning: Nginx bypasses our .htaccess access controls.
+	 * Only warn when its detected document root contains our backup folder.
+	 */
+	public function nginx_backup_security_notice() {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+		$server = isset( $_SERVER['SERVER_SOFTWARE'] ) && is_string( $_SERVER['SERVER_SOFTWARE'] )
+			? $_SERVER['SERVER_SOFTWARE'] : '';
+		if ( stripos( $server, 'nginx' ) === false ) {
+			return;
+		}
+		$webroot = isset( $_SERVER['DOCUMENT_ROOT'] ) && is_string( $_SERVER['DOCUMENT_ROOT'] )
+			? realpath( $_SERVER['DOCUMENT_ROOT'] ) : false;
+		$backups = realpath( TRASLOCO_BACKUPS_PATH );
+		if ( $webroot && $backups &&
+			strpos( $backups, rtrim( $webroot, DIRECTORY_SEPARATOR ) . DIRECTORY_SEPARATOR ) !== 0 &&
+			$backups !== $webroot ) {
+			return; // Already outside the detected public document root.
+		}
+		echo '<div class="notice notice-warning"><p>' .
+			esc_html__( 'Trasloco security: Nginx does not honor .htaccess. Block HTTP access to the backups folder in Nginx, or configure TRASLOCO_BACKUPS_DIR outside the public web root before storing backups.', TRASLOCO_PLUGIN_NAME ) .
+			'</p></div>';
 	}
 
 	/**

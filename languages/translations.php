@@ -11,6 +11,12 @@
  */
 
 return array(
+	'Trasloco security: Nginx does not honor .htaccess. Block HTTP access to the backups folder in Nginx, or configure TRASLOCO_BACKUPS_DIR outside the public web root before storing backups.' => array(
+		'it' => 'Sicurezza Trasloco: Nginx non applica .htaccess. Blocca l\'accesso HTTP alla cartella dei backup tramite Nginx oppure configura TRASLOCO_BACKUPS_DIR fuori dalla directory pubblica prima di salvare backup.',
+		'es' => 'Seguridad de Trasloco: Nginx no respeta .htaccess. Bloquea el acceso HTTP a la carpeta de copias en Nginx o configura TRASLOCO_BACKUPS_DIR fuera de la raíz pública antes de guardar copias.',
+		'fr' => 'Sécurité Trasloco : Nginx ignore .htaccess. Bloquez l\'accès HTTP au dossier des sauvegardes dans Nginx ou configurez TRASLOCO_BACKUPS_DIR hors de la racine web publique avant de sauvegarder.',
+		'de' => 'Trasloco-Sicherheit: Nginx berücksichtigt .htaccess nicht. Sperren Sie den HTTP-Zugriff auf den Backup-Ordner in Nginx oder konfigurieren Sie TRASLOCO_BACKUPS_DIR außerhalb des öffentlichen Webverzeichnisses.',
+	),
 	'Recent operations' => array(
 		'it' => 'Operazioni recenti',
 		'es' => 'Operaciones recientes',
