@@ -194,4 +194,17 @@ $data = $ok->get_data();
 if ( $ok->get_status() !== 200 || ! array_key_exists( "latest_backup", $data ) ) { throw new Exception( "Health API failed" ); }
 if ( strpos( wp_json_encode( $data ), ABSPATH ) !== false ) { throw new Exception( "Server paths disclosed in health API" ); }
 ' --path="$ROOT/source"
+
+# Failed scheduled jobs fire an alert hook without deleting good backups.
+$WP eval '
+$GLOBALS["tr_fail_notified"] = false;
+add_action( "trasloco_scheduled_backup_failed", function ( $job_id ) {
+    $GLOBALS["tr_fail_notified"] = $job_id > 0;
+}, 10, 1 );
+$id = Trasloco_Job_Store::create( "backup", array( "retention" => 0 ), "ci-failure-notification-job-1234" );
+$result = Trasloco_Job_Worker::run( $id );
+if ( $result["status"] !== "failed" || ! $GLOBALS["tr_fail_notified"] ) {
+    throw new Exception( "Backup failure alert was not emitted" );
+}
+' --path="$ROOT/source"
 echo "WordPress backup + database + users + media migration passed."

@@ -8,6 +8,23 @@ class Trasloco_Scheduled_Backups {
         add_action( 'init', array( __CLASS__, 'sync' ), 30 );
         add_action( 'admin_post_trasloco_save_schedule', array( __CLASS__, 'save' ) );
         add_action( self::HOOK, array( __CLASS__, 'enqueue' ) );
+        add_action( 'trasloco_scheduled_backup_failed', array( __CLASS__, 'notify_failure' ) );
+    }
+
+
+    /**
+     * Do not email archive contents, stack traces, credentials or internal paths.
+     * Delivery depends on the site's mail configuration.
+     */
+    public static function notify_failure( $job_id ) {
+        $email = get_option( 'admin_email' );
+        if ( ! is_email( $email ) ) {
+            return;
+        }
+        wp_mail( $email,
+            __( 'Trasloco automatic backup failed', TRASLOCO_PLUGIN_NAME ),
+            __( 'An automatic site backup failed. Open WordPress administration and review Trasloco backups and job status. Your previous backups have not been removed.', TRASLOCO_PLUGIN_NAME )
+        );
     }
 
     public static function settings() {

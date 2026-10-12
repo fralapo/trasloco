@@ -92,3 +92,6 @@ Updated 2026-10-12. This plan is an implementation dependency map, not a claim t
 
 - [x] Initial feature 11 integration: private read-only site-health endpoint for future agency monitoring.
 - [ ] Multi-site coordinator with mutual trust, reconciliation, notifications, permissions and site onboarding.
+
+- [x] Scheduled backup failure alert hook with administrator email notification (subject to WordPress mail delivery).
+- [ ] Per-site notification settings, webhook integrations and delivery retries.

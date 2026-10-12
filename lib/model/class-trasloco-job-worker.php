@@ -142,6 +142,9 @@ class Trasloco_Job_Worker {
         } catch ( Throwable $e ) {
             // Generic error only; never log any secret-bearing payload or path.
             Trasloco_Job_Store::fail( $id, $owner, $e->getMessage() );
+            if ( $record['kind'] === 'backup' && empty( $record['payload']['recovery_point'] ) ) {
+                do_action( 'trasloco_scheduled_backup_failed', $id );
+            }
             return array( 'status' => 'failed' );
         }
     }

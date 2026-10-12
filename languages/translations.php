@@ -11,6 +11,18 @@
  */
 
 return array(
+	'Trasloco automatic backup failed' => array(
+		'it' => 'Backup automatico di Trasloco non riuscito',
+		'es' => 'Error en la copia automática de Trasloco',
+		'fr' => 'Échec de la sauvegarde automatique Trasloco',
+		'de' => 'Automatisches Trasloco-Backup fehlgeschlagen',
+	),
+	'An automatic site backup failed. Open WordPress administration and review Trasloco backups and job status. Your previous backups have not been removed.' => array(
+		'it' => 'Un backup automatico non è riuscito. Apri l’amministrazione WordPress e controlla i backup e lo stato dei processi di Trasloco. I backup precedenti non sono stati eliminati.',
+		'es' => 'Una copia automática ha fallado. Accede a WordPress y revisa las copias y tareas de Trasloco. Las copias anteriores no se han eliminado.',
+		'fr' => 'Une sauvegarde automatique a échoué. Connectez-vous à WordPress et consultez les sauvegardes et tâches Trasloco. Les anciennes sauvegardes ont été conservées.',
+		'de' => 'Ein automatisches Backup ist fehlgeschlagen. Prüfen Sie die Backups und Aufgaben in WordPress. Bestehende Backups wurden nicht gelöscht.',
+	),
 	'Create a verified recovery point before updating WordPress, plugins or themes' => array(
 		'it' => 'Crea un punto di ripristino verificato prima di aggiornare WordPress, plugin o temi',
 		'es' => 'Crear un punto de recuperación verificado antes de actualizar WordPress, plugins o temas',
