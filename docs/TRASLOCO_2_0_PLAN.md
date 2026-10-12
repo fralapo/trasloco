@@ -127,3 +127,5 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 - [ ] Phase 1C-2: use chunk checkpoints in cron workers and new exports once integration is green.
 
 - [x] Phase 1C-2: verification jobs can yield and resume v2 4-MiB chunk checks in bounded batches, with persisted offsets, archive/manifest stability checks, lease-safe handoff and MySQL integration. No claim of resumable export yet.
+
+- [x] Phase 1C-3: all newly exported .wpress archives publish version 2 SHA-256/chunk manifests. Original archive bytes and legacy v1 verification remain compatible. CI exercises WP-CLI export, V2 manifest, encryption round trip, full restore and recovery.

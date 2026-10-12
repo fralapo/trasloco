@@ -33,6 +33,15 @@ if [ ! -s "$ARCHIVE" ]; then
   exit 1
 fi
 $WP trasloco verify "$(basename "$ARCHIVE")" --path="$ROOT/source"
+$WP eval '
+$files = (new Trasloco_Backups())->get_files();
+$path = trasloco_backup_path( array( "archive" => basename( $files[0]["filename"] ) ) );
+$manifest = Trasloco_Integrity::chunked_manifest( $path );
+if ( ! is_array( $manifest ) || $manifest["manifest_version"] !== 2 ||
+     count( $manifest["chunks"] ) < 1 ) {
+    throw new Exception( "New backups must publish resumable v2 chunk manifests" );
+}
+' --path="$ROOT/source"
 EXTRACT_REPORT=$($WP trasloco extract-files "$(basename "$ARCHIVE")" "uploads/test-fixtures/fixture.txt" --path="$ROOT/source")
 EXTRACT_DIR="${EXTRACT_REPORT##*Files extracted to: }"
 test -f "$EXTRACT_DIR/uploads/test-fixtures/fixture.txt"
