@@ -108,4 +108,33 @@ ensure( Trasloco_Integrity::verify( $integrity_archive )['status'] === 'invalid'
 unlink( $integrity_archive );
 unlink( $manifest_file );
 
+
+require dirname( __DIR__ ) . '/lib/model/class-trasloco-encryption.php';
+if ( function_exists( 'sodium_crypto_secretstream_xchacha20poly1305_init_push' ) ) {
+    $source = tempnam( sys_get_temp_dir(), 'tr-plain-' );
+    file_put_contents( $source, str_repeat( "hello world", 10000 ) );
+    $encrypted = $source . '.enc';
+    $decrypted = $source . '.restored';
+    Trasloco_Encryption::encrypt( $source, $encrypted, 'passphrase-with-20chars' );
+    Trasloco_Encryption::decrypt( $encrypted, $decrypted, 'passphrase-with-20chars' );
+    ensure( hash_file( 'sha256', $source ) === hash_file( 'sha256', $decrypted ), 'encrypted round trip' );
+    unlink( $decrypted );
+    try {
+        Trasloco_Encryption::decrypt( $encrypted, $decrypted, 'definitely-wrong-passphrase' );
+        ensure( false, 'wrong password accepted' );
+    } catch ( RuntimeException $expected ) {
+        ensure( ! file_exists( $decrypted ), 'wrong password left plaintext behind' );
+    }
+    $tampered = file_get_contents( $encrypted );
+    $tampered[80] = chr( ord( $tampered[80] ) ^ 1 );
+    file_put_contents( $encrypted, $tampered );
+    try {
+        Trasloco_Encryption::decrypt( $encrypted, $decrypted, 'passphrase-with-20chars' );
+        ensure( false, 'tampered archive decrypted' );
+    } catch ( RuntimeException $expected ) {
+        ensure( ! file_exists( $decrypted ), 'tampering left decrypted content' );
+    }
+    unlink( $source );
+    unlink( $encrypted );
+}
 echo "Security and archive smoke tests passed.\n";

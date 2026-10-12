@@ -77,3 +77,6 @@ Updated 2026-10-12. This plan is an implementation dependency map, not a claim t
 
 - [x] Native WP-Cron automatic backup engine with job queue, SHA-256 verification and retention (UI to follow).
 - [ ] Validate scheduled operation timeouts on real hosting; WAF and server cron support.
+
+- [x] Phase 6A: standalone versioned streaming libsodium encrypted envelope with wrong-key/corruption tests.
+- [ ] Phase 6B: CLI and UI workflows, storage protection and recovery integration.
