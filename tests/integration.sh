@@ -181,4 +181,17 @@ $after = count( (new Trasloco_Backups())->get_files() );
 if ( $after <= $before ) { throw new Exception( "No pre-update checkpoint was created" ); }
 update_option( Trasloco_Scheduled_Backups::OPTION, array( "frequency" => "off", "keep" => 2, "before_updates" => false ) );
 ' --path="$ROOT/source"
+
+# The agency health endpoint is private and does not disclose internal paths.
+$WP eval '
+wp_set_current_user( 0 );
+$unauthorized = rest_do_request( new WP_REST_Request( "GET", "/trasloco/v1/health" ) );
+if ( $unauthorized->get_status() < 400 ) { throw new Exception( "Anonymous site health access permitted" ); }
+$users = get_users( array( "role" => "administrator", "number" => 1 ) );
+wp_set_current_user( $users[0]->ID );
+$ok = rest_do_request( new WP_REST_Request( "GET", "/trasloco/v1/health" ) );
+$data = $ok->get_data();
+if ( $ok->get_status() !== 200 || ! array_key_exists( "latest_backup", $data ) ) { throw new Exception( "Health API failed" ); }
+if ( strpos( wp_json_encode( $data ), ABSPATH ) !== false ) { throw new Exception( "Server paths disclosed in health API" ); }
+' --path="$ROOT/source"
 echo "WordPress backup + database + users + media migration passed."

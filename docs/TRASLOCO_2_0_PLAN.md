@@ -89,3 +89,6 @@ Updated 2026-10-12. This plan is an implementation dependency map, not a claim t
 
 - [x] Phase 10A: optional verified recovery point before core/plugin/theme updates, fail closed when backup fails.
 - [ ] Phase 10B: automated rollback, failure alerts and cross-host upgrade checks.
+
+- [x] Initial feature 11 integration: private read-only site-health endpoint for future agency monitoring.
+- [ ] Multi-site coordinator with mutual trust, reconciliation, notifications, permissions and site onboarding.

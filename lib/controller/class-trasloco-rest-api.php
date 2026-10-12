@@ -6,6 +6,11 @@
  */
 class Trasloco_REST_API {
     public static function register() {
+        register_rest_route( 'trasloco/v1', '/health', array(
+            'methods' => 'GET',
+            'callback' => array( __CLASS__, 'get_health' ),
+            'permission_callback' => array( __CLASS__, 'can_manage' ),
+        ) );
         register_rest_route( 'trasloco/v1', '/backups', array(
             'methods' => 'GET',
             'callback' => array( __CLASS__, 'list_backups' ),
@@ -75,6 +80,31 @@ class Trasloco_REST_API {
             return new WP_Error( 'trasloco_job_not_cancellable', 'Job not found or already completed.', array( 'status' => 409 ) );
         }
         return rest_ensure_response( Trasloco_Job_Store::get( $id ) );
+    }
+
+
+    /**
+     * Remote monitoring endpoint for future multi-site/agency consoles.
+     * Does not return credentials, filesystem paths or user account details.
+     * A sidecar only means "manifest available", never "verified".
+     */
+    public static function get_health( $request ) {
+        global $wpdb;
+        $backups = (new Trasloco_Backups())->get_files();
+        $latest = ! empty( $backups ) ? $backups[0] : null;
+        $schedule = Trasloco_Scheduled_Backups::settings();
+        $table = Trasloco_Job_Store::table();
+        $failed = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table} WHERE state = 'failed'" );
+        $pending = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table} WHERE state IN ('pending','running')" );
+        return rest_ensure_response( array(
+            'site' => home_url(),
+            'backups' => count( $backups ),
+            'latest_backup' => $latest ? self::metadata( $latest['filename'] ) : null,
+            'schedule' => $schedule['frequency'],
+            'next_scheduled_at' => $schedule['frequency'] === 'off' ? null : wp_next_scheduled( Trasloco_Scheduled_Backups::HOOK ),
+            'failed_jobs' => $failed,
+            'active_jobs' => $pending,
+        ) );
     }
 
     public static function can_manage() {
