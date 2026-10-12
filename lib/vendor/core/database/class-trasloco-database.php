@@ -847,7 +847,10 @@ abstract class Trasloco_Database {
 						}
 
 						if ( $this->errno() ) {
-							$this->log_error( $this->errno() . ' ' . $this->error(), $query );
+							$problem = $this->errno() . ' ' . $this->error();
+							$this->log_error( $problem, $query );
+							$this->query( 'ROLLBACK' );
+							throw new Trasloco_Import_Exception( 'Database import failed: ' . $problem );
 						}
 
 						// Set query offset
@@ -863,7 +866,10 @@ abstract class Trasloco_Database {
 							}
 						}
 					} else {
-						$this->log_error( sprintf( 'Skipped: larger than max_allowed_packet (%d bytes)', $max_allowed_packet ), $query );
+						$problem = sprintf( 'Skipped: larger than max_allowed_packet (%d bytes)', $max_allowed_packet );
+						$this->log_error( $problem, $query );
+						$this->query( 'ROLLBACK' );
+						throw new Trasloco_Import_Exception( 'Database import failed: ' . $problem );
 					}
 
 					$query = null;

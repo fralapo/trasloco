@@ -72,12 +72,22 @@ class Trasloco_Import_Upload {
 
 			// The offset must point inside the file or at its end: no gaps, no sparse files
 			$offset = isset( $_POST['upload-offset'] ) ? (int) $_POST['upload-offset'] : 0;
-			$stat   = fstat( $handle );
-			if ( $offset < 0 || $offset > $stat['size'] || fseek( $handle, $offset ) !== 0 || fwrite( $handle, $data ) !== strlen( $data ) ) {
+			// Lock the file and truncate stale trailing bytes when retrying a chunk.
+			if ( ! flock( $handle, LOCK_EX ) ) {
 				fclose( $handle );
 				throw new Trasloco_Import_Retry_Exception( __( 'Invalid upload chunk.', TRASLOCO_PLUGIN_NAME ), 400 );
 			}
+			$stat = fstat( $handle );
+			$valid = $stat && $offset >= 0 && $offset <= $stat['size'] &&
+				fseek( $handle, $offset ) === 0 &&
+				( $offset === $stat['size'] || ftruncate( $handle, $offset ) ) &&
+				fwrite( $handle, $data ) === strlen( $data ) &&
+				fflush( $handle );
+			flock( $handle, LOCK_UN );
 			fclose( $handle );
+			if ( ! $valid ) {
+				throw new Trasloco_Import_Retry_Exception( __( 'Invalid upload chunk.', TRASLOCO_PLUGIN_NAME ), 400 );
+			}
 
 			echo json_encode( array( 'errors' => array() ) );
 			exit;

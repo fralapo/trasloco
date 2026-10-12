@@ -194,6 +194,23 @@ class Trasloco_Main_Controller {
 			$this->create_backups_webconfig( TRASLOCO_BACKUPS_WEBCONFIG );
 		}
 
+		// Deny direct HTTP access to temporary SQL dumps, logs and archives.
+		$storage_rules = TRASLOCO_STORAGE_PATH . DIRECTORY_SEPARATOR . '.htaccess';
+		if ( ! is_file( $storage_rules ) ) {
+			@file_put_contents( $storage_rules, implode( PHP_EOL, array( '<IfModule mod_authz_core.c>', 'Require all denied', '</IfModule>', '<IfModule !mod_authz_core.c>', 'Deny from all', '</IfModule>' ) ), LOCK_EX );
+		}
+		$storage_webconfig = TRASLOCO_STORAGE_PATH . DIRECTORY_SEPARATOR . 'web.config';
+		if ( ! is_file( $storage_webconfig ) ) {
+			@file_put_contents( $storage_webconfig, '<configuration><system.webServer><security><authorization><deny users="*" /></authorization></security></system.webServer></configuration>', LOCK_EX );
+		}
+		// Upgrade existing Apache archive rules without discarding local directives.
+		if ( is_file( TRASLOCO_BACKUPS_HTACCESS ) ) {
+			$access_rules = @file_get_contents( TRASLOCO_BACKUPS_HTACCESS );
+			if ( is_string( $access_rules ) && strpos( $access_rules, '# Trasloco private archives' ) === false ) {
+				$private_rules = array( '# Trasloco private archives', '<FilesMatch "\\.wpress$">', '<IfModule mod_authz_core.c>', 'Require all denied', '</IfModule>', '<IfModule !mod_authz_core.c>', 'Deny from all', '</IfModule>', '</FilesMatch>' );
+				@file_put_contents( TRASLOCO_BACKUPS_HTACCESS, PHP_EOL . implode( PHP_EOL, $private_rules ) . PHP_EOL, FILE_APPEND | LOCK_EX );
+			}
+		}
 		// Remove work folders of imports and exports that stopped halfway: nothing has written to them for a day
 		foreach ( (array) glob( TRASLOCO_STORAGE_PATH . DIRECTORY_SEPARATOR . '*', GLOB_ONLYDIR ) as $folder ) {
 			$last = (int) @filemtime( $folder );

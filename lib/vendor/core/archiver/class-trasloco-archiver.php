@@ -191,17 +191,43 @@ abstract class Trasloco_Archiver {
 	 * @return bool
 	 */
 	public function is_valid() {
-		if ( ( $offset = @ftell( $this->file_handle ) ) !== false ) {
-			if ( @fseek( $this->file_handle, -4377, SEEK_END ) !== -1 ) {
-				if ( $this->is_eof_block( @fread( $this->file_handle, 4377 ) ) ) {
-					if ( @fseek( $this->file_handle, $offset, SEEK_SET ) !== -1 ) {
-						return true;
-					}
-				}
-			}
+		$original = @ftell( $this->file_handle );
+		if ( $original === false ) {
+			return false;
 		}
-
-		return false;
+		clearstatcache( true, $this->file_name );
+		$length = @filesize( $this->file_name );
+		try {
+			if ( $length === false || $length < 4377 ) {
+				return false;
+			}
+			$cursor = 0;
+			while ( $cursor <= $length - 4377 ) {
+				if ( @fseek( $this->file_handle, $cursor, SEEK_SET ) !== 0 ) {
+					return false;
+				}
+				$block = @fread( $this->file_handle, 4377 );
+				if ( ! is_string( $block ) || strlen( $block ) !== 4377 ) {
+					return false;
+				}
+				if ( $this->is_eof_block( $block ) ) {
+					return $cursor + 4377 === $length;
+				}
+				$name = trim( substr( $block, 0, 255 ), chr(0) );
+				$bytes = trim( substr( $block, 255, 14 ), chr(0) . ' ' . chr(9) . chr(10) . chr(13) );
+				if ( $name === '' || ! ctype_digit( $bytes ) ) {
+					return false;
+				}
+				$size = (int) $bytes;
+				if ( $size < 0 || $size > $length - $cursor - 4377 ) {
+					return false;
+				}
+				$cursor += 4377 + $size;
+			}
+			return false;
+		} finally {
+			@fseek( $this->file_handle, $original, SEEK_SET );
+		}
 	}
 
 	/**
