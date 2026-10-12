@@ -82,7 +82,14 @@ class Trasloco_API {
         if ( ! function_exists( 'wp_register_ability' ) ) {
             return;
         }
+        if ( function_exists( 'wp_register_ability_category' ) ) {
+            wp_register_ability_category( 'trasloco', array(
+                'label' => 'Trasloco',
+                'description' => 'Backup, migration and recovery status for WordPress administrators.',
+            ) );
+        }
         wp_register_ability( 'trasloco/site-readiness', array(
+            'category' => 'trasloco',
             'label' => 'Trasloco site readiness',
             'description' => 'Inspect WordPress, PHP, backup storage and WooCommerce HPOS availability.',
             'output_schema' => array(
