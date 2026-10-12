@@ -138,3 +138,5 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 - [ ] Compatibility check: MySQL 8.0 and MariaDB 11.4 integration CI matrix introduced; mark complete only after both matrix jobs pass and compare behavior.
 
 - [x] Read-only administrator/CLI preflight report with backup directory status, public-root risk, disk free space, required extensions and cron mode; does not return paths or secrets. A positive report is not restore certification.
+
+- [ ] Runtime compatibility matrix (experimental until green): PHP 7.4, 8.2 and 8.4 crossed with MySQL 8.0 and MariaDB 11.4. Evaluate failures before expanding support claims.

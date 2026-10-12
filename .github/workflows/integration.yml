@@ -6,11 +6,12 @@ on:
 
 jobs:
   migrate:
-    name: migrate (${{ matrix.database.name }})
+    name: migrate (${{ matrix.database.name }}, PHP ${{ matrix.php }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
+        php: ['7.4', '8.2', '8.4']
         database:
           - name: mysql-8.0
             image: mysql:8.0
@@ -35,7 +36,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.2'
+          php-version: ${{ matrix.php }}
           extensions: mysqli, pdo_mysql, mbstring, zip
           tools: none
           coverage: none
