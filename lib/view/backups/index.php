@@ -46,6 +46,7 @@
 				<option value="hourly" <?php selected( $tr_schedule['frequency'], 'hourly' ); ?>><?php esc_html_e( 'Hourly', TRASLOCO_PLUGIN_NAME ); ?></option>
 				<option value="daily" <?php selected( $tr_schedule['frequency'], 'daily' ); ?>><?php esc_html_e( 'Daily', TRASLOCO_PLUGIN_NAME ); ?></option>
 				<option value="weekly" <?php selected( $tr_schedule['frequency'], 'weekly' ); ?>><?php esc_html_e( 'Weekly', TRASLOCO_PLUGIN_NAME ); ?></option>
+				<option value="monthly" <?php selected( $tr_schedule['frequency'], 'monthly' ); ?>><?php esc_html_e( 'Monthly', TRASLOCO_PLUGIN_NAME ); ?></option>
 			</select></p>
 			<p><label for="tr-schedule-keep"><strong><?php esc_html_e( 'Keep latest backups', TRASLOCO_PLUGIN_NAME ); ?></strong></label></p>
 			<p><input id="tr-schedule-keep" type="number" name="keep" min="1" max="100" required value="<?php echo esc_attr( $tr_schedule['keep'] ); ?>" /></p>

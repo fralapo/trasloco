@@ -237,6 +237,18 @@ if ( $result["status"] !== "completed" ) { throw new Exception( "Scheduled expor
 $archive = trasloco_backup_path( array( "archive" => $result["archive"] ) );
 if ( Trasloco_Integrity::verify( $archive )["status"] !== "verified" ) { throw new Exception( "Scheduled archive is corrupt" ); }
 if ( count( (new Trasloco_Backups())->get_files() ) > 2 ) { throw new Exception( "Retention failed" ); }
+// Calendar-month scheduling follows WordPress timezone and is one-shot.
+update_option( "timezone_string", "Europe/Rome" );
+update_option( Trasloco_Scheduled_Backups::OPTION, array( "frequency" => "monthly", "keep" => 2 ) );
+Trasloco_Scheduled_Backups::sync();
+$expected = (new DateTimeImmutable( "first day of next month 03:00:00", wp_timezone() ))->getTimestamp();
+if ( wp_next_scheduled( Trasloco_Scheduled_Backups::HOOK ) !== $expected ||
+    wp_get_schedule( Trasloco_Scheduled_Backups::HOOK ) !== false ) {
+    throw new Exception( "Monthly cron did not follow the site timezone" );
+}
+if ( Trasloco_Scheduled_Backups::enqueue() !== Trasloco_Scheduled_Backups::enqueue() ) {
+    throw new Exception( "Duplicate monthly job was not deduplicated" );
+}
 update_option( Trasloco_Scheduled_Backups::OPTION, array( "frequency" => "off", "keep" => 2 ) );
 Trasloco_Scheduled_Backups::sync();
 if ( wp_next_scheduled( Trasloco_Scheduled_Backups::HOOK ) ) { throw new Exception( "Disabled schedule still active" ); }

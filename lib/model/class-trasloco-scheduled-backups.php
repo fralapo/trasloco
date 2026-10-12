@@ -32,7 +32,7 @@ class Trasloco_Scheduled_Backups {
         $value = is_array( $value ) ? $value : array();
         $frequency = isset( $value['frequency'] ) ? $value['frequency'] : 'off';
         $keep = isset( $value['keep'] ) ? (int) $value['keep'] : 7;
-        if ( ! in_array( $frequency, array( 'off', 'hourly', 'daily', 'weekly' ), true ) ) {
+        if ( ! in_array( $frequency, array( 'off', 'hourly', 'daily', 'weekly', 'monthly' ), true ) ) {
             $frequency = 'off';
         }
         return array( 'frequency' => $frequency, 'keep' => max( 1, min( 100, $keep ) ), 'before_updates' => ! empty( $value['before_updates'] ) );
@@ -49,13 +49,21 @@ class Trasloco_Scheduled_Backups {
             }
             return;
         }
-        if ( $next !== false && $current !== $frequency ) {
+        $desired = $frequency === 'monthly' ? false : $frequency;
+        if ( $next !== false && $current !== $desired ) {
             wp_clear_scheduled_hook( self::HOOK );
             $next = false;
         }
         if ( $next === false ) {
-            $seconds = array( 'hourly' => HOUR_IN_SECONDS, 'daily' => DAY_IN_SECONDS, 'weekly' => WEEK_IN_SECONDS );
-            wp_schedule_event( time() + $seconds[ $frequency ], $frequency, self::HOOK );
+            if ( $frequency === 'monthly' ) {
+                // WordPress-site local calendar months; never pretend a month
+                // is exactly 30 days. DST transitions are applied by PHP.
+                $next_month = new DateTimeImmutable( 'first day of next month 03:00:00', wp_timezone() );
+                wp_schedule_single_event( $next_month->getTimestamp(), self::HOOK );
+            } else {
+                $seconds = array( 'hourly' => HOUR_IN_SECONDS, 'daily' => DAY_IN_SECONDS, 'weekly' => WEEK_IN_SECONDS );
+                wp_schedule_event( time() + $seconds[ $frequency ], $frequency, self::HOOK );
+            }
         }
     }
 
@@ -66,7 +74,7 @@ class Trasloco_Scheduled_Backups {
         check_admin_referer( 'trasloco_save_schedule' );
         $frequency = isset( $_POST['frequency'] ) && is_string( $_POST['frequency'] ) ? sanitize_key( wp_unslash( $_POST['frequency'] ) ) : 'off';
         $keep = isset( $_POST['keep'] ) ? filter_var( wp_unslash( $_POST['keep'] ), FILTER_VALIDATE_INT ) : false;
-        if ( ! in_array( $frequency, array( 'off', 'hourly', 'daily', 'weekly' ), true ) ||
+        if ( ! in_array( $frequency, array( 'off', 'hourly', 'daily', 'weekly', 'monthly' ), true ) ||
              $keep === false || $keep < 1 || $keep > 100 ) {
             wp_die( 'Invalid schedule configuration.', '', array( 'response' => 400 ) );
         }
@@ -83,8 +91,14 @@ class Trasloco_Scheduled_Backups {
         if ( $settings['frequency'] === 'off' ) {
             return false;
         }
-        $seconds = array( 'hourly' => HOUR_IN_SECONDS, 'daily' => DAY_IN_SECONDS, 'weekly' => WEEK_IN_SECONDS );
-        $bucket = (int) floor( time() / $seconds[ $settings['frequency'] ] );
+        if ( $settings['frequency'] === 'monthly' ) {
+            $bucket = wp_date( 'Y-m' );
+            // One-shot WP-Cron events are removed before calling this hook.
+            self::sync();
+        } else {
+            $seconds = array( 'hourly' => HOUR_IN_SECONDS, 'daily' => DAY_IN_SECONDS, 'weekly' => WEEK_IN_SECONDS );
+            $bucket = (int) floor( time() / $seconds[ $settings['frequency'] ] );
+        }
         $key = hash( 'sha256', 'scheduled-backup|' . $settings['frequency'] . '|' . $bucket );
         $id = Trasloco_Job_Store::create( 'backup', array( 'retention' => $settings['keep'] ), $key );
         if ( is_wp_error( $id ) || ! $id ) {

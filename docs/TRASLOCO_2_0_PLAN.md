@@ -116,3 +116,5 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 - [x] Audit fix: reuse of an idempotency key for a different job kind/archive now yields an explicit HTTP 409 conflict; integration includes cross-kind and cross-archive collisions.
 
 - [x] Audit fix: worker progress events renew owned backup leases in hourly export pipelines, preventing healthy long exports from being marked abandoned when they report progress. Integration tests check lease extension. Does not make interrupted backups byte-resumable.
+
+- [x] Phase 4B: monthly backup frequency as a calendar month in the WordPress timezone, including DST, with idempotent monthly job creation and cron transition tests.
