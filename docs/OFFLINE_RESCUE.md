@@ -51,3 +51,49 @@ When a sidecar is present and does not match the archive, extraction is refused
 real backup without updating its manifest and checks this fail-closed behavior.
 A manifest-free legacy archive may still be inspected, but the CLI reports it
 as unverified; structural validation alone cannot prove data authenticity.
+
+## Bootable restore into a freshly provisioned WordPress installation
+
+A second, **different** recovery path now has an end-to-end CI rehearsal:
+[`tests/disaster-rehearsal.sh`](../tests/disaster-rehearsal.sh). It bootstraps
+a completely separate WordPress installation and empty MySQL/MariaDB database,
+installs Trasloco, verifies the original `.wpress` bytes and restores a real
+site archive. It checks migrated users, posts, uploaded media, the new site's
+URLs, WordPress installation status and database integrity. The original
+WordPress runtime is not used by the restore. The new environment **does**
+require WordPress, WP-CLI and an operational database.
+
+Operator procedure (rehearse before production):
+
+1. Preserve an immutable/private copy of the source `.wpress` and its
+   `.wpress.manifest.json` companion. Validate integrity before continuing.
+2. Provision a **separate** empty database and new WordPress site on a
+   non-public staging host, with appropriate PHP and database resources.
+   Do not point the staging WordPress config at a live production database.
+3. Install/activate the compatible Trasloco plugin on this new site.
+   Configure a non-public backups directory where possible.
+4. Copy the archive and any matching sidecar into that site's Trasloco
+   backups directory, then run:
+
+   ```bash
+   wp trasloco verify site.wpress --path=/path/to/new/wordpress
+   wp trasloco restore site.wpress --path=/path/to/new/wordpress
+   wp core is-installed --path=/path/to/new/wordpress
+   wp db check --path=/path/to/new/wordpress
+   ```
+
+   A legacy archive with no manifest cannot pass `verify` and must be
+   treated as unverified. Inspect it separately before contemplating restore.
+5. Compare the destination's actual `home` and `siteurl`, users,
+   representative posts, media, login, scheduled jobs and application behavior.
+   In a staging rehearsal, do not send real mail or process real orders.
+6. Promote to production only through an operator-reviewed deployment plan
+   with independent database and content backups, a maintenance window and
+   a rollback process proven on the target hosting environment.
+
+**Limits:** CI runs on MySQL 8.0 and MariaDB 11.4 with PHP 7.4/8.2/8.4.
+It does not prove Nginx/Apache anonymous HTTP access controls, WooCommerce
+order consistency, Multisite or automated rollback after a partial SQL import.
+A restored database cannot be treated as an atomic transaction with filesystem
+changes. The private offline extractor remains available when WordPress cannot
+bootstrap at all.
