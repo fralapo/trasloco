@@ -379,3 +379,13 @@ foreach ( (array) _get_cron_array() as $events ) {
 }
 ' --path="$ROOT/source"
 echo "WordPress migration, recovery rehearsal, jobs and integrity checks passed."
+
+$WP eval '
+$admins = get_users( array( "role" => "administrator", "number" => 1 ) );
+wp_set_current_user( $admins[0]->ID );
+$files = (new Trasloco_Backups())->get_files();
+$_POST["archive"] = basename( $files[0]["filename"] );
+$_POST["trasloco_verify_nonce"] = wp_create_nonce( "trasloco_verify_archive" );
+$_SERVER["REQUEST_METHOD"] = "POST";
+Trasloco_Job_Worker::submit_verification();
+' --path="$ROOT/source"

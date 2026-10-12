@@ -11,6 +11,36 @@
  */
 
 return array(
+	'Manifest available (not verified)' => array(
+		'it' => 'Manifest disponibile (non verificato)',
+		'es' => 'Manifiesto disponible (sin verificar)',
+		'fr' => 'Manifeste disponible (non vérifié)',
+		'de' => 'Manifest verfügbar (nicht geprüft)',
+	),
+	'Verify' => array(
+		'it' => 'Verifica',
+		'es' => 'Verificar',
+		'fr' => 'Vérifier',
+		'de' => 'Prüfen',
+	),
+	'Verify %s' => array(
+		'it' => 'Verifica %s',
+		'es' => 'Verificar %s',
+		'fr' => 'Vérifier %s',
+		'de' => '%s prüfen',
+	),
+	'Backup verification queued. View the recent jobs below for the result.' => array(
+		'it' => 'Verifica del backup accodata. Controlla il risultato nell’elenco delle attività recenti.',
+		'es' => 'Verificación en cola. Consulta el resultado en las tareas recientes.',
+		'fr' => 'Vérification en attente. Consultez le résultat dans les tâches récentes.',
+		'de' => 'Backup-Prüfung eingereiht. Das Ergebnis steht in den letzten Aufgaben.',
+	),
+	'Backup verification could not be queued.' => array(
+		'it' => 'Impossibile accodare la verifica del backup.',
+		'es' => 'No se pudo poner en cola la verificación.',
+		'fr' => 'Impossible de planifier la vérification.',
+		'de' => 'Backup-Prüfung konnte nicht eingereiht werden.',
+	),
 	'Trasloco security: Nginx does not honor .htaccess. Block HTTP access to the backups folder in Nginx, or configure TRASLOCO_BACKUPS_DIR outside the public web root before storing backups.' => array(
 		'it' => 'Sicurezza Trasloco: Nginx non applica .htaccess. Blocca l\'accesso HTTP alla cartella dei backup tramite Nginx oppure configura TRASLOCO_BACKUPS_DIR fuori dalla directory pubblica prima di salvare backup.',
 		'es' => 'Seguridad de Trasloco: Nginx no respeta .htaccess. Bloquea el acceso HTTP a la carpeta de copias en Nginx o configura TRASLOCO_BACKUPS_DIR fuera de la raíz pública antes de guardar copias.',

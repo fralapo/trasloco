@@ -186,3 +186,7 @@ ensure( strpos( $rules, 'Require all denied' ) !== false, 'Apache 2.4 full deny'
 ensure( strpos( $rules, 'Order allow,deny' ) !== false, 'Apache 2.2 full deny' );
 unlink( $test_access );
 echo "Security and archive smoke tests passed.\n";
+
+// Performance guard: archive inventory must not compute every SHA-256 on page load.
+ensure( strpos( file_get_contents( dirname( __DIR__ ) . '/lib/view/backups/index.php' ), 'Trasloco_Integrity::verify(' ) === false,
+    'Backup list must not synchronously hash each archive' );

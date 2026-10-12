@@ -57,6 +57,12 @@
 		</form>
 	</section>
 
+	<?php if ( isset( $_GET['trasloco_verify_status'] ) && $_GET['trasloco_verify_status'] === 'queued' ) : ?>
+		<p role="status" class="notice notice-success"><?php esc_html_e( 'Backup verification queued. View the recent jobs below for the result.', TRASLOCO_PLUGIN_NAME ); ?></p>
+	<?php elseif ( isset( $_GET['trasloco_verify_status'] ) && $_GET['trasloco_verify_status'] === 'error' ) : ?>
+		<p role="alert" class="notice notice-error"><?php esc_html_e( 'Backup verification could not be queued.', TRASLOCO_PLUGIN_NAME ); ?></p>
+	<?php endif; ?>
+
 	<?php include TRASLOCO_TEMPLATES_PATH . '/backups/legend.php'; ?>
 
 				<form action="" method="post" id="trasloco-backups-form" class="trasloco-clear">
@@ -101,11 +107,16 @@
 											if ( ! is_file( $manifest_file ) ) {
 												esc_html_e( 'Not verified', TRASLOCO_PLUGIN_NAME );
 											} else {
-												echo esc_html( Trasloco_Integrity::verify( trasloco_backup_path( array( 'archive' => $backup['filename'] ) ) )['status'] );
+												// A manifest is not proof of integrity. Hashing each archive
+											// here made listing large backups extremely slow.
+											esc_html_e( 'Manifest available (not verified)', TRASLOCO_PLUGIN_NAME );
 											}
 										?></td>
 										<td class="trasloco-column-actions trasloco-backup-actions">
-											<a href="<?php echo esc_url( trasloco_backup_url( array( 'archive' => $backup['filename'] ) ) ); ?>" class="tr-btn tr-btn-ghost trasloco-backup-download" aria-label="<?php echo esc_attr( sprintf( __( 'Download %s', TRASLOCO_PLUGIN_NAME ), basename( $backup['filename'] ) ) ); ?>">
+											<button type="submit" name="archive" value="<?php echo esc_attr( $backup['filename'] ); ?>" formaction="<?php echo esc_url( admin_url( 'admin-post.php?action=trasloco_verify_archive' ) ); ?>" formmethod="post" class="tr-btn tr-btn-ghost" aria-label="<?php echo esc_attr( sprintf( __( 'Verify %s', TRASLOCO_PLUGIN_NAME ), basename( $backup['filename'] ) ) ); ?>">
+											<span><?php esc_html_e( 'Verify', TRASLOCO_PLUGIN_NAME ); ?></span>
+										</button>
+										<a href="<?php echo esc_url( trasloco_backup_url( array( 'archive' => $backup['filename'] ) ) ); ?>" class="tr-btn tr-btn-ghost trasloco-backup-download" aria-label="<?php echo esc_attr( sprintf( __( 'Download %s', TRASLOCO_PLUGIN_NAME ), basename( $backup['filename'] ) ) ); ?>">
 												<i class="trasloco-icon-arrow-down" aria-hidden="true"></i>
 												<span><?php _e( 'Download', TRASLOCO_PLUGIN_NAME ); ?></span>
 											</a>
@@ -143,6 +154,7 @@
 
 					<?php do_action( 'trasloco_backups_left_end' ); ?>
 
+					<?php wp_nonce_field( 'trasloco_verify_archive', 'trasloco_verify_nonce' ); ?>
 					<input type="hidden" name="trasloco_manual_restore" value="1" />
 
 				</form>

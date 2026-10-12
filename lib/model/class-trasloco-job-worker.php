@@ -11,11 +11,44 @@ class Trasloco_Job_Worker {
 
     public static function register() {
         add_action( self::HOOK, array( __CLASS__, 'run' ), 10, 1 );
+        add_action( 'admin_post_trasloco_verify_archive', array( __CLASS__, 'submit_verification' ) );
         add_filter( 'cron_schedules', array( __CLASS__, 'cron_intervals' ) );
         add_action( 'init', array( __CLASS__, 'ensure_reconciler' ), 40 );
         add_action( 'trasloco_reconcile_jobs', array( __CLASS__, 'reconcile' ) );
     }
 
+
+
+    /**
+     * Progressive-enhancement action for the archive table: no JavaScript
+     * required, and never computes a huge checksum in the admin page request.
+     */
+    public static function submit_verification() {
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_die( 'Insufficient permissions.', '', array( 'response' => 403 ) );
+        }
+        check_admin_referer( 'trasloco_verify_archive', 'trasloco_verify_nonce' );
+        $status = 'error';
+        $archive = isset( $_POST['archive'] ) && is_string( $_POST['archive'] )
+            ? wp_unslash( $_POST['archive'] ) : '';
+        if ( preg_match( '/^[a-zA-Z0-9_.-]+\\.wpress$/D', $archive ) && strlen( $archive ) <= 220 ) {
+            try {
+                $path = trasloco_backup_path( array( 'archive' => $archive ) );
+                if ( is_file( $path ) && is_readable( $path ) && ! is_link( $path ) ) {
+                    $id = Trasloco_Job_Store::create( 'verify',
+                        array( 'archive' => $archive ), wp_generate_password( 32, false, false ) );
+                    if ( ! is_wp_error( $id ) && $id && self::schedule( $id ) ) {
+                        $status = 'queued';
+                    }
+                }
+            } catch ( Exception $ignored ) {
+                // Avoid leaking filesystem paths to browser errors.
+            }
+        }
+        wp_safe_redirect( add_query_arg( 'trasloco_verify_status', $status,
+            admin_url( 'admin.php?page=trasloco_backups' ) ) );
+        exit;
+    }
 
     public static function cron_intervals( $schedules ) {
         $schedules['trasloco_five_minutes'] = array(

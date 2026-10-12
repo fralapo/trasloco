@@ -118,3 +118,5 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 - [x] Audit fix: worker progress events renew owned backup leases in hourly export pipelines, preventing healthy long exports from being marked abandoned when they report progress. Integration tests check lease extension. Does not make interrupted backups byte-resumable.
 
 - [x] Phase 4B: monthly backup frequency as a calendar month in the WordPress timezone, including DST, with idempotent monthly job creation and cron transition tests.
+
+- [x] Phase 1B: admin-page checksum verification moved off the synchronous archive listing into a CSRF-protected POST that queues a durable verification job; a manifest alone is explicitly labelled unverified.
