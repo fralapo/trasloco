@@ -54,7 +54,7 @@ class Trasloco_Status {
 	}
 
 	public static function log( $data ) {
-		if ( ! trasloco_is_scheduled_backup() ) {
+		if ( ! trasloco_is_scheduled_backup() && empty( $GLOBALS['trasloco_recovery_export_active'] ) ) {
 			update_option( TRASLOCO_STATUS, $data );
 		}
 	}

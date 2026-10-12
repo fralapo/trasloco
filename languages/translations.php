@@ -11,6 +11,18 @@
  */
 
 return array(
+	'Creating a recovery point for this site before replacing anything...' => array(
+		'it' => 'Creazione di un punto di ripristino prima di sostituire il sito...',
+		'es' => 'Creando un punto de recuperación antes de reemplazar el sitio...',
+		'fr' => 'Création d’un point de récupération avant tout remplacement...',
+		'de' => 'Wiederherstellungspunkt wird vor dem Ersetzen erstellt...',
+	),
+	'Recovery point verified. Starting the import...' => array(
+		'it' => 'Punto di ripristino verificato. Avvio importazione...',
+		'es' => 'Punto de recuperación verificado. Iniciando la importación...',
+		'fr' => 'Point de récupération vérifié. Démarrage de l’import...',
+		'de' => 'Wiederherstellungspunkt geprüft. Import wird gestartet...',
+	),
 	'Automatic backups' => array(
 		'it' => 'Backup automatici',
 		'es' => 'Copias automáticas',

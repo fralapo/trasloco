@@ -129,6 +129,7 @@ class Trasloco_Main_Controller {
 		add_filter( 'trasloco_import', 'Trasloco_Import_Confirm::execute', 100 );
 		add_filter( 'trasloco_import', 'Trasloco_Import_Blogs::execute', 150 );
 		add_filter( 'trasloco_import', 'Trasloco_Import_Enumerate::execute', 200 );
+		add_filter( 'trasloco_import', 'Trasloco_Import_Recovery::execute', 225 );
 		add_filter( 'trasloco_import', 'Trasloco_Import_Content::execute', 250 );
 		add_filter( 'trasloco_import', 'Trasloco_Import_Mu_Plugins::execute', 270 );
 		add_filter( 'trasloco_import', 'Trasloco_Import_Database::execute', 300 );

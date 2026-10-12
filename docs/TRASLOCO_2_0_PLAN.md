@@ -83,3 +83,6 @@ Updated 2026-10-12. This plan is an implementation dependency map, not a claim t
 
 - [x] Optional encryption via wp trasloco encrypt/decrypt with Argon2id and XChaCha20 secretstream (CLI and test).
 - [ ] In-app encryption UI and encrypted cloud storage integration.
+
+- [x] Phase 2A: verified pre-import recovery snapshot before file/database replacement; on failure import aborts.
+- [ ] Phase 2B: independent one-click rescue handler and tested true rollback, including large hosting environments.

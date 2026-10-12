@@ -33,8 +33,9 @@ class Trasloco_Job_Worker {
 
     /** Reuse tested synchronous WP-CLI export pipeline without AJAX exits. */
     private static function backup( $id, $owner, $payload ) {
+        $is_recovery = ! empty( $payload['recovery_point'] );
         $keep = isset( $payload['retention'] ) ? (int) $payload['retention'] : 0;
-        if ( $keep < 1 || $keep > 100 ) {
+        if ( ! $is_recovery && ( $keep < 1 || $keep > 100 ) ) {
             throw new RuntimeException( 'Invalid retention policy.' );
         }
         if ( ! wp_mkdir_p( TRASLOCO_BACKUPS_PATH ) || ! wp_mkdir_p( TRASLOCO_STORAGE_PATH ) ) {
@@ -55,11 +56,17 @@ class Trasloco_Job_Worker {
         }
         trasloco_setup_environment();
         $params = array();
+        // Suppress nested export progress while the import displays its
+        // recovery-point stage; do not discard the import's own status.
+        if ( $is_recovery ) {
+            $GLOBALS['trasloco_recovery_export_active'] = true;
+        }
         remove_filter( 'trasloco_export', 'Trasloco_Export_Clean::execute', 300 );
         add_filter( 'trasloco_completed_timeout', '__return_zero' );
         try {
             $params = apply_filters( 'trasloco_export', $params );
         } finally {
+            unset( $GLOBALS['trasloco_recovery_export_active'] );
             remove_filter( 'trasloco_completed_timeout', '__return_zero' );
             add_filter( 'trasloco_export', 'Trasloco_Export_Clean::execute', 300 );
             if ( ! empty( $params['storage'] ) ) {
@@ -76,8 +83,11 @@ class Trasloco_Job_Worker {
         if ( Trasloco_Integrity::verify( $archive )['status'] !== 'verified' ) {
             throw new RuntimeException( 'Backup did not pass integrity verification.' );
         }
-        if ( ! Trasloco_Job_Store::checkpoint( $id, $owner, 95, array( 'phase' => 'retention', 'archive' => $params['archive'] ) ) ) {
+        if ( ! Trasloco_Job_Store::checkpoint( $id, $owner, 95, array( 'phase' => $is_recovery ? 'recovery' : 'retention', 'archive' => $params['archive'] ) ) ) {
             throw new RuntimeException( 'Backup cancelled before retention.' );
+        }
+        if ( $is_recovery ) {
+            return $params['archive'];
         }
         $model = new Trasloco_Backups();
         $prior = array_values( array_filter( $model->get_files(), function ( $entry ) use ( $params ) {

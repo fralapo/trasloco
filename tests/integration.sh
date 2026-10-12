@@ -45,6 +45,10 @@ test -s "$ARCHIVE.manifest.json"
 mkdir -p "$ROOT/target/wp-content/trasloco-backups"
 cp "$ARCHIVE" "$ROOT/target/wp-content/trasloco-backups/"
 $WP trasloco restore "$(basename "$ARCHIVE")" --path="$ROOT/target"
+RECOVERY=$(find "$ROOT/target/wp-content/trasloco-backups" -maxdepth 1 -type f -name '*.wpress' ! -name "$(basename "$ARCHIVE")" -print -quit)
+test -n "$RECOVERY"
+test -s "$RECOVERY.manifest.json"
+$WP trasloco verify "$(basename "$RECOVERY")" --path="$ROOT/target"
 
 echo "Destination tables:"
 $WP db tables --path="$ROOT/target" || true

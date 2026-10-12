@@ -277,6 +277,10 @@ require_once TRASLOCO_IMPORT_PATH .
 
 require_once TRASLOCO_IMPORT_PATH .
 			DIRECTORY_SEPARATOR .
+			'class-trasloco-import-recovery.php';
+
+require_once TRASLOCO_IMPORT_PATH .
+			DIRECTORY_SEPARATOR .
 			'class-trasloco-import-content.php';
 
 require_once TRASLOCO_IMPORT_PATH .
