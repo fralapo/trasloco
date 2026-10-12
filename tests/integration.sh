@@ -36,8 +36,12 @@ $WP trasloco verify "$(basename "$ARCHIVE")" --path="$ROOT/source"
 # Rescue extraction must actually work independently from WordPress/MySQL,
 # using only PHP CLI and the untouched .wpress bytes.
 RESCUE_REPORT=$(php "$GITHUB_WORKSPACE/tools/rescue-extract.php" "$ARCHIVE")
-RESCUE_DIR=${RESCUE_REPORT#*Recovery metadata saved in: }
-RESCUE_DIR=${RESCUE_DIR%%
+RESCUE_DIR="$(printf '%s' "$RESCUE_REPORT" | head -n 1 | sed 's/^Recovery metadata saved in: //')"
+test -n "$RESCUE_DIR"
+test -s "$RESCUE_DIR/database.sql"
+test -s "$RESCUE_DIR/package.json"
+chmod -R u+rwX "$RESCUE_DIR"
+rm -rf -- "$RESCUE_DIR"
 $WP eval '
 require_once TRASLOCO_LIB_PATH . "/vendor/core/archiver/class-trasloco-integrity.php";
 $files = (new Trasloco_Backups())->get_files();
