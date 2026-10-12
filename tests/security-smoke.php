@@ -463,7 +463,7 @@ try {
 // Malformed paths must never be echoed verbatim into logs/error messages
 // (NUL bytes, line breaks and terminal escape sequences are attacker-owned).
 $bad_log_archive = sys_get_temp_dir() . '/tr-log-safety-' . bin2hex( random_bytes( 8 ) );
-$bad_log_header = pack( 'a255a14a12a4096', "dangerous\\nname.txt", '1', '0', 'uploads' );
+$bad_log_header = pack( 'a255a14a12a4096', "dangerous\nname.txt", '1', '0', 'uploads' );
 file_put_contents( $bad_log_archive, $bad_log_header . 'X' . str_repeat( chr( 0 ), 4377 ) );
 $bad_reader = new Trasloco_Extractor( $bad_log_archive );
 try {
