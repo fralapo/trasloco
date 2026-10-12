@@ -90,4 +90,22 @@ $archiver = new Test_Trasloco_Archiver( $path );
 ensure( ! $archiver->is_valid(), 'detect missing EOF marker' );
 $archiver->close();
 unlink( $path );
+
+require dirname( __DIR__ ) . '/lib/vendor/core/archiver/class-trasloco-integrity.php';
+$integrity_archive = tempnam( sys_get_temp_dir(), 'trasloco-integrity-' );
+file_put_contents( $integrity_archive, 'Original backup bytes' );
+$missing_manifest = Trasloco_Integrity::verify( $integrity_archive );
+ensure( $missing_manifest['status'] === 'unverified', 'legacy backups have an explicit unverified status' );
+$manifest_file = Trasloco_Integrity::create( $integrity_archive );
+ensure( is_file( $manifest_file ), 'manifest saved' );
+ensure( Trasloco_Integrity::verify( $integrity_archive )['status'] === 'verified', 'checksum valid' );
+file_put_contents( $integrity_archive, 'original backup bytes' );
+ensure( Trasloco_Integrity::verify( $integrity_archive )['status'] === 'corrupt', 'same-size tampering detected' );
+file_put_contents( $integrity_archive, 'short' );
+ensure( Trasloco_Integrity::verify( $integrity_archive )['status'] === 'corrupt', 'truncation detected' );
+file_put_contents( $manifest_file, '{"manifest_version":2}' );
+ensure( Trasloco_Integrity::verify( $integrity_archive )['status'] === 'invalid', 'unsupported manifest rejected' );
+unlink( $integrity_archive );
+unlink( $manifest_file );
+
 echo "Security and archive smoke tests passed.\n";
