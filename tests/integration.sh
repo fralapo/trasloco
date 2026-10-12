@@ -276,6 +276,25 @@ $out = $store->open_read( "fixture.wpress" );
 if ( stream_get_contents( $out ) !== "binary payload" ) { throw new Exception( "Storage read failed" ); }
 fclose( $out );
 if ( $store->enumerate() !== array( "fixture.wpress" ) ) { throw new Exception( "Storage inventory mismatch" ); }
+// Collision must never overwrite an existing recoverable archive.
+$collision = fopen( "php://temp", "w+b" );
+fwrite( $collision, "replacement bytes" );
+rewind( $collision );
+try {
+    $store->put_stream( "fixture.wpress", $collision );
+    throw new Exception( "Storage silently overwrote an existing backup" );
+} catch ( RuntimeException $expected ) {}
+fclose( $collision );
+$proof = $store->open_read( "fixture.wpress" );
+if ( stream_get_contents( $proof ) !== "binary payload" ) {
+    throw new Exception( "Collision corrupted original backup" );
+}
+fclose( $proof );
+foreach ( scandir( $root ) as $filename ) {
+    if ( strpos( $filename, ".tr-writing-" ) === 0 ) {
+        throw new Exception( "Temporary backup bytes remained after failed publication" );
+    }
+}
 try {
     $store->exists( "../other.wpress" );
     throw new Exception( "Traversal was allowed" );

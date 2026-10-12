@@ -47,17 +47,25 @@ class Trasloco_Local_Storage implements Trasloco_Storage_Adapter {
         }
         try {
             @chmod( $temp, 0600 );
-            $written = stream_copy_to_stream( $handle, $out );
+            $written = @stream_copy_to_stream( $handle, $out );
             if ( $written === false || ! fflush( $out ) ) {
                 throw new RuntimeException( 'Cannot complete stored stream.' );
             }
-        } finally {
+        } catch ( Throwable $error ) {
+            // Never leave incomplete, potentially sensitive backup bytes behind.
             fclose( $out );
-        }
-        if ( ! rename( $temp, $path ) ) {
             @unlink( $temp );
-            throw new RuntimeException( 'Cannot publish archive atomically.' );
+            throw $error;
         }
+        fclose( $out );
+        // Atomic no-overwrite publication: hard-link creation fails if the
+        // destination already exists (unlike rename which silently replaces).
+        // Fail closed on filesystems that cannot create this same-dir link.
+        if ( ! @link( $temp, $path ) ) {
+            @unlink( $temp );
+            throw new RuntimeException( 'Archive already exists or storage cannot publish it safely.' );
+        }
+        @unlink( $temp );
         return $written;
     }
 

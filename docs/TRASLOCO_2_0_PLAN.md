@@ -153,3 +153,5 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 - [ ] This is NOT an independent bootable site restore; production release still requires isolated SQL + WordPress recovery and hosting-level tests.
 
 - [x] Restoring corrupted .wpress archives: malformed dot/control/empty path components are blocked by preflight and extractor; incomplete reads and writes abort instead of being counted as successful. Added regression fixtures.
+
+- [x] Local storage publication now fails closed on filename collisions and cleans partial plaintext temporary files; integration checks archive content remains unchanged.
