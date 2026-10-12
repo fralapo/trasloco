@@ -20,6 +20,19 @@ class Trasloco_API {
             'permission_callback' => array( __CLASS__, 'permit' ),
             'callback' => array( __CLASS__, 'preview' ),
         ) );
+        register_rest_route( 'trasloco/v1', '/backups/(?P<archive>[A-Za-z0-9._-]+\\.wpress)/manifest', array(
+            'methods' => 'GET',
+            'permission_callback' => array( __CLASS__, 'permit' ),
+            'callback' => array( __CLASS__, 'transfer_manifest' ),
+        ) );
+        register_rest_route( 'trasloco/v1', '/backups/(?P<archive>[A-Za-z0-9._-]+\\.wpress)/chunk', array(
+            'methods' => 'GET',
+            'permission_callback' => array( __CLASS__, 'permit' ),
+            'callback' => array( __CLASS__, 'transfer_chunk' ),
+            'args' => array(
+                'offset' => array( 'required' => true, 'type' => 'integer', 'minimum' => 0 ),
+            ),
+        ) );
         register_rest_route( 'trasloco/v1', '/backups', array(
             'methods' => 'GET',
             'permission_callback' => array( __CLASS__, 'permit' ),
@@ -148,6 +161,76 @@ class Trasloco_API {
             return rest_ensure_response( Trasloco_Preview::read( (string) $request['archive'] ) );
         } catch ( Exception $e ) {
             return new WP_Error( 'trasloco_preview_failed', 'Unable to preview the selected backup.', array( 'status' => 400 ) );
+        }
+    }
+
+
+    /**
+     * Transfer manifest used for a bounded, resumable authenticated pull.
+     * Returns no secrets, paths or server-side URLs.
+     */
+    public static function transfer_manifest( $request ) {
+        try {
+            $name = (string) $request['archive'];
+            $manifest = Trasloco_Manifest::inspect( $name, true );
+            if ( $manifest['status'] !== 'verified' ) {
+                return new WP_Error( 'trasloco_unverified_backup', 'Backup is not verified.', array( 'status' => 409 ) );
+            }
+            $res = rest_ensure_response( array( 'archive' => $name, 'bytes' => $manifest['bytes'], 'sha256' => $manifest['sha256'] ) );
+            $res->header( 'Cache-Control', 'private, no-store' );
+            return $res;
+        } catch ( Exception $e ) {
+            return new WP_Error( 'trasloco_transfer_error', 'Backup transfer refused.', array( 'status' => 400 ) );
+        }
+    }
+
+    /**
+     * Single authenticated 512 KiB fragment. Only seek inside a verified,
+     * immutable-named backup; the client checks the complete SHA-256 too.
+     */
+    public static function transfer_chunk( $request ) {
+        try {
+            $name = (string) $request['archive'];
+            $status = Trasloco_Manifest::inspect( $name, false );
+            if ( $status['status'] !== 'recorded' ) {
+                return new WP_Error( 'trasloco_unverified_backup', 'Backup manifest unavailable.', array( 'status' => 409 ) );
+            }
+            $total = $status['bytes'];
+            $offset = (int) $request['offset'];
+            if ( $offset < 0 || $offset >= $total ) {
+                return new WP_Error( 'trasloco_range_error', 'Invalid archive offset.', array( 'status' => 416 ) );
+            }
+            $length = min( 524288, $total - $offset );
+            $path = Trasloco_Manifest::archive_path( $name );
+            $fp = @fopen( $path, 'rb' );
+            if ( $fp === false ) {
+                throw new RuntimeException( 'Cannot read source archive.' );
+            }
+            try {
+                if ( fseek( $fp, $offset, SEEK_SET ) !== 0 ) {
+                    throw new RuntimeException( 'Cannot seek archive offset.' );
+                }
+                $data = '';
+                while ( strlen( $data ) < $length ) {
+                    $chunk = fread( $fp, $length - strlen( $data ) );
+                    if ( $chunk === false || $chunk === '' ) {
+                        throw new RuntimeException( 'Unexpected end of archive.' );
+                    }
+                    $data .= $chunk;
+                }
+            } finally {
+                fclose( $fp );
+            }
+            $res = rest_ensure_response( array(
+                'offset' => $offset,
+                'length' => strlen( $data ),
+                'sha256' => hash( 'sha256', $data ),
+                'data' => base64_encode( $data ),
+            ) );
+            $res->header( 'Cache-Control', 'private, no-store' );
+            return $res;
+        } catch ( Exception $e ) {
+            return new WP_Error( 'trasloco_transfer_error', 'Unable to transfer this fragment.', array( 'status' => 400 ) );
         }
     }
 
