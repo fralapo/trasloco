@@ -15,6 +15,11 @@ class Trasloco_API {
             array( 'methods' => 'GET', 'permission_callback' => array( __CLASS__, 'permit' ), 'callback' => array( __CLASS__, 'jobs' ) ),
             array( 'methods' => 'POST', 'permission_callback' => array( __CLASS__, 'permit' ), 'callback' => array( __CLASS__, 'start_backup' ) ),
         ) );
+        register_rest_route( 'trasloco/v1', '/backups/(?P<archive>[A-Za-z0-9._-]+\\.wpress)/preview', array(
+            'methods' => 'POST',
+            'permission_callback' => array( __CLASS__, 'permit' ),
+            'callback' => array( __CLASS__, 'preview' ),
+        ) );
         register_rest_route( 'trasloco/v1', '/backups', array(
             'methods' => 'GET',
             'permission_callback' => array( __CLASS__, 'permit' ),
@@ -135,6 +140,15 @@ class Trasloco_API {
             }
         }
         return rest_ensure_response( $data );
+    }
+
+    /** Dry-run archive preview; does not change the destination WordPress site. */
+    public static function preview( $request ) {
+        try {
+            return rest_ensure_response( Trasloco_Preview::read( (string) $request['archive'] ) );
+        } catch ( Exception $e ) {
+            return new WP_Error( 'trasloco_preview_failed', 'Unable to preview the selected backup.', array( 'status' => 400 ) );
+        }
     }
 
     public static function verify( $request ) {

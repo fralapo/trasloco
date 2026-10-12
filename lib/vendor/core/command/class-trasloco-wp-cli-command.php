@@ -368,6 +368,22 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 		}
 
 		/**
+		 * Preview backup metadata and destination changes without writing data.
+		 * @subcommand preview
+		 */
+		public function preview( array $args, array $assoc_args ) {
+			if ( empty( $args[0] ) ) {
+				WP_CLI::error( 'Usage: wp trasloco preview <backup.wpress>' );
+			}
+			try {
+				$data = Trasloco_Preview::read( $args[0] );
+				WP_CLI::log( wp_json_encode( $data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) );
+			} catch ( Exception $e ) {
+				WP_CLI::error( $e->getMessage() );
+			}
+		}
+
+		/**
 		 * Restores a backup.
 		 *
 		 * Example:
