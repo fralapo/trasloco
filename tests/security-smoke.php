@@ -146,6 +146,26 @@ unlink( $integrity_archive );
 unlink( $manifest_file );
 
 
+
+// Version 2 is opt-in and preserves the existing v1 format. Chunk digests
+// detect corruption independently and are suitable for bounded workers.
+$chunk_archive = tempnam( sys_get_temp_dir(), 'trasloco-chunk-' );
+file_put_contents( $chunk_archive, str_repeat( 'A', Trasloco_Integrity::CHUNK_BYTES ) . str_repeat( 'B', 600 ) );
+$chunk_manifest = Trasloco_Integrity::create_chunked( $chunk_archive );
+$data = Trasloco_Integrity::chunked_manifest( $chunk_archive );
+ensure( $data['manifest_version'] === 2 && count( $data['chunks'] ) === 2, 'v2 manifest with chunk digests' );
+ensure( Trasloco_Integrity::verify_chunk( $chunk_archive, $data, 0 ), 'first chunk valid' );
+ensure( Trasloco_Integrity::verify_chunk( $chunk_archive, $data, 1 ), 'final partial chunk valid' );
+ensure( Trasloco_Integrity::verify( $chunk_archive )['status'] === 'verified', 'v2 archive verified' );
+$handle = fopen( $chunk_archive, 'r+b' );
+fseek( $handle, Trasloco_Integrity::CHUNK_BYTES + 10 );
+fwrite( $handle, 'X' );
+fclose( $handle );
+ensure( ! Trasloco_Integrity::verify_chunk( $chunk_archive, $data, 1 ), 'same-size chunk tampering rejected' );
+ensure( Trasloco_Integrity::verify( $chunk_archive )['status'] === 'corrupt', 'v2 integrity rejects changed bytes' );
+unlink( $chunk_archive );
+unlink( $chunk_manifest );
+
 require dirname( __DIR__ ) . '/lib/model/class-trasloco-encryption.php';
 if ( function_exists( 'sodium_crypto_secretstream_xchacha20poly1305_init_push' ) ) {
     $source = tempnam( sys_get_temp_dir(), 'tr-plain-' );

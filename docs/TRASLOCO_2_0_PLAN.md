@@ -122,3 +122,6 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 - [x] Phase 1B: admin-page checksum verification moved off the synchronous archive listing into a CSRF-protected POST that queues a durable verification job; a manifest alone is explicitly labelled unverified.
 
 - [x] Reconciliation stops retrying expired verification workers after three attempts and records a terminal failure. Crash-loop regression checks requeue, direct claims and manual retries.
+
+- [x] Phase 1C-1: optional version-2 SHA-256 chunk manifests (4 MiB) with bounded per-chunk validation, unchanged v1 compatibility and corruption regression tests.
+- [ ] Phase 1C-2: use chunk checkpoints in cron workers and new exports once integration is green.
