@@ -207,7 +207,7 @@ class Trasloco_Main_Controller {
 		if ( is_file( TRASLOCO_BACKUPS_HTACCESS ) ) {
 			$access_rules = @file_get_contents( TRASLOCO_BACKUPS_HTACCESS );
 			if ( is_string( $access_rules ) && strpos( $access_rules, '# Trasloco private archives' ) === false ) {
-				$private_rules = array( '# Trasloco private archives', '<FilesMatch "\\.wpress$">', '<IfModule mod_authz_core.c>', 'Require all denied', '</IfModule>', '<IfModule !mod_authz_core.c>', 'Deny from all', '</IfModule>', '</FilesMatch>' );
+				$private_rules = array( '# Trasloco private archives', '<FilesMatch "\\.wpress(\\.manifest\\.json)?$">', '<IfModule mod_authz_core.c>', 'Require all denied', '</IfModule>', '<IfModule !mod_authz_core.c>', 'Deny from all', '</IfModule>', '</FilesMatch>' );
 				@file_put_contents( TRASLOCO_BACKUPS_HTACCESS, PHP_EOL . implode( PHP_EOL, $private_rules ) . PHP_EOL, FILE_APPEND | LOCK_EX );
 			}
 		}

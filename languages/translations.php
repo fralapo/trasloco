@@ -11,6 +11,18 @@
  */
 
 return array(
+	'Integrity' => array(
+		'it' => 'Integrità',
+		'es' => 'Integridad',
+		'fr' => 'Intégrité',
+		'de' => 'Integrität',
+	),
+	'Not verified' => array(
+		'it' => 'Non verificato',
+		'es' => 'No verificado',
+		'fr' => 'Non vérifié',
+		'de' => 'Nicht überprüft',
+	),
 	'Overview' => array(
 		'it' => 'Panoramica',
 		'es' => 'Vista general',

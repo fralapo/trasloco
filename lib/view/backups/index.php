@@ -42,6 +42,7 @@
 										<th class="trasloco-column-name"><?php _e( 'Name', TRASLOCO_PLUGIN_NAME ); ?></th>
 										<th class="trasloco-column-date"><?php _e( 'Date', TRASLOCO_PLUGIN_NAME ); ?></th>
 										<th class="trasloco-column-size"><?php _e( 'Size', TRASLOCO_PLUGIN_NAME ); ?></th>
+										<th><?php esc_html_e( 'Integrity', TRASLOCO_PLUGIN_NAME ); ?></th>
 										<th class="trasloco-column-actions"><span class="screen-reader-text"><?php esc_html_e( 'Actions', TRASLOCO_PLUGIN_NAME ); ?></span></th>
 									</tr>
 								</thead>
@@ -67,6 +68,15 @@
 												<?php echo size_format( $backup['size'], 2 ); ?>
 											<?php endif; ?>
 										</td>
+										<td><?php
+											require_once TRASLOCO_LIB_PATH . '/vendor/core/archiver/class-trasloco-integrity.php';
+											$manifest_file = Trasloco_Integrity::manifest_path( trasloco_backup_path( array( 'archive' => $backup['filename'] ) ) );
+											if ( ! is_file( $manifest_file ) ) {
+												esc_html_e( 'Not verified', TRASLOCO_PLUGIN_NAME );
+											} else {
+												echo esc_html( Trasloco_Integrity::verify( trasloco_backup_path( array( 'archive' => $backup['filename'] ) ) )['status'] );
+											}
+										?></td>
 										<td class="trasloco-column-actions trasloco-backup-actions">
 											<a href="<?php echo esc_url( trasloco_backup_url( array( 'archive' => $backup['filename'] ) ) ); ?>" class="tr-btn tr-btn-ghost trasloco-backup-download" aria-label="<?php echo esc_attr( sprintf( __( 'Download %s', TRASLOCO_PLUGIN_NAME ), basename( $backup['filename'] ) ) ); ?>">
 												<i class="trasloco-icon-arrow-down" aria-hidden="true"></i>

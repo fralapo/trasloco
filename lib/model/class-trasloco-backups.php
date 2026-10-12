@@ -84,7 +84,12 @@ class Trasloco_Backups {
 	 */
 	public function delete_file( $file ) {
 		if ( validate_file( $file ) === 0 ) {
-			return @unlink( trasloco_backup_path( array( 'archive' => $file ) ) );
+			$archive = trasloco_backup_path( array( 'archive' => $file ) );
+			$deleted = @unlink( $archive );
+			if ( $deleted ) {
+				@unlink( $archive . '.manifest.json' );
+			}
+			return $deleted;
 		}
 	}
 
