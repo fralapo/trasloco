@@ -50,6 +50,8 @@ if [ ! -s "$ARCHIVE" ]; then
   exit 1
 fi
 $WP trasloco verify "$(basename "$ARCHIVE")" --path="$ROOT/source"
+# Disaster rehearsal on a separately bootstrapped WordPress and fresh MySQL DB.
+bash "$GITHUB_WORKSPACE/tests/disaster-rehearsal.sh" "$ARCHIVE" "$ROOT"
 # Recover an actual WordPress backup using only system PHP (no WP bootstrap).
 # The rescue command supports a deterministic private directory so operators can
 # plan storage and rehearse recovery instead of relying on transient /tmp paths.

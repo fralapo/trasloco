@@ -170,3 +170,6 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 
 - [x] P0 preflight: require nonempty root `database.sql` before destructive restore unless `package.json` explicitly has `NoDatabase=true`; reject missing/invalid root package and add full/files-only negative fixtures.
 - [ ] Independent bootable recovery and SQL failure rollback still require isolated end-to-end disaster tests.
+
+- [x] Phase 2B-2A: independent disaster-rehearsal fixture provisions fresh WordPress/MySQL, verifies archived bytes, restores users/posts/media and preserves the new site's URL, without using source WordPress runtime.
+- [ ] Phase 2B-2B: staged rollback on induced SQL failures, operating-system-level disaster tests, and production rescue setup.
