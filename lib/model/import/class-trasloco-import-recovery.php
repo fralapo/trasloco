@@ -8,6 +8,22 @@ class Trasloco_Import_Recovery {
         if ( empty( $params['archive'] ) || empty( $params['storage'] ) ) {
             throw new Trasloco_Import_Exception( 'Cannot create a recovery point without an import archive.' );
         }
+        // A backup selected from this site's inventory carries a sidecar
+        // when it was produced by modern Trasloco. Refuse to overwrite
+        // anything if its bytes have changed since that manifest was written.
+        // Uploaded and legacy backups without a manifest are still supported.
+        if ( ! empty( $params['trasloco_manual_restore'] ) ) {
+            $source = trasloco_backup_path( $params );
+            require_once TRASLOCO_LIB_PATH . '/vendor/core/archiver/class-trasloco-integrity.php';
+            if ( is_file( Trasloco_Integrity::manifest_path( $source ) ) ) {
+                $verification = Trasloco_Integrity::verify( $source );
+                if ( $verification['status'] !== 'verified' ) {
+                    throw new Trasloco_Import_Exception(
+                        'The selected backup failed its SHA-256 integrity check. The destination was not replaced.'
+                    );
+                }
+            }
+        }
         Trasloco_Status::info( __( 'Creating a recovery point for this site before replacing anything...', TRASLOCO_PLUGIN_NAME ) );
         $key = hash( 'sha256', 'recovery|' . $params['storage'] . '|' . $params['archive'] );
         $id = Trasloco_Job_Store::create( 'backup', array( 'recovery_point' => true ), $key );

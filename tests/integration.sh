@@ -49,6 +49,21 @@ fi
 test -s "$ARCHIVE.manifest.json"
 mkdir -p "$ROOT/target/wp-content/trasloco-backups"
 cp "$ARCHIVE" "$ROOT/target/wp-content/trasloco-backups/"
+cp "$ARCHIVE.manifest.json" "$ROOT/target/wp-content/trasloco-backups/"
+# A damaged local backup with a sidecar must not enter destructive restore.
+BAD_DIR="$ROOT/target/wp-content/trasloco-backups"
+cp "$ARCHIVE" "$BAD_DIR/corrupted.wpress"
+cp "$ARCHIVE.manifest.json" "$BAD_DIR/corrupted.wpress.manifest.json"
+printf 'X' | dd of="$BAD_DIR/corrupted.wpress" bs=1 seek=5000 count=1 conv=notrunc status=none
+if $WP trasloco restore corrupted.wpress --path="$ROOT/target"; then
+  echo "ERROR: corrupted backup was allowed to restore" >&2
+  exit 1
+fi
+if [ "$($WP option get home --path="$ROOT/target")" != "$EXPECTED_HOME" ]; then
+  echo "ERROR: corrupted restore modified the destination" >&2
+  exit 1
+fi
+rm "$BAD_DIR/corrupted.wpress" "$BAD_DIR/corrupted.wpress.manifest.json"
 $WP trasloco restore "$(basename "$ARCHIVE")" --path="$ROOT/target"
 RECOVERY=$(find "$ROOT/target/wp-content/trasloco-backups" -maxdepth 1 -type f -name '*.wpress' ! -name "$(basename "$ARCHIVE")" -print -quit)
 test -n "$RECOVERY"

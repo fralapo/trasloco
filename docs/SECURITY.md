@@ -58,3 +58,7 @@ Run a logged-out HTTP check for `/wp-content/trasloco-backups/index.php` and for
 ## Extraction symlink defense
 
 The extraction routines reject on-disk symbolic-link path components before writing. Existing symlink-based WordPress deployments may need a documented, physical extraction destination; the importer fails closed rather than follow links. Regression tests cover full and selected archive-file extraction through a symlink pointing outside the destination. This is a filesystem-level check, not a replacement for server isolation: malicious processes with concurrent write permissions could still race between validation and fopen. Use private storage and trusted hosting.
+
+## Integrity gate before replacement
+
+Before replacing a site from a **local** backup, Trasloco checks its SHA-256 manifest if one is present and refuses a mismatch before creating the recovery snapshot or touching destination files/database. Legacy backups and uploaded files without sidecar manifests remain supported; they undergo structural validation but do **not** have cryptographic origin authentication. SHA-256 sidecars are not signatures and can be forged by anyone who can modify both files.
