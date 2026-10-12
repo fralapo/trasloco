@@ -83,3 +83,7 @@ Status: **implementation in progress, not a release**. Base: hardening branch `d
 ## Known release blockers from original hardening PR
 
 Unverified on Apache/IIS/Nginx live configurations; multisite; WAF; huge archives; recovery after filesystem + MySQL failure. Do not merge this feature branch into main automatically.
+
+## Recovery-point implementation progress
+
+WP-CLI `wp trasloco restore ...` now runs source preflight and creates a verified full snapshot of the destination *before* destructive import. It refuses to restore when the recovery point fails. Opt out only via explicit `--skip-recovery-point` (unsafe). The recovery file remains in the normal backup directory with a SHA-256 sidecar; it is not an automatic transactional rollback. WordPress web UI restores and post-crash automatic bootstrap are separate pending stages. The WordPress/MySQL integration test confirms the recovery archive remains readable after replacing destination database/users.

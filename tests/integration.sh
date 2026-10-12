@@ -51,6 +51,11 @@ $WP trasloco verify "$(basename "$ARCHIVE")" --path="$ROOT/target"
 $WP trasloco preview "$(basename "$ARCHIVE")" --path="$ROOT/target"
 $WP eval '$user = get_user_by("login", "newadmin"); wp_set_current_user($user->ID); $archive = basename(glob(WP_CONTENT_DIR . "/trasloco-backups/*.wpress")[0]); $req = new WP_REST_Request("POST", "/trasloco/v1/backups/" . $archive . "/preview"); $res = rest_do_request($req); if ($res->get_status() !== 200 || !isset($res->get_data()["source_theme"])) { throw new RuntimeException("REST preview failed"); } wp_set_current_user(0); $denied = rest_do_request($req); if ($denied->get_status() < 400) { throw new RuntimeException("REST preview exposed to anonymous visitors"); }' --path="$ROOT/target"
 $WP trasloco restore "$(basename "$ARCHIVE")" --path="$ROOT/target"
+# A second, independently verified archive of the ORIGINAL destination must
+# survive the destructive restore, even though WordPress users were replaced.
+RECOVERY=$(find "$ROOT/target/wp-content/trasloco-backups" -maxdepth 1 -type f -name '*.wpress' ! -name "$(basename "$ARCHIVE")" -print -quit)
+test -n "$RECOVERY" && test -s "$RECOVERY.manifest.json"
+$WP trasloco verify "$(basename "$RECOVERY")" --path="$ROOT/target"
 $WP config set TRASLOCO_REMOTE_DRIVER local --type=constant --path="$ROOT/target"
 $WP config set TRASLOCO_REMOTE_DIRECTORY "$ROOT/offsite" --type=constant --path="$ROOT/target"
 $WP trasloco offsite download "$(basename "$ARCHIVE").enc" --path="$ROOT/target"

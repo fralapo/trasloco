@@ -422,6 +422,24 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 				exit;
 			}
 
+			// Fail closed if the supplied source archive is corrupted, before any
+			// destination mutations occur.
+			try {
+				Trasloco_Preview::read( $args[0] );
+			} catch ( Exception $e ) {
+				WP_CLI::error( 'Restore preflight failed: ' . $e->getMessage() );
+			}
+			if ( empty( $assoc_args['skip-recovery-point'] ) ) {
+				WP_CLI::log( 'Creating and checking a destination recovery point...' );
+				try {
+					$recovery = Trasloco_Recovery::capture();
+					WP_CLI::log( 'Recovery point: ' . trasloco_backup_path( array( 'archive' => $recovery ) ) );
+				} catch ( Exception $e ) {
+					WP_CLI::error( 'Restore aborted; recovery point failed: ' . $e->getMessage() );
+				}
+			} else {
+				WP_CLI::warning( 'You explicitly disabled the destination recovery point.' );
+			}
 			WP_CLI::log( 'Restore in progress...' );
 
 			try {
