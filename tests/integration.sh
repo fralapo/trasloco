@@ -342,6 +342,30 @@ if ( ! Trasloco_Job_Store::retry_verification( $id ) ) { throw new Exception( "V
 $recent = Trasloco_Job_Store::recent();
 if ( empty( $recent ) || ! isset( $recent[0]["id"] ) ) { throw new Exception( "Recent job listing failed" ); }
 ' --path="$ROOT/source"
+
+# A crashed verification must not retry endlessly or block reconciliation.
+$WP eval '
+global $wpdb;
+$id = Trasloco_Job_Store::create( "verify", array( "archive" => "offline.wpress" ), "ci-verification-retry-limit-0001" );
+if ( is_wp_error( $id ) ) { throw new Exception( "Cannot create verification fixture" ); }
+$table = Trasloco_Job_Store::table();
+$wpdb->update( $table, array( "state" => "running", "attempts" => 3,
+    "lease_until" => time() - 3600, "lease_owner" => "stale-owner-12345" ), array( "id" => $id ) );
+if ( in_array( $id, Trasloco_Job_Store::recoverable_verifications( 50 ), true ) ) {
+    throw new Exception( "Exhausted verification requeued" );
+}
+if ( Trasloco_Job_Store::claim( $id, "ci-runner-12345678" ) ) {
+    throw new Exception( "Exhausted verification reclaimed" );
+}
+Trasloco_Job_Store::fail_exhausted_verifications();
+if ( Trasloco_Job_Store::get( $id )["state"] !== "failed" ) {
+    throw new Exception( "Exhausted verification not terminal" );
+}
+if ( Trasloco_Job_Store::retry_verification( $id ) ) {
+    throw new Exception( "Exhausted verification restarted" );
+}
+' --path="$ROOT/source"
+
 # Recovery rehearsal: the safety snapshot must actually restore the previous
 # destination database, not merely pass a checksum.
 $WP trasloco restore "$(basename "$RECOVERY")" --path="$ROOT/target"

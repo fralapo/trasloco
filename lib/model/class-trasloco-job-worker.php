@@ -67,6 +67,7 @@ class Trasloco_Job_Worker {
     /** Safe to run repeatedly; claim() keeps worker ownership atomic. */
     public static function reconcile() {
         Trasloco_Job_Store::fail_abandoned_backups();
+        Trasloco_Job_Store::fail_exhausted_verifications();
         foreach ( Trasloco_Job_Store::recoverable_verifications( 10 ) as $id ) {
             self::schedule( $id );
         }

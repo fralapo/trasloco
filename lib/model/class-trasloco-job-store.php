@@ -8,6 +8,7 @@
  */
 class Trasloco_Job_Store {
     const SCHEMA = 1;
+    const MAX_VERIFY_ATTEMPTS = 3;
 
     public static function table() {
         global $wpdb;
@@ -158,11 +159,25 @@ class Trasloco_Job_Store {
         $limit = max( 1, min( 50, (int) $limit ) );
         $now = time();
         return array_map( 'intval', $wpdb->get_col( $wpdb->prepare(
-            "SELECT id FROM {$table} WHERE kind = 'verify' AND
+            "SELECT id FROM {$table} WHERE kind = 'verify' AND attempts < %d AND
             (state = 'pending' OR (state = 'running' AND lease_until < %d))
             ORDER BY id ASC LIMIT %d",
+            self::MAX_VERIFY_ATTEMPTS,
             $now, $limit
         ) ) );
+    }
+
+    /** Fail crashed verify workers after a bounded number of attempts. */
+    public static function fail_exhausted_verifications() {
+        global $wpdb;
+        $table = self::table();
+        return (int) $wpdb->query( $wpdb->prepare(
+            "UPDATE {$table} SET state = 'failed', lease_owner = '', lease_until = 0,
+            failure = 'Verification stopped after repeated interrupted attempts.',
+            updated_at = %s WHERE kind = 'verify' AND state = 'running'
+            AND attempts >= %d AND lease_until < %d",
+            gmdate( 'Y-m-d H:i:s' ), self::MAX_VERIFY_ATTEMPTS, time()
+        ) );
     }
 
     /** Mark abandoned backup workers as failed, rather than duplicating a
@@ -186,9 +201,9 @@ class Trasloco_Job_Store {
         return 1 === $wpdb->query( $wpdb->prepare(
             "UPDATE {$table} SET state = 'pending', failure = NULL,
             lease_owner = '', lease_until = 0, updated_at = %s
-            WHERE id = %d AND kind = 'verify' AND attempts < 3
+            WHERE id = %d AND kind = 'verify' AND attempts < %d
             AND state IN ('failed','cancelled')",
-            gmdate( 'Y-m-d H:i:s' ), $id
+            gmdate( 'Y-m-d H:i:s' ), $id, self::MAX_VERIFY_ATTEMPTS
         ) );
     }
 
@@ -222,8 +237,9 @@ class Trasloco_Job_Store {
         return 1 === $wpdb->query( $wpdb->prepare(
             "UPDATE {$table} SET state = 'running', lease_owner = %s, lease_until = %d,
             attempts = attempts + 1, updated_at = %s
-            WHERE id = %d AND (state = 'pending' OR (state = 'running' AND lease_until < %d))",
-            $worker, $now + $lease_seconds, gmdate( 'Y-m-d H:i:s' ), $id, $now
+            WHERE id = %d AND (kind <> 'verify' OR attempts < %d)
+            AND (state = 'pending' OR (state = 'running' AND lease_until < %d))",
+            $worker, $now + $lease_seconds, gmdate( 'Y-m-d H:i:s' ), $id, self::MAX_VERIFY_ATTEMPTS, $now
         ) );
     }
 

@@ -120,3 +120,5 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 - [x] Phase 4B: monthly backup frequency as a calendar month in the WordPress timezone, including DST, with idempotent monthly job creation and cron transition tests.
 
 - [x] Phase 1B: admin-page checksum verification moved off the synchronous archive listing into a CSRF-protected POST that queues a durable verification job; a manifest alone is explicitly labelled unverified.
+
+- [x] Reconciliation stops retrying expired verification workers after three attempts and records a terminal failure. Crash-loop regression checks requeue, direct claims and manual retries.
