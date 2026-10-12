@@ -53,6 +53,7 @@ $WP trasloco restore "$(basename "$ARCHIVE")" --path="$ROOT/target"
 RECOVERY=$(find "$ROOT/target/wp-content/trasloco-backups" -maxdepth 1 -type f -name '*.wpress' ! -name "$(basename "$ARCHIVE")" -print -quit)
 test -n "$RECOVERY"
 test -s "$RECOVERY.manifest.json"
+[[ "$(basename "$RECOVERY")" == recovery-*.wpress ]]
 $WP trasloco verify "$(basename "$RECOVERY")" --path="$ROOT/target"
 
 echo "Destination tables:"
@@ -79,6 +80,31 @@ if [ ! -f "$ROOT/target/wp-content/uploads/test-fixtures/fixture.txt" ]; then
   exit 1
 fi
 grep -Fx "media is preserved" "$ROOT/target/wp-content/uploads/test-fixtures/fixture.txt"
+# The pre-import recovery file must survive automatic retention on the destination.
+$WP eval '
+$before = (new Trasloco_Backups())->get_files();
+$protected = array_values( array_filter( $before, function ( $item ) {
+    return Trasloco_Backups::is_recovery_point( $item["filename"] );
+} ) );
+if ( count( $protected ) < 1 ) { throw new Exception( "Recovery checkpoint not named as protected" ); }
+if ( count( (new Trasloco_Backups())->get_retention_files() ) !== count( $before ) - count( $protected ) ) {
+    throw new Exception( "Recovery checkpoints included in retention" );
+}
+$id = Trasloco_Job_Store::create( "backup", array( "retention" => 1 ), "ci-protect-recovery-0001" );
+$result = Trasloco_Job_Worker::run( $id );
+if ( $result["status"] !== "completed" ) {
+    throw new Exception( "Retention regression backup failed: " . wp_json_encode( Trasloco_Job_Store::get( $id ) ) );
+}
+foreach ( $protected as $entry ) {
+    if ( ! is_file( trasloco_backup_path( array( "archive" => $entry["filename"] ) ) ) ) {
+        throw new Exception( "Retention deleted a recovery point" );
+    }
+}
+if ( count( (new Trasloco_Backups())->get_retention_files() ) !== 1 ) {
+    throw new Exception( "Normal backup retention not enforced" );
+}
+' --path="$ROOT/target"
+
 # Authorization: regular unauthenticated visitors cannot enumerate archives.
 $WP eval '
 wp_set_current_user( 0 );

@@ -215,7 +215,7 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 					WP_CLI::error( '--keep must be a positive integer.' );
 				}
 				$archive_list = new Trasloco_Backups;
-				foreach ( array_slice( $archive_list->get_files(), $keep ) as $old_backup ) {
+				foreach ( array_slice( $archive_list->get_retention_files(), $keep ) as $old_backup ) {
 					if ( ! $archive_list->delete_file( $old_backup['filename'] ) ) {
 						WP_CLI::warning( 'Unable to remove old backup: ' . $old_backup['filename'] );
 					}

@@ -108,3 +108,5 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 - [ ] True byte-level continuation of interrupted backups, resumable multipart remote uploads and crash replay tests.
 
 - [x] Accessible recent job/progress dashboard and next-backup schedule indicator.
+
+- [x] Audit fix: distinguish recovery point archives by persistent filename prefix; exclude them from both automatic and CLI retention. End-to-end regression ensures a later retention run preserves the pre-import snapshot.

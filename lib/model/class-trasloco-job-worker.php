@@ -81,7 +81,9 @@ class Trasloco_Job_Worker {
             throw new RuntimeException( 'Backup cancelled.' );
         }
         trasloco_setup_environment();
-        $params = array();
+        $params = $is_recovery
+            ? array( 'archive' => 'recovery-' . trasloco_archive_file() )
+            : array();
         // Suppress nested export progress while the import displays its
         // recovery-point stage; do not discard the import's own status.
         if ( $is_recovery ) {
@@ -116,7 +118,7 @@ class Trasloco_Job_Worker {
             return $params['archive'];
         }
         $model = new Trasloco_Backups();
-        $prior = array_values( array_filter( $model->get_files(), function ( $entry ) use ( $params ) {
+        $prior = array_values( array_filter( $model->get_retention_files(), function ( $entry ) use ( $params ) {
             return $entry['filename'] !== $params['archive'];
         } ) );
         // Always protect the newly verified archive, even when creation

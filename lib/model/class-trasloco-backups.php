@@ -77,6 +77,22 @@ class Trasloco_Backups {
 	}
 
 	/**
+	 * Automatic retention only applies to ordinary backups. Recovery points
+	 * need explicit administrator deletion, even if created by update hooks.
+	 * A filename prefix survives migration when the job ledger is replaced.
+	 */
+	public static function is_recovery_point( $filename ) {
+		return is_string( $filename ) && strpos( basename( $filename ), 'recovery-' ) === 0;
+	}
+
+	/** @return array Automatic retention candidates, newest first. */
+	public function get_retention_files() {
+		return array_values( array_filter( $this->get_files(), function ( $backup ) {
+			return ! self::is_recovery_point( $backup['filename'] );
+		} ) );
+	}
+
+	/**
 	 * Delete file
 	 *
 	 * @param  string  $file File name
