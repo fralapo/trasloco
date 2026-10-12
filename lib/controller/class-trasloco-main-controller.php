@@ -64,6 +64,10 @@ class Trasloco_Main_Controller {
 		// Init
 		add_action( 'admin_init', array( $this, 'init' ) );
 		add_action( 'rest_api_init', array( 'Trasloco_API', 'register' ) );
+		add_action( Trasloco_Background::PERIODIC, array( 'Trasloco_Background', 'periodic' ) );
+		add_action( Trasloco_Background::TICK, array( 'Trasloco_Background', 'tick' ) );
+		add_action( 'admin_post_trasloco_schedule_save', array( 'Trasloco_Background', 'save_post' ) );
+		add_action( 'admin_post_trasloco_schedule_start', array( 'Trasloco_Background', 'start_post' ) );
 
 		// Router
 		add_action( 'admin_init', array( $this, 'router' ) );
@@ -453,6 +457,15 @@ class Trasloco_Main_Controller {
 			'manage_options',
 			'trasloco_dashboard',
 			'Trasloco_Main_Controller::dashboard'
+		);
+
+		add_submenu_page(
+			'trasloco_dashboard',
+			__( 'Automatic backups', TRASLOCO_PLUGIN_NAME ),
+			__( 'Automatic backups', TRASLOCO_PLUGIN_NAME ),
+			'manage_options',
+			'trasloco_schedule',
+			'Trasloco_Background::settings_page'
 		);
 
 		// Sub-level Export menu

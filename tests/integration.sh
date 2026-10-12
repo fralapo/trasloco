@@ -64,6 +64,15 @@ if [ ! -f "$ROOT/target/wp-content/uploads/test-fixtures/fixture.txt" ]; then
   exit 1
 fi
 grep -Fx "media is preserved" "$ROOT/target/wp-content/uploads/test-fixtures/fixture.txt"
+# Reuse the existing full-export stages in a durable, background-style job.
+$WP eval 'if ( ! Trasloco_Background::start() ) { throw new RuntimeException("Could not queue backup"); }' --path="$ROOT/source"
+for ATTEMPT in $(seq 1 65); do
+  $WP eval 'Trasloco_Background::tick();' --path="$ROOT/source"
+  if $WP eval '$last = get_option(Trasloco_Background::LAST); if (!empty($last) && $last["state"] === "completed") { exit(0); } exit(1);' --path="$ROOT/source"; then
+    break
+  fi
+done
+$WP eval '$last = get_option(Trasloco_Background::LAST); if (empty($last) || $last["state"] !== "completed") { throw new RuntimeException("Background backup failed: " . json_encode($last)); } $result = Trasloco_Manifest::inspect($last["archive"]); if ($result["status"] !== "verified") { throw new RuntimeException("Scheduled backup verification failed"); }' --path="$ROOT/source"
 echo 'corruption!' >> "$ARCHIVE"
 if $WP trasloco verify "$(basename "$ARCHIVE")" --path="$ROOT/source"; then
   echo "ERROR: corrupted backup verification unexpectedly succeeded" >&2
