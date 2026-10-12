@@ -248,6 +248,55 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 		}
 
 		/**
+		 * Encrypt a verified backup to an independently authenticated archive.
+		 * The original plaintext backup is never deleted automatically.
+		 * @subcommand encrypt
+		 */
+		public function encrypt( array $args, array $assoc_args ) {
+			if ( empty( $args[0] ) ) {
+				WP_CLI::error( 'Usage: wp trasloco encrypt <name.wpress>' );
+			}
+			$password = getenv( 'TRASLOCO_BACKUP_PASSPHRASE' );
+			if ( ! is_string( $password ) || strlen( $password ) < 12 ) {
+				WP_CLI::error( 'Set TRASLOCO_BACKUP_PASSPHRASE to at least 12 characters.' );
+			}
+			try {
+				$verified = Trasloco_Manifest::inspect( $args[0] );
+				if ( $verified['status'] !== 'verified' ) {
+					WP_CLI::error( 'Backup integrity must be verified before encryption.' );
+				}
+				$source = Trasloco_Manifest::archive_path( $args[0] );
+				WP_CLI::success( 'Encrypted file: ' . Trasloco_Crypt::encrypt_file( $source, $source . '.enc', $password ) );
+			} catch ( Exception $e ) {
+				WP_CLI::error( $e->getMessage() );
+			}
+		}
+
+		/**
+		 * Decrypt a .wpress.enc backup. Never overwrite an existing .wpress.
+		 * @subcommand decrypt
+		 */
+		public function decrypt( array $args, array $assoc_args ) {
+			if ( empty( $args[0] ) || ! preg_match( '/^[A-Za-z0-9_.-]+\\.wpress\\.enc$/D', $args[0] ) ) {
+				WP_CLI::error( 'Usage: wp trasloco decrypt <name.wpress.enc>' );
+			}
+			$password = getenv( 'TRASLOCO_BACKUP_PASSPHRASE' );
+			if ( ! is_string( $password ) || strlen( $password ) < 12 ) {
+				WP_CLI::error( 'Set TRASLOCO_BACKUP_PASSPHRASE to at least 12 characters.' );
+			}
+			try {
+				$name = substr( $args[0], 0, -4 );
+				$dest = Trasloco_Manifest::archive_path( $name );
+				$source = TRASLOCO_BACKUPS_PATH . DIRECTORY_SEPARATOR . $args[0];
+				Trasloco_Crypt::decrypt_file( $source, $dest, $password );
+				Trasloco_Manifest::create( $name );
+				WP_CLI::success( 'Decrypted and verified file: ' . $dest );
+			} catch ( Exception $e ) {
+				WP_CLI::error( $e->getMessage() );
+			}
+		}
+
+		/**
 		 * Restores a backup.
 		 *
 		 * Example:

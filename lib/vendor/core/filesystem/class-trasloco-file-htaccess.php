@@ -42,7 +42,7 @@ class Trasloco_File_Htaccess {
 			'<IfModule mod_autoindex.c>',
 			'Options -Indexes',
 			'# Trasloco private archives',
-			'<FilesMatch "\\.wpress(\\.manifest\\.json)?$">',
+			'<FilesMatch "\\.wpress(\\.manifest\\.json|\\.enc)?$">',
 			'<IfModule mod_authz_core.c>',
 			'Require all denied',
 			'</IfModule>',
