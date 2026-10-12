@@ -31,6 +31,14 @@ mkdir -p "$ROOT/private-outside-wp"
 printf 'TRASLOCO_OUTSIDE_SECRET_GUARD_20261012\n' > "$ROOT/private-outside-wp/private.txt"
 ln -s "$ROOT/private-outside-wp/private.txt" "$ROOT/source/wp-content/uploads/private-file-link.txt"
 ln -s "$ROOT/private-outside-wp" "$ROOT/source/wp-content/uploads/private-directory-link"
+# Any symlink in wp-content must be reported as an incomplete backup,
+# not silently skipped or dereferenced into private external data.
+if $WP trasloco backup --path="$ROOT/source"; then
+  echo "ERROR: backup succeeded despite a symlinked content dependency" >&2
+  exit 1
+fi
+rm "$ROOT/source/wp-content/uploads/private-file-link.txt"
+rm "$ROOT/source/wp-content/uploads/private-directory-link"
 $WP trasloco backup --path="$ROOT/source"
 ARCHIVE=$(find "$ROOT/source/wp-content/trasloco-backups" -maxdepth 1 -type f -name '*.wpress' -print -quit)
 if grep -aFq 'TRASLOCO_OUTSIDE_SECRET_GUARD_20261012' "$ARCHIVE"; then

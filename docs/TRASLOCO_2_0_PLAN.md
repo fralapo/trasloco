@@ -159,3 +159,5 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 - [x] Preflight rejects duplicate root restore metadata (package.json, database.sql, multisite.json and blogs.json) before creating a recovery point or overwriting the destination.
 
 - [x] Symlink export audit: never recurse into or archive symlinks outside wp-content; defend again against post-enumeration path swapping. Linux integration checks external secret content is absent from .wpress archives. Operators must review symlinked plugin/theme deployments before relying on full-file restores.
+
+- [x] Safe symlink policy: when linked content is encountered, a full export fails visibly instead of silently omitting required files or dereferencing secrets. Integration verifies failure, then a clean successful backup after removing test links.

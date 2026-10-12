@@ -358,3 +358,26 @@ unlink( $inside . '/external' );
 unlink( $outside . '/secret.txt' );
 rmdir( $inside );
 rmdir( $outside );
+
+
+// A portable "complete" backup must not silently omit symlinked plugins,
+// themes or media; their dereference may also leak outside the content root.
+require dirname( __DIR__ ) . '/lib/vendor/core/filter/class-trasloco-recursive-newline-filter.php';
+$linked_root = sys_get_temp_dir() . '/tr-linked-root-' . bin2hex( random_bytes( 8 ) );
+$linked_target = sys_get_temp_dir() . '/tr-linked-target-' . bin2hex( random_bytes( 8 ) );
+mkdir( $linked_root, 0700 );
+mkdir( $linked_target, 0700 );
+symlink( $linked_target, $linked_root . '/linked-theme' );
+try {
+    $filter = new Trasloco_Recursive_Newline_Filter(
+        new Trasloco_Recursive_Directory_Iterator( $linked_root ) );
+    foreach ( $filter as $entry ) {
+        // A symlink must throw before a complete inventory is reported.
+    }
+    ensure( false, 'linked content was silently omitted from export' );
+} catch ( Trasloco_Archive_Exception $expected ) {
+} finally {
+    unlink( $linked_root . '/linked-theme' );
+    rmdir( $linked_root );
+    rmdir( $linked_target );
+}

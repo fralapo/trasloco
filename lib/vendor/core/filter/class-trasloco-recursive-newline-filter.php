@@ -27,8 +27,14 @@ class Trasloco_Recursive_Newline_Filter extends RecursiveFilterIterator {
 
 	#[\ReturnTypeWillChange]
 	public function accept() {
-		return ! $this->getInnerIterator()->isLink() &&
-			strpos( $this->getInnerIterator()->getSubPathname(), "\n" ) === false &&
+		// Silently omitting a linked theme or uploads folder would make a
+		// backup appear complete when it is not. Fail closed instead.
+		if ( $this->getInnerIterator()->isLink() ) {
+			throw new Trasloco_Archive_Exception(
+				'Backup stopped: wp-content contains a symbolic link. Resolve or copy linked content before backing up.'
+			);
+		}
+		return strpos( $this->getInnerIterator()->getSubPathname(), "\n" ) === false &&
 			strpos( $this->getInnerIterator()->getSubPathname(), "\r" ) === false;
 	}
 }
