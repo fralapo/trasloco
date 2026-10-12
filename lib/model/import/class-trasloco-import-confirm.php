@@ -54,6 +54,35 @@ class Trasloco_Import_Confirm {
 			}
 		}
 
+		// Check the destination before authorizing a destructive restore.
+		$archive_bytes = @filesize( trasloco_archive_path( $params ) );
+		$free_bytes = @disk_free_space( WP_CONTENT_DIR );
+		if ( $archive_bytes !== false && $free_bytes !== false ) {
+			if ( $free_bytes < $archive_bytes ) {
+				throw new Trasloco_Import_Exception(
+					sprintf(
+						__( 'Not enough free space for a safe restore. Available: %s. Archive size: %s. Free disk space and try again.', TRASLOCO_PLUGIN_NAME ),
+						size_format( $free_bytes ),
+						size_format( $archive_bytes )
+					)
+				);
+			}
+			$messages[] = '<span class="tr-para">' . esc_html( sprintf(
+				__( 'Storage check passed: %s free, archive size %s.', TRASLOCO_PLUGIN_NAME ),
+				size_format( $free_bytes ),
+				size_format( $archive_bytes )
+			) ) . '</span>';
+		}
+		if ( isset( $package['PHP']['Version'] ) &&
+			is_string( $package['PHP']['Version'] ) &&
+			version_compare( $package['PHP']['Version'], PHP_VERSION, '>' ) ) {
+			$messages[] = '<span class="tr-para">' . esc_html( sprintf(
+				__( 'Compatibility warning: the old site used PHP %s, but this site uses PHP %s. Some themes or plugins may not work.', TRASLOCO_PLUGIN_NAME ),
+				$package['PHP']['Version'],
+				PHP_VERSION
+			) ) . '</span>';
+		}
+
 		// Set progress
 		Trasloco_Status::confirm( implode( $messages ) );
 		exit;

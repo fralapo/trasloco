@@ -11,6 +11,72 @@
  */
 
 return array(
+	'Not enough free space for a safe restore. Available: %s. Archive size: %s. Free disk space and try again.' => array(
+		'it' => 'Spazio insufficiente per un ripristino sicuro. Disponibile: %s. Dimensione archivio: %s. Libera spazio su disco e riprova.',
+		'es' => 'Espacio insuficiente para restaurar con seguridad. Disponible: %s. Tamaño del archivo: %s. Libera espacio e inténtalo de nuevo.',
+		'fr' => 'Espace insuffisant pour une restauration sûre. Disponible : %s. Taille de l’archive : %s. Libérez de l’espace et réessayez.',
+		'de' => 'Nicht genügend freier Speicher für eine sichere Wiederherstellung. Verfügbar: %s. Archivgröße: %s. Speicherplatz freigeben und erneut versuchen.',
+	),
+	'Storage check passed: %s free, archive size %s.' => array(
+		'it' => 'Controllo spazio superato: %s liberi, archivio di %s.',
+		'es' => 'Comprobación de espacio correcta: %s libres, archivo de %s.',
+		'fr' => 'Vérification du stockage réussie : %s libres, archive de %s.',
+		'de' => 'Speicherprüfung erfolgreich: %s frei, Archivgröße %s.',
+	),
+	'Compatibility warning: the old site used PHP %s, but this site uses PHP %s. Some themes or plugins may not work.' => array(
+		'it' => 'Attenzione alla compatibilità: il vecchio sito utilizzava PHP %s, questo sito utilizza PHP %s. Alcuni temi o plugin potrebbero non funzionare.',
+		'es' => 'Advertencia de compatibilidad: el sitio anterior usaba PHP %s y este usa PHP %s. Algunos temas o plugins podrían fallar.',
+		'fr' => 'Avertissement de compatibilité : l’ancien site utilisait PHP %s, ce site utilise PHP %s. Certains thèmes ou extensions pourraient ne pas fonctionner.',
+		'de' => 'Kompatibilitätswarnung: Die alte Website verwendete PHP %s, diese PHP %s. Manche Themes oder Plugins funktionieren möglicherweise nicht.',
+	),
+	'Server readiness' => array(
+		'it' => 'Stato del server',
+		'es' => 'Estado del servidor',
+		'fr' => 'État du serveur',
+		'de' => 'Serverbereitschaft',
+	),
+	'PHP version' => array(
+		'it' => 'Versione PHP',
+		'es' => 'Versión de PHP',
+		'fr' => 'Version de PHP',
+		'de' => 'PHP-Version',
+	),
+	'Available disk space' => array(
+		'it' => 'Spazio disco disponibile',
+		'es' => 'Espacio de disco disponible',
+		'fr' => 'Espace disque disponible',
+		'de' => 'Verfügbarer Speicherplatz',
+	),
+	'MySQLi extension' => array(
+		'it' => 'Estensione MySQLi',
+		'es' => 'Extensión MySQLi',
+		'fr' => 'Extension MySQLi',
+		'de' => 'MySQLi-Erweiterung',
+	),
+	'Unknown' => array(
+		'it' => 'Sconosciuto',
+		'es' => 'Desconocido',
+		'fr' => 'Inconnu',
+		'de' => 'Unbekannt',
+	),
+	'Available' => array(
+		'it' => 'Disponibile',
+		'es' => 'Disponible',
+		'fr' => 'Disponible',
+		'de' => 'Verfügbar',
+	),
+	'Unavailable' => array(
+		'it' => 'Non disponibile',
+		'es' => 'No disponible',
+		'fr' => 'Indisponible',
+		'de' => 'Nicht verfügbar',
+	),
+	'Trasloco checks the uploaded archive and destination storage again before asking to replace the site.' => array(
+		'it' => 'Trasloco ricontrolla l’archivio caricato e lo spazio sul server prima di chiedere di sostituire il sito.',
+		'es' => 'Trasloco vuelve a comprobar el archivo y el almacenamiento antes de pedirte que reemplaces el sitio.',
+		'fr' => 'Trasloco vérifie à nouveau l’archive et le stockage avant de proposer de remplacer le site.',
+		'de' => 'Trasloco prüft das Archiv und den Speicher vor der Bestätigung zum Ersetzen der Website erneut.',
+	),
 	'Export' => array(
 		'it' => 'Esporta',
 		'es' => 'Exportar',
