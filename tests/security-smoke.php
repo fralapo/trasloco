@@ -381,3 +381,19 @@ try {
     rmdir( $linked_root );
     rmdir( $linked_target );
 }
+
+
+// A source file removed between export enumeration and compression must
+// abort the backup instead of silently producing a valid-looking archive.
+require dirname( __DIR__ ) . '/lib/vendor/core/archiver/class-trasloco-compressor.php';
+$missing_source = sys_get_temp_dir() . '/trasloco-removed-' . bin2hex( random_bytes( 8 ) );
+$compression_target = tempnam( sys_get_temp_dir(), 'tr-compress-miss-' );
+$compressor = new Trasloco_Compressor( $compression_target );
+try {
+    $compressor->add_file( $missing_source, 'uploads/disappeared.txt' );
+    ensure( false, 'compressor accepted a missing source file' );
+} catch ( Trasloco_Not_Readable_Exception $expected ) {
+} finally {
+    $compressor->close();
+    @unlink( $compression_target );
+}

@@ -161,3 +161,5 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 - [x] Symlink export audit: never recurse into or archive symlinks outside wp-content; defend again against post-enumeration path swapping. Linux integration checks external secret content is absent from .wpress archives. Operators must review symlinked plugin/theme deployments before relying on full-file restores.
 
 - [x] Safe symlink policy: when linked content is encountered, a full export fails visibly instead of silently omitting required files or dereferencing secrets. Integration verifies failure, then a clean successful backup after removing test links.
+
+- [x] Compressor now rejects files disappearing between enumeration and content copy, source seek/read failures, and empty non-EOF reads rather than publishing a misleadingly complete export. A standalone regression exercises the missing-source failure.

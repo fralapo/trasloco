@@ -83,13 +83,19 @@ class Trasloco_Compressor extends Trasloco_Archiver {
 				}
 
 				// Set file offset
-				if ( @fseek( $file_handle, $file_offset, SEEK_SET ) !== -1 ) {
+				if ( @fseek( $file_handle, $file_offset, SEEK_SET ) === -1 ) {
+                    throw new Trasloco_Not_Seekable_Exception( 'Unable to seek to the exported source file.' );
+                }
+                {
 
 					// Read the file in 512KB chunks
 					while ( false === @feof( $file_handle ) ) {
 
 						// Read the file in chunks of 512KB
 						if ( ( $file_content = @fread( $file_handle, 512000 ) ) !== false ) {
+                            if ( $file_content === '' && ! feof( $file_handle ) ) {
+                                throw new Trasloco_Not_Readable_Exception( 'Source file returned an empty read before EOF.' );
+                            }
 							if ( ( $file_bytes = @fwrite( $this->file_handle, $file_content ) ) !== false ) {
 								if ( strlen( $file_content ) !== $file_bytes ) {
 									throw new Trasloco_Quota_Exceeded_Exception( sprintf( 'Out of disk space. Unable to write content to file. File: %s', $this->file_name ) );
@@ -100,7 +106,9 @@ class Trasloco_Compressor extends Trasloco_Archiver {
 
 							// Set file written
 							$file_written += $file_bytes;
-						}
+						} else {
+                            throw new Trasloco_Not_Readable_Exception( 'Could not read the source file during backup.' );
+                        }
 
 						// Time elapsed
 						if ( ( $timeout = apply_filters( 'trasloco_completed_timeout', 10 ) ) ) {
@@ -141,11 +149,16 @@ class Trasloco_Compressor extends Trasloco_Archiver {
 						);
 					}
 				}
-			}
+            } else {
+                throw new Trasloco_Not_Readable_Exception( 'Source file metadata disappeared during backup.' );
+            }
 
 			// Close the handle
 			@fclose( $file_handle );
-		}
+		} else {
+            // A missing file must never count as a successfully exported file.
+            throw new Trasloco_Not_Readable_Exception( 'Source file disappeared before backup could read it.' );
+        }
 
 		return $completed;
 	}
