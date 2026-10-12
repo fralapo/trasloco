@@ -43,3 +43,11 @@ selected file content by default. Never use it for an in-place restore.
 
 The offline CLI is a **data rescue** path, not proof of a bootable WordPress
 restore. Work to support a fully independent isolated restore remains open.
+
+## Negative integrity test
+
+When a sidecar is present and does not match the archive, extraction is refused
+**before** any output folder is created. The CI integration suite corrupts a
+real backup without updating its manifest and checks this fail-closed behavior.
+A manifest-free legacy archive may still be inspected, but the CLI reports it
+as unverified; structural validation alone cannot prove data authenticity.

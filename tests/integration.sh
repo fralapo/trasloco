@@ -56,6 +56,17 @@ if php "$GITHUB_WORKSPACE/tools/rescue-extract.php" "$ARCHIVE" --output=relative
 fi
 test -s "$RESCUE_DIR/database.sql"
 test -f "$RESCUE_DIR/content/uploads/test-fixtures/fixture.txt"
+# Corrupted source+unmodified sidecar must abort before any recovery folder
+# or partial plaintext is created. Never give tampered bytes a green result.
+cp "$ARCHIVE" "$ROOT/corrupt-rescue.wpress"
+cp "$ARCHIVE.manifest.json" "$ROOT/corrupt-rescue.wpress.manifest.json"
+printf 'X' | dd of="$ROOT/corrupt-rescue.wpress" bs=1 seek=100 count=1 conv=notrunc status=none
+if php "$GITHUB_WORKSPACE/tools/rescue-extract.php" "$ROOT/corrupt-rescue.wpress" --content --output="$ROOT/corrupt-rescue-out" >/dev/null 2>&1; then
+  echo "ERROR: offline rescue accepted corrupted archive" >&2
+  exit 1
+fi
+test ! -e "$ROOT/corrupt-rescue-out"
+rm "$ROOT/corrupt-rescue.wpress" "$ROOT/corrupt-rescue.wpress.manifest.json"
 $WP eval '
 require_once TRASLOCO_LIB_PATH . "/vendor/core/archiver/class-trasloco-integrity.php";
 $files = (new Trasloco_Backups())->get_files();
