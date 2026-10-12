@@ -42,7 +42,7 @@ class Trasloco_Archive_Inspector {
                 }
                 $folder = trim( str_replace( '\\', '/', $folder ) );
                 if ( $folder === '.' ) { $folder = ''; }
-                if ( ! ctype_digit( $size_str ) || $filename === '' ||
+                if ( ! ctype_digit( $size_str ) || $filename === '' || $filename === '..' ||
                     strpbrk( $filename, '/\\' ) !== false ||
                     preg_match( '#^([/\\\\]|[A-Za-z]:)#', $folder ) ||
                     in_array( '..', explode( '/', $folder ), true ) ) {
