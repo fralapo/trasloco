@@ -86,3 +86,6 @@ Updated 2026-10-12. This plan is an implementation dependency map, not a claim t
 
 - [x] Phase 2A: verified pre-import recovery snapshot before file/database replacement; on failure import aborts.
 - [ ] Phase 2B: independent one-click rescue handler and tested true rollback, including large hosting environments.
+
+- [x] Phase 10A: optional verified recovery point before core/plugin/theme updates, fail closed when backup fails.
+- [ ] Phase 10B: automated rollback, failure alerts and cross-host upgrade checks.

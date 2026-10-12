@@ -49,6 +49,8 @@
 			</select></p>
 			<p><label for="tr-schedule-keep"><strong><?php esc_html_e( 'Keep latest backups', TRASLOCO_PLUGIN_NAME ); ?></strong></label></p>
 			<p><input id="tr-schedule-keep" type="number" name="keep" min="1" max="100" required value="<?php echo esc_attr( $tr_schedule['keep'] ); ?>" /></p>
+			<p><label><input type="checkbox" name="before_updates" value="1" <?php checked( $tr_schedule['before_updates'] ); ?> /> <?php esc_html_e( 'Create a verified recovery point before updating WordPress, plugins or themes', TRASLOCO_PLUGIN_NAME ); ?></label></p>
+			<p class="tr-hint"><?php esc_html_e( 'If a safety backup fails, Trasloco stops the update. A recovery point is not an automatic rollback.', TRASLOCO_PLUGIN_NAME ); ?></p>
 			<p class="tr-hint"><?php esc_html_e( 'WordPress scheduled tasks depend on site traffic. Configure system cron for reliable timing on low-traffic sites.', TRASLOCO_PLUGIN_NAME ); ?></p>
 			<p><button type="submit" class="button button-primary"><?php esc_html_e( 'Save schedule', TRASLOCO_PLUGIN_NAME ); ?></button></p>
 		</form>

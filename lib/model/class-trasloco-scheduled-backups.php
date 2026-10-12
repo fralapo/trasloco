@@ -18,7 +18,7 @@ class Trasloco_Scheduled_Backups {
         if ( ! in_array( $frequency, array( 'off', 'hourly', 'daily', 'weekly' ), true ) ) {
             $frequency = 'off';
         }
-        return array( 'frequency' => $frequency, 'keep' => max( 1, min( 100, $keep ) ) );
+        return array( 'frequency' => $frequency, 'keep' => max( 1, min( 100, $keep ) ), 'before_updates' => ! empty( $value['before_updates'] ) );
     }
 
     public static function sync() {
@@ -47,7 +47,8 @@ class Trasloco_Scheduled_Backups {
              $keep === false || $keep < 1 || $keep > 100 ) {
             wp_die( 'Invalid schedule configuration.', '', array( 'response' => 400 ) );
         }
-        update_option( self::OPTION, array( 'frequency' => $frequency, 'keep' => $keep ), false );
+        $before_updates = isset( $_POST['before_updates'] ) && $_POST['before_updates'] === '1';
+        update_option( self::OPTION, array( 'frequency' => $frequency, 'keep' => $keep, 'before_updates' => $before_updates ), false );
         wp_clear_scheduled_hook( self::HOOK );
         self::sync();
         wp_safe_redirect( admin_url( 'admin.php?page=trasloco_backups&schedule_saved=1' ) );

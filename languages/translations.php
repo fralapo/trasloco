@@ -11,6 +11,18 @@
  */
 
 return array(
+	'Create a verified recovery point before updating WordPress, plugins or themes' => array(
+		'it' => 'Crea un punto di ripristino verificato prima di aggiornare WordPress, plugin o temi',
+		'es' => 'Crear un punto de recuperación verificado antes de actualizar WordPress, plugins o temas',
+		'fr' => 'Créer un point de récupération vérifié avant les mises à jour de WordPress, extensions ou thèmes',
+		'de' => 'Vor Updates von WordPress, Plugins oder Themes einen geprüften Wiederherstellungspunkt erstellen',
+	),
+	'If a safety backup fails, Trasloco stops the update. A recovery point is not an automatic rollback.' => array(
+		'it' => 'Se il backup di sicurezza fallisce, Trasloco interrompe l’aggiornamento. Un punto di ripristino non è un rollback automatico.',
+		'es' => 'Si la copia de seguridad falla, Trasloco detiene la actualización. El punto de recuperación no revierte cambios automáticamente.',
+		'fr' => 'Si la sauvegarde échoue, Trasloco arrête la mise à jour. Un point de récupération n’est pas un retour arrière automatique.',
+		'de' => 'Falls das Sicherheitsbackup fehlschlägt, stoppt Trasloco das Update. Ein Wiederherstellungspunkt ist kein automatisches Rollback.',
+	),
 	'Creating a recovery point for this site before replacing anything...' => array(
 		'it' => 'Creazione di un punto di ripristino prima di sostituire il sito...',
 		'es' => 'Creando un punto de recuperación antes de reemplazar el sitio...',

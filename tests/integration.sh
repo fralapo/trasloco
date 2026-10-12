@@ -170,4 +170,15 @@ update_option( Trasloco_Scheduled_Backups::OPTION, array( "frequency" => "off", 
 Trasloco_Scheduled_Backups::sync();
 if ( wp_next_scheduled( Trasloco_Scheduled_Backups::HOOK ) ) { throw new Exception( "Disabled schedule still active" ); }
 ' --path="$ROOT/source"
+
+# Upgrade safety: opt-in and no recursive updates. A valid checkpoint passes.
+$WP eval '
+update_option( Trasloco_Scheduled_Backups::OPTION, array( "frequency" => "off", "keep" => 2, "before_updates" => true ) );
+$before = count( (new Trasloco_Backups())->get_files() );
+$result = apply_filters( "upgrader_pre_install", true, array( "action" => "update", "type" => "plugin" ) );
+if ( $result !== true ) { throw new Exception( "Update blocked despite successful safety copy" ); }
+$after = count( (new Trasloco_Backups())->get_files() );
+if ( $after <= $before ) { throw new Exception( "No pre-update checkpoint was created" ); }
+update_option( Trasloco_Scheduled_Backups::OPTION, array( "frequency" => "off", "keep" => 2, "before_updates" => false ) );
+' --path="$ROOT/source"
 echo "WordPress backup + database + users + media migration passed."

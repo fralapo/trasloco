@@ -115,6 +115,10 @@ require_once dirname( __FILE__ ) . '/lib/model/storage/class-trasloco-local-stor
 require_once dirname( __FILE__ ) . '/lib/model/class-trasloco-job-store.php';
 add_action( 'init', array( 'Trasloco_Job_Store', 'maybe_install' ) );
 
+// Optional safety checkpoints before WordPress updates.
+require_once dirname( __FILE__ ) . '/lib/model/class-trasloco-update-safety.php';
+Trasloco_Update_Safety::register();
+
 // Scheduled backup settings and WP-Cron tick.
 require_once dirname( __FILE__ ) . '/lib/model/class-trasloco-scheduled-backups.php';
 Trasloco_Scheduled_Backups::register();
