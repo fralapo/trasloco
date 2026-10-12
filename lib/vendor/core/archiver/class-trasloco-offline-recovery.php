@@ -166,7 +166,9 @@ class Trasloco_Offline_Recovery {
                 $folder = $nul !== false ? substr( $folder, 0, $nul ) : substr( $folder, 0, -8 );
                 $folder = str_replace( '\\', '/', trim( $folder ) );
                 if ( $folder === '.' ) { $folder = ''; }
-                $parts = explode( '/', $folder );
+                // Root metadata is legal and is not a staged content path.
+                // Empty segments remain forbidden inside non-root folders.
+                $parts = $folder === '' ? array() : explode( '/', $folder );
                 if ( $name === '' || $name === '.' || $name === '..' ||
                     strpbrk( $name, "/\\\0" ) !== false ||
                     preg_match( '/[\x00-\x1f\x7f]/', $name . $folder ) ||
@@ -182,7 +184,8 @@ class Trasloco_Offline_Recovery {
                 if ( $size === false || $size > $length - self::HEADER_BYTES - $position - self::HEADER_BYTES ) {
                     throw new RuntimeException( 'Invalid staged file length.' );
                 }
-                if ( in_array( $parts[0], array( 'uploads', 'plugins', 'themes', 'mu-plugins' ), true ) ) {
+                if ( ! empty( $parts ) &&
+                    in_array( $parts[0], array( 'uploads', 'plugins', 'themes', 'mu-plugins' ), true ) ) {
                     if ( $bytes > $max_bytes - $size ) {
                         throw new RuntimeException( 'Staged contents exceed the configured safety limit.' );
                     }
