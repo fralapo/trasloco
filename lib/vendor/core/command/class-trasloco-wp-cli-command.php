@@ -223,6 +223,67 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 			}
 		}
 
+
+		/**
+		 * Encrypt an archive into a .wpress.enc file using a libsodium stream.
+		 * Set TRASLOCO_ARCHIVE_PASSPHRASE securely in the environment.
+		 *
+		 * @subcommand encrypt
+		 */
+		public function encrypt( array $args, array $assoc_args ) {
+			if ( empty( $args[0] ) ) {
+				WP_CLI::error( 'Specify a .wpress archive filename.' );
+			}
+			$passphrase = getenv( 'TRASLOCO_ARCHIVE_PASSPHRASE' );
+			if ( ! is_string( $passphrase ) || strlen( $passphrase ) < 12 ) {
+				WP_CLI::error( 'Set TRASLOCO_ARCHIVE_PASSPHRASE (at least 12 characters).' );
+			}
+			try {
+				$source = trasloco_backup_path( array( 'archive' => $args[0] ) );
+				require_once TRASLOCO_LIB_PATH . '/model/class-trasloco-encryption.php';
+				Trasloco_Encryption::encrypt( $source, $source . '.enc', $passphrase );
+				WP_CLI::success( 'Encrypted backup: ' . basename( $source ) . '.enc' );
+			} catch ( Exception $e ) {
+				WP_CLI::error( $e->getMessage() );
+			}
+		}
+
+		/**
+		 * Decrypt a .wpress.enc archive into a new, verified .wpress file.
+		 * Does not overwrite either the encrypted source or existing output.
+		 *
+		 * @subcommand decrypt
+		 */
+		public function decrypt( array $args, array $assoc_args ) {
+			if ( empty( $args[0] ) || ! is_string( $args[0] ) ||
+				! preg_match( '/^[a-zA-Z0-9_.-]+\.wpress\.enc$/D', $args[0] ) ) {
+				WP_CLI::error( 'Specify a valid .wpress.enc filename.' );
+			}
+			$passphrase = getenv( 'TRASLOCO_ARCHIVE_PASSPHRASE' );
+			if ( ! is_string( $passphrase ) || strlen( $passphrase ) < 12 ) {
+				WP_CLI::error( 'Set TRASLOCO_ARCHIVE_PASSPHRASE (at least 12 characters).' );
+			}
+			try {
+				$name = substr( $args[0], 0, -11 );
+				$source = trasloco_backup_path( array( 'archive' => $name . '.wpress' ) ) . '.enc';
+				$target = trasloco_backup_path( array( 'archive' => $name . '-decrypted.wpress' ) );
+				require_once TRASLOCO_LIB_PATH . '/model/class-trasloco-encryption.php';
+				Trasloco_Encryption::decrypt( $source, $target, $passphrase );
+				$check = new Trasloco_Extractor( $target );
+				$valid = $check->is_valid();
+				$check->close();
+				if ( ! $valid ) {
+					@unlink( $target );
+					WP_CLI::error( 'Decrypted data is not a valid .wpress archive.' );
+				}
+				require_once TRASLOCO_LIB_PATH . '/vendor/core/archiver/class-trasloco-integrity.php';
+				Trasloco_Integrity::create( $target );
+				WP_CLI::success( 'Decrypted backup: ' . basename( $target ) );
+			} catch ( Exception $e ) {
+				WP_CLI::error( $e->getMessage() );
+			}
+		}
+
 		/**
 		 * Verify a backup against its SHA-256 manifest.
 		 *

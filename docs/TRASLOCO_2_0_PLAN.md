@@ -80,3 +80,6 @@ Updated 2026-10-12. This plan is an implementation dependency map, not a claim t
 
 - [x] Phase 6A: standalone versioned streaming libsodium encrypted envelope with wrong-key/corruption tests.
 - [ ] Phase 6B: CLI and UI workflows, storage protection and recovery integration.
+
+- [x] Optional encryption via wp trasloco encrypt/decrypt with Argon2id and XChaCha20 secretstream (CLI and test).
+- [ ] In-app encryption UI and encrypted cloud storage integration.

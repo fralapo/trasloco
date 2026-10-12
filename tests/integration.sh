@@ -33,6 +33,14 @@ if [ ! -s "$ARCHIVE" ]; then
   exit 1
 fi
 $WP trasloco verify "$(basename "$ARCHIVE")" --path="$ROOT/source"
+if $WP eval 'exit( ! function_exists( "sodium_crypto_secretstream_xchacha20poly1305_init_push" ) );' --path="$ROOT/source"; then
+  TRASLOCO_ARCHIVE_PASSPHRASE='integration-crypt-password-2026' $WP trasloco encrypt "$(basename "$ARCHIVE")" --path="$ROOT/source"
+  test -s "$ARCHIVE.enc"
+  TRASLOCO_ARCHIVE_PASSPHRASE='integration-crypt-password-2026' $WP trasloco decrypt "$(basename "$ARCHIVE").enc" --path="$ROOT/source"
+  RESTORED="${ARCHIVE%.wpress}-decrypted.wpress"
+  cmp -s "$ARCHIVE" "$RESTORED"
+  $WP trasloco verify "$(basename "$RESTORED")" --path="$ROOT/source"
+fi
 test -s "$ARCHIVE.manifest.json"
 mkdir -p "$ROOT/target/wp-content/trasloco-backups"
 cp "$ARCHIVE" "$ROOT/target/wp-content/trasloco-backups/"
