@@ -33,7 +33,7 @@ I wrote it to move a 1.6 GB site to shared hosting without paying for a "remove 
 - **Four plain pages:** Export, Import, Backups and Guide. Every option has a one-line explanation under it, the Import page lists what to do before you start, and a progress bar shows each step. The Guide page explains every function, with a glossary for people who do not know how WordPress works inside.
 - **Five languages:** English, Italian, Spanish, French and German, all in one file. See [Languages](#languages).
 - **PHP 8.2 clean.** The iterators carry `#[\ReturnTypeWillChange]`, so the log is free of deprecation notices.
-- **WP-CLI:** `wp trasloco backup` and `wp trasloco restore <file>`.
+- **WP-CLI:** `wp trasloco backup` and `wp trasloco restore <file>`. For scheduled jobs, `wp trasloco backup --keep=7` keeps only the latest seven backups. See [automation](docs/AUTOMATION.md) for cron and offsite storage.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -110,7 +110,7 @@ Yes, on its own. When the file is imported, the old address is replaced with the
 At the end it switches on the theme and the plugins that were active on the old site. If the new site has no HTTPS, it switches off plugins that force HTTPS. It also switches off plugins that hide or rename the login page, so that you can log in at `/wp-login.php`. The users are those of the old site, so you log in with the old username and password.
 
 ### Who can download the backup files?
-They sit in `wp-content/trasloco-backups`. Visitors cannot list the folder, and every file name ends with a random 12-character code. Anyone who has the exact link can still download a file, and it contains the whole site, user accounts included, so do not share the links and delete the backups you no longer need.
+By default archives sit in `wp-content/trasloco-backups`. In the hardened branch the Backups screen downloads them via an authenticated WordPress endpoint. Apache and IIS rules block direct archive requests; Nginx requires a separate server rule. For stronger protection, configure an absolute private directory outside the document root with `TRASLOCO_BACKUPS_DIR` in `wp-config.php`. See [security](docs/SECURITY.md).
 
 ### Can I restore a site from the command line?
 Yes, with WP-CLI: `wp trasloco backup` creates a backup (it takes the same options as the Export page, such as `--exclude-media` or `--replace "old" "new"`), `wp trasloco backup --list` lists the backups, and `wp trasloco restore <file>` restores one from the `wp-content/trasloco-backups` folder.

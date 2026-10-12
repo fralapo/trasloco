@@ -37,3 +37,13 @@ Verify from a logged-out/incognito browser that **all direct archive URLs return
 - Keep migrating production sites in a maintenance window, especially stores with ongoing orders.
 
 Please report security problems privately to the repository owner before publishing exploit details.
+
+## Optional private backup directory
+
+In `wp-config.php`, before WordPress loads the plugin, define a location outside your HTTP document root:
+
+```php
+define( 'TRASLOCO_BACKUPS_DIR', '/srv/private/wordpress-backups' );
+```
+
+Create the directory with permissions that allow the PHP/CLI runtime to write it. This is **opt-in**: existing archives are not moved automatically. If changing the path, move your existing backups separately and verify permissions. The WordPress Backups screen and WP-CLI use the configured path.

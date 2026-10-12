@@ -27,7 +27,7 @@
 <div class="tr-page">
 	<header class="tr-head">
 		<h1><span class="dashicons dashicons-backup" aria-hidden="true"></span> <?php esc_html_e( 'Backups', TRASLOCO_PLUGIN_NAME ); ?></h1>
-		<p class="tr-lead"><?php echo wp_kses( sprintf( __( 'Every export is saved on this server, in the %s folder. Here you can download, restore or delete each file.', TRASLOCO_PLUGIN_NAME ), '<code>' . esc_html( basename( WP_CONTENT_DIR ) . '/' . basename( TRASLOCO_BACKUPS_PATH ) ) . '</code>' ), array( 'code' => array() ) ); ?></p>
+		<p class="tr-lead"><?php echo wp_kses( sprintf( __( 'Every export is saved on this server, in the %s folder. Here you can download, restore or delete each file.', TRASLOCO_PLUGIN_NAME ), '<code>' . esc_html( TRASLOCO_BACKUPS_PATH ) . '</code>' ), array( 'code' => array() ) ); ?></p>
 	</header>
 
 	<?php include TRASLOCO_TEMPLATES_PATH . '/backups/legend.php'; ?>

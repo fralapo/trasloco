@@ -38,6 +38,10 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 		 * | migration-wp-20170908-151428-266.wpress        | 4 days ago   | 536.77 MB |
 		 * +------------------------------------------------+--------------+-----------+
 		 *
+		 * [--keep=<count>]
+		 * After a successful backup, retain only the newest count archives on this site.
+		 * This is opt-in; by default no existing backups are deleted.
+		 *
 		 * [--exclude-spam-comments]
 		 * Do not export spam comments
 		 *
@@ -203,6 +207,20 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 
 			WP_CLI::log( __( 'Backup complete.', TRASLOCO_PLUGIN_NAME ) );
 			WP_CLI::log( sprintf( __( 'Backup location: %s', TRASLOCO_PLUGIN_NAME ), trasloco_backup_path( $params ) ) );
+			// Opt-in retention for unattended schedules. Keep newest backups
+			// only after the current archive was successfully created.
+			if ( isset( $assoc_args['keep'] ) ) {
+				$keep = filter_var( $assoc_args['keep'], FILTER_VALIDATE_INT, array( 'options' => array( 'min_range' => 1 ) ) );
+				if ( $keep === false ) {
+					WP_CLI::error( '--keep must be a positive integer.' );
+				}
+				$archive_list = new Trasloco_Backups;
+				foreach ( array_slice( $archive_list->get_files(), $keep ) as $old_backup ) {
+					if ( ! $archive_list->delete_file( $old_backup['filename'] ) ) {
+						WP_CLI::warning( 'Unable to remove old backup: ' . $old_backup['filename'] );
+					}
+				}
+			}
 		}
 
 		/**

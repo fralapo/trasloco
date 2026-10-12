@@ -19,7 +19,8 @@ This branch is an active hardening effort, not a production release.
 - [ ] Encrypt or eliminate storage of HTTP Basic credentials
 - [ ] Check archive content checksums and symlink safety
 - [ ] Verify Apache/IIS rule upgrades, including legacy server configs
-- [ ] Schedule backups with retention and offsite destinations
+- [x] WP-CLI opt-in retention and documented cron/rclone encrypted offsite workflow
+- [ ] Native in-app scheduling, incremental backups and cloud connectors
 - [ ] Integrate import/export preflight checks and guided UX
 - [ ] Perform accessibility and keyboard/screen-reader audits
 - [ ] Independent code review and security testing
