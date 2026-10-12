@@ -38,6 +38,9 @@ class Trasloco_Export_Download {
 
 		// Rename archive file
 		if ( rename( trasloco_archive_path( $params ), trasloco_backup_path( $params ) ) ) {
+			// Save a versioned integrity manifest beside the finished archive.
+			// Do not claim a verified backup if hashing or manifest writes fail.
+			Trasloco_Manifest::create( $params['archive'] );
 
 			$blog_id = null;
 

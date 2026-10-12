@@ -73,6 +73,9 @@ try {
     // Expected.
 }
 
+require dirname( __DIR__ ) . '/lib/model/class-trasloco-manifest.php';
+require dirname( __DIR__ ) . '/lib/model/class-trasloco-crypt.php';
+require dirname( __DIR__ ) . '/lib/model/class-trasloco-remote-storage.php';
 class Test_Trasloco_Archiver extends Trasloco_Archiver {}
 $path = tempnam( sys_get_temp_dir(), 'trasloco-test-' );
 $header = pack( 'a255a14a12a4096', 'hello.txt', '5', '0', '.' );
@@ -90,4 +93,39 @@ $archiver = new Test_Trasloco_Archiver( $path );
 ensure( ! $archiver->is_valid(), 'detect missing EOF marker' );
 $archiver->close();
 unlink( $path );
+if ( function_exists( 'sodium_crypto_secretstream_xchacha20poly1305_init_push' ) ) {
+    $source = tempnam( sys_get_temp_dir(), 'tr-crypt-' );
+    $password = 'a very long unique backup passphrase';
+    file_put_contents( $source, random_bytes( 1048576 + 23 ) );
+    Trasloco_Crypt::encrypt_file( $source, $source . '.enc', $password );
+    Trasloco_Crypt::decrypt_file( $source . '.enc', $source . '.restored', $password );
+    ensure( hash_file( 'sha256', $source ) === hash_file( 'sha256', $source . '.restored' ), 'sodium round trip' );
+    try {
+        Trasloco_Crypt::decrypt_file( $source . '.enc', $source . '.wrong', 'wrong password but sufficiently long' );
+        ensure( false, 'wrong password must fail' );
+    } catch ( RuntimeException $e ) {
+        ensure( ! file_exists( $source . '.wrong' ), 'no plaintext on authentication failure' );
+    }
+    unlink( $source );
+    unlink( $source . '.enc' );
+    unlink( $source . '.restored' );
+}
+$remote = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'trasloco-local-test-' . bin2hex( random_bytes( 6 ) );
+mkdir( $remote, 0700 );
+$local = new Trasloco_Storage_Local( $remote );
+$source = tempnam( sys_get_temp_dir(), 'tr-offsite-' );
+file_put_contents( $source, random_bytes( 1024 ) );
+$local->upload( $source, 'test.wpress.enc' );
+$local->download( 'test.wpress.enc', $source . '.restored' );
+ensure( hash_file( 'sha256', $source ) === hash_file( 'sha256', $source . '.restored' ), 'offsite local backend round trip' );
+try {
+    Trasloco_Storage::validate_object( '../wrong.wpress.enc' );
+    ensure( false, 'reject remote object traversal' );
+} catch ( RuntimeException $e ) {
+    // Expected.
+}
+unlink( $source );
+unlink( $source . '.restored' );
+unlink( $remote . '/test.wpress.enc' );
+rmdir( $remote );
 echo "Security and archive smoke tests passed.\n";

@@ -23,6 +23,25 @@
  * ╚══════╝╚══════╝╚═╝  ╚═╝  ╚═══╝  ╚═╝     ╚═╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝
  */
 
+require_once TRASLOCO_MODEL_PATH . DIRECTORY_SEPARATOR . 'class-trasloco-manifest.php';
+require_once TRASLOCO_CONTROLLER_PATH . DIRECTORY_SEPARATOR . 'class-trasloco-api.php';
+
+require_once TRASLOCO_MODEL_PATH . DIRECTORY_SEPARATOR . 'class-trasloco-background.php';
+
+require_once TRASLOCO_MODEL_PATH . DIRECTORY_SEPARATOR . 'class-trasloco-crypt.php';
+
+require_once TRASLOCO_MODEL_PATH . DIRECTORY_SEPARATOR . 'class-trasloco-remote-storage.php';
+
+require_once TRASLOCO_MODEL_PATH . DIRECTORY_SEPARATOR . 'class-trasloco-preview.php';
+
+require_once TRASLOCO_MODEL_PATH . DIRECTORY_SEPARATOR . 'class-trasloco-recovery.php';
+
+require_once TRASLOCO_MODEL_PATH . DIRECTORY_SEPARATOR . 'class-trasloco-selective.php';
+
+require_once TRASLOCO_MODEL_PATH . DIRECTORY_SEPARATOR . 'class-trasloco-agency.php';
+
+require_once TRASLOCO_MODEL_PATH . DIRECTORY_SEPARATOR . 'class-trasloco-peer.php';
+
 // Include all the files that you want to load in here
 require_once TRASLOCO_VENDOR_PATH .
 			DIRECTORY_SEPARATOR .

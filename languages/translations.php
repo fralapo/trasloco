@@ -11,6 +11,132 @@
  */
 
 return array(
+	'Agency sites' => array(
+		'it' => 'Siti dell\'agenzia',
+		'es' => 'Sitios de agencia',
+		'fr' => 'Sites de l’agence',
+		'de' => 'Agentur-Websites',
+	),
+	'Monitor sites connected with WordPress Application Passwords. Credentials stay in server configuration.' => array(
+		'it' => 'Monitora siti collegati tramite le password per applicazioni WordPress. Le credenziali restano nella configurazione del server.',
+		'es' => 'Supervisa sitios con contraseñas de aplicación WordPress. Las credenciales permanecen en la configuración del servidor.',
+		'fr' => 'Surveillez les sites via les mots de passe d’application WordPress. Les identifiants restent dans la configuration serveur.',
+		'de' => 'Überwachen Sie Sites über WordPress-Anwendungspasswörter. Zugangsdaten bleiben in der Serverkonfiguration.',
+	),
+	'No sites configured. See docs/AGENCY.md to connect WordPress installations.' => array(
+		'it' => 'Nessun sito configurato. Consulta docs/AGENCY.md per collegare le installazioni WordPress.',
+		'es' => 'No hay sitios configurados. Consulta docs/AGENCY.md para conectar WordPress.',
+		'fr' => 'Aucun site configuré. Consultez docs/AGENCY.md pour connecter vos WordPress.',
+		'de' => 'Keine Sites konfiguriert. Siehe docs/AGENCY.md zur Verbindung.',
+	),
+	'Site' => array(
+		'it' => 'Sito',
+		'es' => 'Sitio',
+		'fr' => 'Site',
+		'de' => 'Website',
+	),
+	'Connection' => array(
+		'it' => 'Connessione',
+		'es' => 'Conexión',
+		'fr' => 'Connexion',
+		'de' => 'Verbindung',
+	),
+	'Backup storage' => array(
+		'it' => 'Archivio backup',
+		'es' => 'Almacenamiento de copias',
+		'fr' => 'Stockage des sauvegardes',
+		'de' => 'Backup-Speicher',
+	),
+	'Active job' => array(
+		'it' => 'Operazione attiva',
+		'es' => 'Trabajo activo',
+		'fr' => 'Tâche active',
+		'de' => 'Aktive Aufgabe',
+	),
+	'Automatic backups' => array(
+		'it' => 'Backup automatici',
+		'es' => 'Copias automáticas',
+		'fr' => 'Sauvegardes automatiques',
+		'de' => 'Automatische Backups',
+	),
+	'Run complete backups automatically without leaving the browser open.' => array(
+		'it' => 'Esegui backup completi in automatico senza lasciare il browser aperto.',
+		'es' => 'Haz copias completas sin mantener el navegador abierto.',
+		'fr' => 'Exécutez des sauvegardes complètes sans garder le navigateur ouvert.',
+		'de' => 'Führen Sie komplette Backups aus, ohne den Browser offen zu halten.',
+	),
+	'Backup schedule' => array(
+		'it' => 'Programmazione dei backup',
+		'es' => 'Plan de copias',
+		'fr' => 'Planification des sauvegardes',
+		'de' => 'Backup-Zeitplan',
+	),
+	'Enable automatic backups' => array(
+		'it' => 'Attiva i backup automatici',
+		'es' => 'Activar copias automáticas',
+		'fr' => 'Activer les sauvegardes automatiques',
+		'de' => 'Automatische Backups aktivieren',
+	),
+	'Frequency' => array(
+		'it' => 'Frequenza',
+		'es' => 'Frecuencia',
+		'fr' => 'Fréquence',
+		'de' => 'Häufigkeit',
+	),
+	'Hourly' => array(
+		'it' => 'Ogni ora',
+		'es' => 'Cada hora',
+		'fr' => 'Toutes les heures',
+		'de' => 'Stündlich',
+	),
+	'Daily' => array(
+		'it' => 'Ogni giorno',
+		'es' => 'Cada día',
+		'fr' => 'Chaque jour',
+		'de' => 'Täglich',
+	),
+	'Keep the newest backups' => array(
+		'it' => 'Conserva gli ultimi backup',
+		'es' => 'Guardar las copias recientes',
+		'fr' => 'Conserver les sauvegardes récentes',
+		'de' => 'Neueste Backups behalten',
+	),
+	'Email the administrator when a backup fails' => array(
+		'it' => 'Invia un\'email se il backup fallisce',
+		'es' => 'Avisar por correo si falla una copia',
+		'fr' => 'Avertir par e-mail si la sauvegarde échoue',
+		'de' => 'Administrator bei Fehlern per E-Mail benachrichtigen',
+	),
+	'Save schedule' => array(
+		'it' => 'Salva programmazione',
+		'es' => 'Guardar programación',
+		'fr' => 'Enregistrer la planification',
+		'de' => 'Zeitplan speichern',
+	),
+	'WP-Cron normally runs when the site receives visits. Configure server cron for reliable timing.' => array(
+		'it' => 'WP-Cron funziona normalmente con le visite al sito. Configura cron sul server per rispettare gli orari.',
+		'es' => 'WP-Cron depende de las visitas. Configura cron en el servidor para horarios fiables.',
+		'fr' => 'WP-Cron dépend des visites. Configurez cron côté serveur pour garantir les horaires.',
+		'de' => 'WP-Cron hängt von Besuchen ab. Konfigurieren Sie Server-Cron für zuverlässige Zeiten.',
+	),
+	'Backup activity' => array(
+		'it' => 'Attività dei backup',
+		'es' => 'Actividad de copias',
+		'fr' => 'Activité des sauvegardes',
+		'de' => 'Backup-Aktivität',
+	),
+	'No automatic backup has run yet.' => array(
+		'it' => 'Nessun backup automatico eseguito.',
+		'es' => 'Aún no se ha ejecutado ninguna copia automática.',
+		'fr' => 'Aucune sauvegarde automatique pour le moment.',
+		'de' => 'Noch kein automatisches Backup durchgeführt.',
+	),
+	'Run backup now' => array(
+		'it' => 'Esegui backup ora',
+		'es' => 'Hacer copia ahora',
+		'fr' => 'Sauvegarder maintenant',
+		'de' => 'Backup jetzt starten',
+	),
 	'Overview' => array(
 		'it' => 'Panoramica',
 		'es' => 'Vista general',

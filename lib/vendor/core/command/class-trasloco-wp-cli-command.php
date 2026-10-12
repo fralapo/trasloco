@@ -224,6 +224,200 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 		}
 
 		/**
+		 * Verify a .wpress backup against its SHA-256 sidecar.
+		 *
+		 * ## OPTIONS
+		 * <archive>
+		 * : Filename of a local .wpress backup.
+		 *
+		 * @subcommand verify
+		 */
+		public function verify( array $args, array $assoc_args ) {
+			if ( empty( $args[0] ) ) {
+				WP_CLI::error( 'Provide a .wpress backup filename.' );
+			}
+			try {
+				$result = Trasloco_Manifest::inspect( $args[0], true );
+			} catch ( Exception $e ) {
+				WP_CLI::error( 'Invalid archive name.' );
+			}
+			if ( $result['status'] !== 'verified' ) {
+				WP_CLI::error( $result['status'] . ': ' . $result['reason'] );
+			}
+			WP_CLI::success( 'SHA-256 verified: ' . $result['sha256'] );
+		}
+
+		/**
+		 * Encrypt a verified backup to an independently authenticated archive.
+		 * The original plaintext backup is never deleted automatically.
+		 * @subcommand encrypt
+		 */
+		public function encrypt( array $args, array $assoc_args ) {
+			if ( empty( $args[0] ) ) {
+				WP_CLI::error( 'Usage: wp trasloco encrypt <name.wpress>' );
+			}
+			$password = getenv( 'TRASLOCO_BACKUP_PASSPHRASE' );
+			if ( ! is_string( $password ) || strlen( $password ) < 12 ) {
+				WP_CLI::error( 'Set TRASLOCO_BACKUP_PASSPHRASE to at least 12 characters.' );
+			}
+			try {
+				$verified = Trasloco_Manifest::inspect( $args[0] );
+				if ( $verified['status'] !== 'verified' ) {
+					WP_CLI::error( 'Backup integrity must be verified before encryption.' );
+				}
+				$source = Trasloco_Manifest::archive_path( $args[0] );
+				WP_CLI::success( 'Encrypted file: ' . Trasloco_Crypt::encrypt_file( $source, $source . '.enc', $password ) );
+			} catch ( Exception $e ) {
+				WP_CLI::error( $e->getMessage() );
+			}
+		}
+
+		/**
+		 * Decrypt a .wpress.enc backup. Never overwrite an existing .wpress.
+		 * @subcommand decrypt
+		 */
+		public function decrypt( array $args, array $assoc_args ) {
+			if ( empty( $args[0] ) || ! preg_match( '/^[A-Za-z0-9_.-]+\\.wpress\\.enc$/D', $args[0] ) ) {
+				WP_CLI::error( 'Usage: wp trasloco decrypt <name.wpress.enc>' );
+			}
+			$password = getenv( 'TRASLOCO_BACKUP_PASSPHRASE' );
+			if ( ! is_string( $password ) || strlen( $password ) < 12 ) {
+				WP_CLI::error( 'Set TRASLOCO_BACKUP_PASSPHRASE to at least 12 characters.' );
+			}
+			try {
+				$name = substr( $args[0], 0, -4 );
+				$dest = Trasloco_Manifest::archive_path( $name );
+				$source = TRASLOCO_BACKUPS_PATH . DIRECTORY_SEPARATOR . $args[0];
+				Trasloco_Crypt::decrypt_file( $source, $dest, $password );
+				Trasloco_Manifest::create( $name );
+				WP_CLI::success( 'Decrypted and verified file: ' . $dest );
+			} catch ( Exception $e ) {
+				WP_CLI::error( $e->getMessage() );
+			}
+		}
+
+		/**
+		 * Transfer a backup to/from configured private offsite storage.
+		 * Upload plain .wpress only with explicit --allow-unencrypted.
+		 * @subcommand offsite
+		 */
+		public function offsite( array $args, array $assoc_args ) {
+			if ( count( $args ) !== 2 || ! in_array( $args[0], array( 'upload', 'download' ), true ) ) {
+				WP_CLI::error( 'Usage: wp trasloco offsite upload|download <filename.wpress[.enc]>' );
+			}
+			$action = $args[0];
+			$name = $args[1];
+			try {
+				Trasloco_Storage::validate_object( $name );
+				if ( substr( $name, -14 ) === '.manifest.json' ) {
+					throw new RuntimeException( 'Transfer the main backup, not the manifest separately.' );
+				}
+				$encrypted = substr( $name, -4 ) === '.enc';
+				$destination = TRASLOCO_BACKUPS_PATH . DIRECTORY_SEPARATOR . $name;
+				$provider = Trasloco_Storage::provider();
+				if ( $action === 'upload' ) {
+					if ( ! $encrypted ) {
+						if ( empty( $assoc_args['allow-unencrypted'] ) ) {
+							throw new RuntimeException( 'Unencrypted offsite uploads require --allow-unencrypted.' );
+						}
+						$verification = Trasloco_Manifest::inspect( $name );
+						if ( $verification['status'] !== 'verified' ) {
+							throw new RuntimeException( 'Backup failed integrity verification.' );
+						}
+					}
+					$provider->upload( $destination, $name );
+					if ( ! $encrypted ) {
+						$provider->upload( $destination . Trasloco_Manifest::SUFFIX, $name . Trasloco_Manifest::SUFFIX );
+					}
+					WP_CLI::success( 'Uploaded backup to offsite storage.' );
+				} else {
+					if ( file_exists( $destination ) || is_link( $destination ) ) {
+						throw new RuntimeException( 'Local archive already exists. Refusing overwrite.' );
+					}
+					$temp = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'trasloco-offsite-' . bin2hex( random_bytes( 12 ) );
+					$manifest_temp = $temp . '.manifest.json';
+					try {
+						$provider->download( $name, $temp );
+						if ( ! $encrypted ) {
+							$provider->download( $name . Trasloco_Manifest::SUFFIX, $manifest_temp );
+						}
+						if ( ! @rename( $temp, $destination ) ) {
+							throw new RuntimeException( 'Could not save downloaded archive.' );
+						}
+						if ( ! $encrypted ) {
+							if ( ! @rename( $manifest_temp, $destination . Trasloco_Manifest::SUFFIX ) ) {
+								@unlink( $destination );
+								throw new RuntimeException( 'Could not save downloaded integrity manifest.' );
+							}
+							$checked = Trasloco_Manifest::inspect( $name );
+							if ( $checked['status'] !== 'verified' ) {
+								@unlink( $destination );
+								@unlink( $destination . Trasloco_Manifest::SUFFIX );
+								throw new RuntimeException( 'Downloaded archive failed verification.' );
+							}
+						}
+						WP_CLI::success( 'Downloaded backup from offsite storage.' );
+					} finally {
+						@unlink( $temp );
+						@unlink( $manifest_temp );
+					}
+				}
+			} catch ( Exception $e ) {
+				WP_CLI::error( $e->getMessage() );
+			}
+		}
+
+		/**
+		 * Preview backup metadata and destination changes without writing data.
+		 * @subcommand preview
+		 */
+		public function preview( array $args, array $assoc_args ) {
+			if ( empty( $args[0] ) ) {
+				WP_CLI::error( 'Usage: wp trasloco preview <backup.wpress>' );
+			}
+			try {
+				$data = Trasloco_Preview::read( $args[0] );
+				WP_CLI::log( wp_json_encode( $data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) );
+			} catch ( Exception $e ) {
+				WP_CLI::error( $e->getMessage() );
+			}
+		}
+
+		/**
+		 * Restore one non-executable media file from a verified backup.
+		 * Never overwrites an existing destination.
+		 * @subcommand restore-media
+		 */
+		public function restore_media( array $args, array $assoc_args ) {
+			if ( count( $args ) !== 2 ) {
+				WP_CLI::error( 'Usage: wp trasloco restore-media <archive.wpress> <path/within/uploads.jpg>' );
+			}
+			try {
+				$dest = Trasloco_Selective::restore_media( $args[0], $args[1] );
+				WP_CLI::success( 'Recovered media: ' . $dest );
+			} catch ( Exception $e ) {
+				WP_CLI::error( $e->getMessage() );
+			}
+		}
+
+
+		/**
+		 * Pull a full verified .wpress from a source WordPress over HTTPS.
+		 * @subcommand pull-site
+		 */
+		public function pull_site( array $args, array $assoc_args ) {
+			if ( count( $args ) !== 2 ) {
+				WP_CLI::error( 'Usage: wp trasloco pull-site <https://source.site/> <backup.wpress>' );
+			}
+			try {
+				$path = Trasloco_Peer::pull( $args[0], $args[1], getenv( 'TRASLOCO_PEER_USER' ), getenv( 'TRASLOCO_PEER_APP_PASSWORD' ) );
+				WP_CLI::success( 'Verified peer backup downloaded: ' . $path );
+			} catch ( Exception $e ) {
+				WP_CLI::error( $e->getMessage() );
+			}
+		}
+
+		/**
 		 * Restores a backup.
 		 *
 		 * Example:
@@ -262,6 +456,24 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 				exit;
 			}
 
+			// Fail closed if the supplied source archive is corrupted, before any
+			// destination mutations occur.
+			try {
+				Trasloco_Preview::read( $args[0] );
+			} catch ( Exception $e ) {
+				WP_CLI::error( 'Restore preflight failed: ' . $e->getMessage() );
+			}
+			if ( empty( $assoc_args['skip-recovery-point'] ) ) {
+				WP_CLI::log( 'Creating and checking a destination recovery point...' );
+				try {
+					$recovery = Trasloco_Recovery::capture();
+					WP_CLI::log( 'Recovery point: ' . trasloco_backup_path( array( 'archive' => $recovery ) ) );
+				} catch ( Exception $e ) {
+					WP_CLI::error( 'Restore aborted; recovery point failed: ' . $e->getMessage() );
+				}
+			} else {
+				WP_CLI::warning( 'You explicitly disabled the destination recovery point.' );
+			}
 			WP_CLI::log( 'Restore in progress...' );
 
 			try {

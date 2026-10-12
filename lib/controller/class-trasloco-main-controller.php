@@ -63,6 +63,13 @@ class Trasloco_Main_Controller {
 	private function activate_actions() {
 		// Init
 		add_action( 'admin_init', array( $this, 'init' ) );
+		add_action( 'rest_api_init', array( 'Trasloco_API', 'register' ) );
+		add_action( 'wp_abilities_api_categories_init', array( 'Trasloco_API', 'register_ability_category' ) );
+		add_action( 'wp_abilities_api_init', array( 'Trasloco_API', 'register_abilities' ) );
+		add_action( Trasloco_Background::PERIODIC, array( 'Trasloco_Background', 'periodic' ) );
+		add_action( Trasloco_Background::TICK, array( 'Trasloco_Background', 'tick' ) );
+		add_action( 'admin_post_trasloco_schedule_save', array( 'Trasloco_Background', 'save_post' ) );
+		add_action( 'admin_post_trasloco_schedule_start', array( 'Trasloco_Background', 'start_post' ) );
 
 		// Router
 		add_action( 'admin_init', array( $this, 'router' ) );
@@ -207,8 +214,26 @@ class Trasloco_Main_Controller {
 		if ( is_file( TRASLOCO_BACKUPS_HTACCESS ) ) {
 			$access_rules = @file_get_contents( TRASLOCO_BACKUPS_HTACCESS );
 			if ( is_string( $access_rules ) && strpos( $access_rules, '# Trasloco private archives' ) === false ) {
-				$private_rules = array( '# Trasloco private archives', '<FilesMatch "\\.wpress$">', '<IfModule mod_authz_core.c>', 'Require all denied', '</IfModule>', '<IfModule !mod_authz_core.c>', 'Deny from all', '</IfModule>', '</FilesMatch>' );
+				$private_rules = array( '# Trasloco private archives', '<FilesMatch "\\.wpress(\\.manifest\\.json|\\.enc)?$">', '<IfModule mod_authz_core.c>', 'Require all denied', '</IfModule>', '<IfModule !mod_authz_core.c>', 'Deny from all', '</IfModule>', '</FilesMatch>' );
 				@file_put_contents( TRASLOCO_BACKUPS_HTACCESS, PHP_EOL . implode( PHP_EOL, $private_rules ) . PHP_EOL, FILE_APPEND | LOCK_EX );
+			}
+		}
+		// Upgrade existing IIS protection so manifest sidecars are not public.
+		if ( is_file( TRASLOCO_BACKUPS_WEBCONFIG ) ) {
+			$iis = @file_get_contents( TRASLOCO_BACKUPS_WEBCONFIG );
+			if ( is_string( $iis ) && strpos( $iis, 'fileExtension=".json"' ) === false &&
+				strpos( $iis, '<add fileExtension=".wpress" allowed="false" />' ) !== false ) {
+				$iis = str_replace( '<add fileExtension=".wpress" allowed="false" />',
+					'<add fileExtension=".wpress" allowed="false" /><add fileExtension=".json" allowed="false" />', $iis );
+				@file_put_contents( TRASLOCO_BACKUPS_WEBCONFIG, $iis, LOCK_EX );
+			}
+		}
+		// Upgrade Apache access rules created by previous 1.x hardening code.
+		if ( is_file( TRASLOCO_BACKUPS_HTACCESS ) ) {
+			$apache = @file_get_contents( TRASLOCO_BACKUPS_HTACCESS );
+			if ( is_string( $apache ) && strpos( $apache, '<FilesMatch "\\.wpress$">' ) !== false ) {
+				$apache = str_replace( '<FilesMatch "\\.wpress$">', '<FilesMatch "\\.wpress(\\.manifest\\.json|\\.enc)?$">', $apache );
+				@file_put_contents( TRASLOCO_BACKUPS_HTACCESS, $apache, LOCK_EX );
 			}
 		}
 		// Remove work folders of imports and exports that stopped halfway: nothing has written to them for a day
@@ -452,6 +477,24 @@ class Trasloco_Main_Controller {
 			'manage_options',
 			'trasloco_dashboard',
 			'Trasloco_Main_Controller::dashboard'
+		);
+
+		add_submenu_page(
+			'trasloco_dashboard',
+			__( 'Automatic backups', TRASLOCO_PLUGIN_NAME ),
+			__( 'Automatic backups', TRASLOCO_PLUGIN_NAME ),
+			'manage_options',
+			'trasloco_schedule',
+			'Trasloco_Background::settings_page'
+		);
+
+		add_submenu_page(
+			'trasloco_dashboard',
+			__( 'Agency sites', TRASLOCO_PLUGIN_NAME ),
+			__( 'Agency sites', TRASLOCO_PLUGIN_NAME ),
+			'manage_options',
+			'trasloco_agency',
+			'Trasloco_Agency::page'
 		);
 
 		// Sub-level Export menu
