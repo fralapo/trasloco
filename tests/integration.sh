@@ -32,8 +32,12 @@ if [ ! -s "$ARCHIVE" ]; then
   echo "Backup archive missing" >&2
   exit 1
 fi
+$WP trasloco verify "$(basename "$ARCHIVE")" --path="$ROOT/source"
+test -s "$ARCHIVE.manifest.json"
 mkdir -p "$ROOT/target/wp-content/trasloco-backups"
 cp "$ARCHIVE" "$ROOT/target/wp-content/trasloco-backups/"
+cp "$ARCHIVE.manifest.json" "$ROOT/target/wp-content/trasloco-backups/"
+$WP trasloco verify "$(basename "$ARCHIVE")" --path="$ROOT/target"
 $WP trasloco restore "$(basename "$ARCHIVE")" --path="$ROOT/target"
 
 echo "Destination tables:"
@@ -60,4 +64,9 @@ if [ ! -f "$ROOT/target/wp-content/uploads/test-fixtures/fixture.txt" ]; then
   exit 1
 fi
 grep -Fx "media is preserved" "$ROOT/target/wp-content/uploads/test-fixtures/fixture.txt"
+echo 'corruption!' >> "$ARCHIVE"
+if $WP trasloco verify "$(basename "$ARCHIVE")" --path="$ROOT/source"; then
+  echo "ERROR: corrupted backup verification unexpectedly succeeded" >&2
+  exit 1
+fi
 echo "WordPress backup + database + users + media migration passed."

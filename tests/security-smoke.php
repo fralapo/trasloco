@@ -73,6 +73,7 @@ try {
     // Expected.
 }
 
+require dirname( __DIR__ ) . '/lib/model/class-trasloco-manifest.php';
 class Test_Trasloco_Archiver extends Trasloco_Archiver {}
 $path = tempnam( sys_get_temp_dir(), 'trasloco-test-' );
 $header = pack( 'a255a14a12a4096', 'hello.txt', '5', '0', '.' );

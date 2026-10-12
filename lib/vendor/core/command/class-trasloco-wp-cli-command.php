@@ -224,6 +224,30 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 		}
 
 		/**
+		 * Verify a .wpress backup against its SHA-256 sidecar.
+		 *
+		 * ## OPTIONS
+		 * <archive>
+		 * : Filename of a local .wpress backup.
+		 *
+		 * @subcommand verify
+		 */
+		public function verify( array $args, array $assoc_args ) {
+			if ( empty( $args[0] ) ) {
+				WP_CLI::error( 'Provide a .wpress backup filename.' );
+			}
+			try {
+				$result = Trasloco_Manifest::inspect( $args[0], true );
+			} catch ( Exception $e ) {
+				WP_CLI::error( 'Invalid archive name.' );
+			}
+			if ( $result['status'] !== 'verified' ) {
+				WP_CLI::error( $result['status'] . ': ' . $result['reason'] );
+			}
+			WP_CLI::success( 'SHA-256 verified: ' . $result['sha256'] );
+		}
+
+		/**
 		 * Restores a backup.
 		 *
 		 * Example:
