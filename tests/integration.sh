@@ -52,6 +52,20 @@ fi
 $WP trasloco verify "$(basename "$ARCHIVE")" --path="$ROOT/source"
 # Disaster rehearsal on a separately bootstrapped WordPress and fresh MySQL DB.
 bash "$GITHUB_WORKSPACE/tests/disaster-rehearsal.sh" "$ARCHIVE" "$ROOT"
+# Destructive-import guard: a structurally valid backup with the SQL entry
+# removed MUST fail before copying target files or touching destination users.
+MISSING_SQL="$ROOT/fixture-missing-database.wpress"
+php "$GITHUB_WORKSPACE/tests/strip-database-entry.php" "$ARCHIVE" "$MISSING_SQL"
+mkdir -p "$ROOT/target/wp-content/trasloco-backups"
+cp "$MISSING_SQL" "$ROOT/target/wp-content/trasloco-backups/"
+if ERROR=$($WP trasloco restore "$(basename "$MISSING_SQL")" --path="$ROOT/target" 2>&1); then
+  echo "ERROR: incomplete database backup incorrectly restored" >&2
+  exit 1
+fi
+printf '%s\n' "$ERROR" | grep -F 'requires database.sql'
+test "$($WP option get home --path="$ROOT/target")" = "$EXPECTED_HOME"
+$WP user get newadmin --path="$ROOT/target" --field=user_login | grep -Fx newadmin
+test ! -e "$ROOT/target/wp-content/uploads/test-fixtures/fixture.txt"
 # Recover an actual WordPress backup using only system PHP (no WP bootstrap).
 # The rescue command supports a deterministic private directory so operators can
 # plan storage and rehearse recovery instead of relying on transient /tmp paths.

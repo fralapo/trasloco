@@ -173,3 +173,5 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 
 - [x] Phase 2B-2A: independent disaster-rehearsal fixture provisions fresh WordPress/MySQL, verifies archived bytes, restores users/posts/media and preserves the new site's URL, without using source WordPress runtime.
 - [ ] Phase 2B-2B: staged rollback on induced SQL failures, operating-system-level disaster tests, and production rescue setup.
+
+- [x] P0 negative end-to-end: derive a structurally valid .wpress from a real export with only database.sql removed; attempted restore must fail at preflight with an explicit diagnostic, leaving destination URL/user/media unchanged.
