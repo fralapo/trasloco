@@ -78,15 +78,18 @@ class Trasloco_API {
     }
 
     /** WordPress 6.9+ discovery: read-only ability with capability checks. */
-    public static function register_abilities() {
-        if ( ! function_exists( 'wp_register_ability' ) ) {
-            return;
-        }
+    public static function register_ability_category() {
         if ( function_exists( 'wp_register_ability_category' ) ) {
             wp_register_ability_category( 'trasloco', array(
                 'label' => 'Trasloco',
                 'description' => 'Backup, migration and recovery status for WordPress administrators.',
             ) );
+        }
+    }
+
+    public static function register_abilities() {
+        if ( ! function_exists( 'wp_register_ability' ) ) {
+            return;
         }
         wp_register_ability( 'trasloco/site-readiness', array(
             'category' => 'trasloco',
