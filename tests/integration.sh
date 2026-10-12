@@ -244,4 +244,12 @@ if ( ! Trasloco_Job_Store::retry_verification( $id ) ) { throw new Exception( "V
 $recent = Trasloco_Job_Store::recent();
 if ( empty( $recent ) || ! isset( $recent[0]["id"] ) ) { throw new Exception( "Recent job listing failed" ); }
 ' --path="$ROOT/source"
-echo "WordPress backup + database + users + media migration passed."
+# Recovery rehearsal: the safety snapshot must actually restore the previous
+# destination database, not merely pass a checksum.
+$WP trasloco restore "$(basename "$RECOVERY")" --path="$ROOT/target"
+$WP user get newadmin --path="$ROOT/target" --field=user_login | grep -Fx newadmin
+if $WP post list --path="$ROOT/target" --post_type=post --field=post_title | grep -Fq "Trasloco fixture: source post"; then
+  echo "ERROR: recovery point did not restore the destination database" >&2
+  exit 1
+fi
+echo "WordPress migration, recovery rehearsal, jobs and integrity checks passed."
