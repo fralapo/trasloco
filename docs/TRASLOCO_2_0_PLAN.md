@@ -104,3 +104,5 @@ Updated 2026-10-12. This plan is an implementation dependency map, not a claim t
 
 - [x] Bounded scheduled reconciliation of verification jobs, cancellation/retry and safe abandonment of crashed backups.
 - [ ] True byte-level continuation of interrupted backups, resumable multipart remote uploads and crash replay tests.
+
+- [x] Accessible recent job/progress dashboard and next-backup schedule indicator.

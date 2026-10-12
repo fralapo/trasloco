@@ -11,6 +11,48 @@
  */
 
 return array(
+	'Recent operations' => array(
+		'it' => 'Operazioni recenti',
+		'es' => 'Operaciones recientes',
+		'fr' => 'Opérations récentes',
+		'de' => 'Letzte Vorgänge',
+	),
+	'No operations have been recorded yet.' => array(
+		'it' => 'Nessuna operazione registrata.',
+		'es' => 'Todavía no hay operaciones registradas.',
+		'fr' => 'Aucune opération enregistrée pour le moment.',
+		'de' => 'Noch keine Vorgänge erfasst.',
+	),
+	'Operation' => array(
+		'it' => 'Operazione',
+		'es' => 'Operación',
+		'fr' => 'Opération',
+		'de' => 'Vorgang',
+	),
+	'Status' => array(
+		'it' => 'Stato',
+		'es' => 'Estado',
+		'fr' => 'État',
+		'de' => 'Status',
+	),
+	'Progress' => array(
+		'it' => 'Avanzamento',
+		'es' => 'Progreso',
+		'fr' => 'Progression',
+		'de' => 'Fortschritt',
+	),
+	'Progress for operation %d' => array(
+		'it' => 'Avanzamento dell’operazione %d',
+		'es' => 'Progreso de la operación %d',
+		'fr' => 'Progression de l’opération %d',
+		'de' => 'Fortschritt für Vorgang %d',
+	),
+	'Next scheduled backup: %s' => array(
+		'it' => 'Prossimo backup programmato: %s',
+		'es' => 'Próxima copia programada: %s',
+		'fr' => 'Prochaine sauvegarde prévue : %s',
+		'de' => 'Nächstes geplantes Backup: %s',
+	),
 	'Trasloco automatic backup failed' => array(
 		'it' => 'Backup automatico di Trasloco non riuscito',
 		'es' => 'Error en la copia automática de Trasloco',
