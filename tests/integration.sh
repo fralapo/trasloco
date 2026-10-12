@@ -121,6 +121,14 @@ $id = Trasloco_Job_Store::create( "verify", array( "archive" => "fixture.wpress"
 if ( is_wp_error( $id ) || ! $id ) { throw new Exception( "Could not create durable job" ); }
 $duplicate = Trasloco_Job_Store::create( "verify", array( "archive" => "fixture.wpress" ), "ci-checkpoint-job-0000001" );
 if ( $id !== $duplicate ) { throw new Exception( "Idempotent create failed" ); }
+$collision = Trasloco_Job_Store::create( "verify", array( "archive" => "different.wpress" ), "ci-checkpoint-job-0000001" );
+if ( ! is_wp_error( $collision ) || $collision->get_error_code() !== "trasloco_idempotency_conflict" ) {
+    throw new Exception( "Different backup accepted under existing idempotency key" );
+}
+$collision_kind = Trasloco_Job_Store::create( "backup", array( "retention" => 1 ), "ci-checkpoint-job-0000001" );
+if ( ! is_wp_error( $collision_kind ) || $collision_kind->get_error_code() !== "trasloco_idempotency_conflict" ) {
+    throw new Exception( "Different operation accepted under existing idempotency key" );
+}
 if ( ! Trasloco_Job_Store::claim( $id, "runner-000000001" ) ) { throw new Exception( "Lease failed" ); }
 if ( Trasloco_Job_Store::claim( $id, "runner-000000002" ) ) { throw new Exception( "Duplicate lease was accepted" ); }
 if ( Trasloco_Job_Store::checkpoint( $id, "runner-000000002", 50 ) ) { throw new Exception( "Wrong owner checkpoint accepted" ); }

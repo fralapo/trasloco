@@ -57,22 +57,36 @@ class Trasloco_Job_Store {
         }
         $table = self::table();
         $now = gmdate( 'Y-m-d H:i:s' );
+        $encoded = wp_json_encode( $payload );
+        if ( ! is_string( $encoded ) ) {
+            return new WP_Error( 'trasloco_invalid_job', 'The job payload could not be encoded.' );
+        }
         $inserted = $wpdb->insert( $table, array(
             'kind' => $kind,
             'idempotency_key' => $key,
             'state' => 'pending',
-            'payload' => wp_json_encode( $payload ),
+            'payload' => $encoded,
             'checkpoint' => '{}',
             'created_at' => $now,
             'updated_at' => $now,
         ), array( '%s','%s','%s','%s','%s','%s','%s' ) );
-        // Duplicate idempotency keys resolve to the already-created job.
-        if ( ! $inserted && stripos( $wpdb->last_error, 'Duplicate' ) === false ) {
+
+        // On a duplicate key, only reuse the existing job for the *same*
+        // operation and payload. Otherwise an accidental key reuse could
+        // return the status of a different archive or backup operation.
+        $existing = $wpdb->get_row( $wpdb->prepare(
+            "SELECT id, kind, payload FROM {$table} WHERE idempotency_key = %s", $key
+        ), ARRAY_A );
+        if ( ! $existing ) {
             return new WP_Error( 'trasloco_job_store_error', 'Unable to save the job.' );
         }
-        return (int) $wpdb->get_var( $wpdb->prepare(
-            "SELECT id FROM {$table} WHERE idempotency_key = %s", $key
-        ) );
+        if ( $existing['kind'] !== $kind || $existing['payload'] !== $encoded ) {
+            return new WP_Error( 'trasloco_idempotency_conflict',
+                'This idempotency key belongs to another operation.',
+                array( 'status' => 409 )
+            );
+        }
+        return (int) $existing['id'];
     }
 
     public static function get( $id ) {
