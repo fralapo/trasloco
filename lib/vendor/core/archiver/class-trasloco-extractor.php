@@ -438,24 +438,25 @@ class Trasloco_Extractor extends Trasloco_Archiver {
 
 				// Read data chunk by chunk from archive file
 				if ( $chunk_size > 0 ) {
-					$file_content = null;
-
-					// Read the file in chunks of 512KB from archiver
-					if ( ( $file_content = @fread( $this->file_handle, $chunk_size ) ) === false ) {
-						throw new Trasloco_Not_Readable_Exception( sprintf( 'Unable to read content from file. File: %s', $this->file_name ) );
-					}
-
-					// Remove the amount of bytes we read
-					$file_size -= $chunk_size;
-
-					// Write file contents
-					if ( ( $file_bytes = @fwrite( $file_handle, $file_content ) ) !== false ) {
-						if ( strlen( $file_content ) !== $file_bytes ) {
-							throw new Trasloco_Quota_Exceeded_Exception( sprintf( 'Out of disk space. Unable to write content to file. File: %s', $file_name ) );
+					// Consume the entire declared chunk, even if fread returns short.
+					$file_content = '';
+					while ( strlen( $file_content ) < $chunk_size ) {
+						$part = @fread( $this->file_handle, $chunk_size - strlen( $file_content ) );
+						if ( ! is_string( $part ) || $part === '' ) {
+							throw new Trasloco_Not_Readable_Exception( 'Archive ended before the declared file size was read.' );
 						}
+						$file_content .= $part;
 					}
-
-					// Set file written
+					// A partial or failed write must not advance the resume offset.
+					$written = 0;
+					while ( $written < $chunk_size ) {
+						$count = @fwrite( $file_handle, substr( $file_content, $written ) );
+						if ( $count === false || $count === 0 ) {
+							throw new Trasloco_Quota_Exceeded_Exception( 'Unable to write a complete restored file.' );
+						}
+						$written += $count;
+					}
+					$file_size -= $chunk_size;
 					$file_written += $chunk_size;
 				}
 
@@ -632,7 +633,9 @@ class Trasloco_Extractor extends Trasloco_Archiver {
 	 * @return bool
 	 */
 	protected function is_safe_entry( $path, $filename ) {
-		if ( $filename === '' || $filename === '..' || strpbrk( $filename, '/\\' ) !== false ) {
+		if ( $filename === '' || $filename === '.' || $filename === '..' ||
+			strpbrk( $filename, '/\\' ) !== false ||
+			preg_match( '/[\\x00-\\x1f\\x7f]/', $filename . $path ) ) {
 			return false;
 		}
 
@@ -640,6 +643,16 @@ class Trasloco_Extractor extends Trasloco_Archiver {
 			return false;
 		}
 
-		return ! in_array( '..', preg_split( '#[/\\\\]#', $path ), true );
+		// Historical archive root is '.', but subdirectories cannot use
+		// empty or dot segments (nor traversal).
+		if ( $path === '' || $path === '.' ) {
+			return true;
+		}
+		foreach ( preg_split( '#[/\\\\]#', $path ) as $part ) {
+			if ( $part === '' || $part === '.' || $part === '..' ) {
+				return false;
+			}
+		}
+		return true;
 	}
 }

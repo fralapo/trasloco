@@ -42,10 +42,20 @@ class Trasloco_Archive_Inspector {
                 }
                 $folder = trim( str_replace( '\\', '/', $folder ) );
                 if ( $folder === '.' ) { $folder = ''; }
-                if ( ! ctype_digit( $size_str ) || $filename === '' || $filename === '..' ||
+                $invalid_folder = false;
+                if ( $folder !== '' ) {
+                    foreach ( explode( '/', $folder ) as $component ) {
+                        if ( $component === '' || $component === '.' || $component === '..' ) {
+                            $invalid_folder = true;
+                            break;
+                        }
+                    }
+                }
+                if ( ! ctype_digit( $size_str ) || $filename === '' ||
+                    $filename === '.' || $filename === '..' ||
                     strpbrk( $filename, '/\\' ) !== false ||
-                    preg_match( '#^([/\\\\]|[A-Za-z]:)#', $folder ) ||
-                    in_array( '..', explode( '/', $folder ), true ) ) {
+                    preg_match( '/[\\x00-\\x1f\\x7f]/', $filename . $folder ) ||
+                    preg_match( '#^([/\\\\]|[A-Za-z]:)#', $folder ) || $invalid_folder ) {
                     throw new Trasloco_Archive_Exception( 'Unsafe entry in archive.' );
                 }
                 $size = (int) $size_str;

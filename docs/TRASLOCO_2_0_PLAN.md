@@ -151,3 +151,5 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 
 - [x] Independent offline rescue rehearsals on actual WP-CLI exports and on mandatory pre-import recovery snapshots, including target-only media checks and real SQL metadata. Output can be placed in an explicitly selected private directory without overwriting existing files.
 - [ ] This is NOT an independent bootable site restore; production release still requires isolated SQL + WordPress recovery and hosting-level tests.
+
+- [x] Restoring corrupted .wpress archives: malformed dot/control/empty path components are blocked by preflight and extractor; incomplete reads and writes abort instead of being counted as successful. Added regression fixtures.
