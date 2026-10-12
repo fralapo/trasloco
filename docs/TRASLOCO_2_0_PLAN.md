@@ -134,3 +134,5 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 
 - [x] Phase 2B-1: WordPress- and MySQL-independent PHP CLI rescue inspection and private extraction of raw package/database metadata (non-destructive, tested against traversal).
 - [ ] Phase 2B-2: full independently bootable restore + staged SQL/file rollback remains a P0 release blocker.
+
+- [ ] Compatibility check: MySQL 8.0 and MariaDB 11.4 integration CI matrix introduced; mark complete only after both matrix jobs pass and compare behavior.
