@@ -207,6 +207,21 @@ ensure( strpos( $rules, 'Order allow,deny' ) !== false, 'Apache 2.2 full deny' )
 unlink( $test_access );
 echo "Security and archive smoke tests passed.\n";
 
+
+require dirname( __DIR__ ) . '/lib/model/class-trasloco-archive-inspector.php';
+// A crafted archive can have a valid EOF and still contain a malicious
+// *later* entry. Reject the entire inventory before any destination writes.
+$inspect_archive = tempnam( sys_get_temp_dir(), 'trasloco-pref-' );
+$ok_header = pack( 'a255a14a12a4096', 'first.txt', '1', '0', 'uploads' );
+$bad_header = pack( 'a255a14a12a4096', 'evil.php', '1', '0', 'uploads/../../outside' );
+file_put_contents( $inspect_archive, $ok_header . 'A' . $bad_header . 'X' .
+    str_repeat( chr( 0 ), 4377 ) );
+try {
+    Trasloco_Archive_Inspector::inspect( $inspect_archive, 0 );
+    ensure( false, 'unsafe late archive entry accepted in preflight' );
+} catch ( Trasloco_Archive_Exception $expected ) {}
+unlink( $inspect_archive );
+
 // Performance guard: archive inventory must not compute every SHA-256 on page load.
 ensure( strpos( file_get_contents( dirname( __DIR__ ) . '/lib/view/backups/index.php' ), 'Trasloco_Integrity::verify(' ) === false,
     'Backup list must not synchronously hash each archive' );

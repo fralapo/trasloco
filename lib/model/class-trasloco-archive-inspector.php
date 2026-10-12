@@ -70,6 +70,9 @@ class Trasloco_Archive_Inspector {
                     $sample[] = array( 'relative_path' => $relative, 'size_bytes' => $size );
                 }
                 $total++;
+                if ( $total > 1000000 ) {
+                    throw new Trasloco_Archive_Exception( 'Archive file inventory exceeds the safe entry limit.' );
+                }
                 $bytes += $size;
                 $position += 4377 + $size;
             }
