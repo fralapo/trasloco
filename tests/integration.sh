@@ -34,6 +34,7 @@ if [ ! -s "$ARCHIVE" ]; then
 fi
 $WP trasloco verify "$(basename "$ARCHIVE")" --path="$ROOT/source"
 $WP eval '
+require_once TRASLOCO_LIB_PATH . "/vendor/core/archiver/class-trasloco-integrity.php";
 $files = (new Trasloco_Backups())->get_files();
 $path = trasloco_backup_path( array( "archive" => basename( $files[0]["filename"] ) ) );
 $manifest = Trasloco_Integrity::chunked_manifest( $path );
@@ -355,6 +356,7 @@ if ( empty( $recent ) || ! isset( $recent[0]["id"] ) ) { throw new Exception( "R
 
 # V2 verification yields durable checkpoints in bounded two-chunk batches.
 $WP eval '
+require_once TRASLOCO_LIB_PATH . "/vendor/core/archiver/class-trasloco-integrity.php";
 $path = TRASLOCO_BACKUPS_PATH . "/ci-chunked-verification.wpress";
 $handle = fopen( $path, "wb" );
 for ( $i = 0; $i < 5; $i++ ) {
