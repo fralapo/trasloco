@@ -1,0 +1,14 @@
+{
+  "name": "trasloco/trasloco",
+  "description": "Optional S3-compatible offsite storage adapter for Trasloco",
+  "type": "wordpress-plugin",
+  "license": "AGPL-3.0-or-later",
+  "require": {
+    "php": ">=7.4",
+    "aws/aws-sdk-php": "^3.0"
+  },
+  "config": {
+    "sort-packages": true,
+    "allow-plugins": {}
+  }
+}

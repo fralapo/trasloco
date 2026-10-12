@@ -30,6 +30,8 @@ require_once TRASLOCO_MODEL_PATH . DIRECTORY_SEPARATOR . 'class-trasloco-backgro
 
 require_once TRASLOCO_MODEL_PATH . DIRECTORY_SEPARATOR . 'class-trasloco-crypt.php';
 
+require_once TRASLOCO_MODEL_PATH . DIRECTORY_SEPARATOR . 'class-trasloco-remote-storage.php';
+
 // Include all the files that you want to load in here
 require_once TRASLOCO_VENDOR_PATH .
 			DIRECTORY_SEPARATOR .

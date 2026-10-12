@@ -37,11 +37,22 @@ if [ ! -s "$ARCHIVE" ]; then
 fi
 $WP trasloco verify "$(basename "$ARCHIVE")" --path="$ROOT/source"
 test -s "$ARCHIVE.manifest.json"
+mkdir -p "$ROOT/offsite"
+$WP config set TRASLOCO_REMOTE_DRIVER local --type=constant --path="$ROOT/source"
+$WP config set TRASLOCO_REMOTE_DIRECTORY "$ROOT/offsite" --type=constant --path="$ROOT/source"
+export TRASLOCO_BACKUP_PASSPHRASE='integration fixture has a long secret phrase'
+$WP trasloco encrypt "$(basename "$ARCHIVE")" --path="$ROOT/source"
+$WP trasloco offsite upload "$(basename "$ARCHIVE").enc" --path="$ROOT/source"
+test -s "$ROOT/offsite/$(basename "$ARCHIVE").enc"
 mkdir -p "$ROOT/target/wp-content/trasloco-backups"
 cp "$ARCHIVE" "$ROOT/target/wp-content/trasloco-backups/"
 cp "$ARCHIVE.manifest.json" "$ROOT/target/wp-content/trasloco-backups/"
 $WP trasloco verify "$(basename "$ARCHIVE")" --path="$ROOT/target"
 $WP trasloco restore "$(basename "$ARCHIVE")" --path="$ROOT/target"
+$WP config set TRASLOCO_REMOTE_DRIVER local --type=constant --path="$ROOT/target"
+$WP config set TRASLOCO_REMOTE_DIRECTORY "$ROOT/offsite" --type=constant --path="$ROOT/target"
+$WP trasloco offsite download "$(basename "$ARCHIVE").enc" --path="$ROOT/target"
+test -s "$ROOT/target/wp-content/trasloco-backups/$(basename "$ARCHIVE").enc"
 
 echo "Destination tables:"
 $WP db tables --path="$ROOT/target" || true

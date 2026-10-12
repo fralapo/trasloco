@@ -297,6 +297,77 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 		}
 
 		/**
+		 * Transfer a backup to/from configured private offsite storage.
+		 * Upload plain .wpress only with explicit --allow-unencrypted.
+		 * @subcommand offsite
+		 */
+		public function offsite( array $args, array $assoc_args ) {
+			if ( count( $args ) !== 2 || ! in_array( $args[0], array( 'upload', 'download' ), true ) ) {
+				WP_CLI::error( 'Usage: wp trasloco offsite upload|download <filename.wpress[.enc]>' );
+			}
+			$action = $args[0];
+			$name = $args[1];
+			try {
+				Trasloco_Storage::validate_object( $name );
+				if ( substr( $name, -14 ) === '.manifest.json' ) {
+					throw new RuntimeException( 'Transfer the main backup, not the manifest separately.' );
+				}
+				$encrypted = substr( $name, -4 ) === '.enc';
+				$destination = TRASLOCO_BACKUPS_PATH . DIRECTORY_SEPARATOR . $name;
+				$provider = Trasloco_Storage::provider();
+				if ( $action === 'upload' ) {
+					if ( ! $encrypted ) {
+						if ( empty( $assoc_args['allow-unencrypted'] ) ) {
+							throw new RuntimeException( 'Unencrypted offsite uploads require --allow-unencrypted.' );
+						}
+						$verification = Trasloco_Manifest::inspect( $name );
+						if ( $verification['status'] !== 'verified' ) {
+							throw new RuntimeException( 'Backup failed integrity verification.' );
+						}
+					}
+					$provider->upload( $destination, $name );
+					if ( ! $encrypted ) {
+						$provider->upload( $destination . Trasloco_Manifest::SUFFIX, $name . Trasloco_Manifest::SUFFIX );
+					}
+					WP_CLI::success( 'Uploaded backup to offsite storage.' );
+				} else {
+					if ( file_exists( $destination ) || is_link( $destination ) ) {
+						throw new RuntimeException( 'Local archive already exists. Refusing overwrite.' );
+					}
+					$temp = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'trasloco-offsite-' . bin2hex( random_bytes( 12 ) );
+					$manifest_temp = $temp . '.manifest.json';
+					try {
+						$provider->download( $name, $temp );
+						if ( ! $encrypted ) {
+							$provider->download( $name . Trasloco_Manifest::SUFFIX, $manifest_temp );
+						}
+						if ( ! @rename( $temp, $destination ) ) {
+							throw new RuntimeException( 'Could not save downloaded archive.' );
+						}
+						if ( ! $encrypted ) {
+							if ( ! @rename( $manifest_temp, $destination . Trasloco_Manifest::SUFFIX ) ) {
+								@unlink( $destination );
+								throw new RuntimeException( 'Could not save downloaded integrity manifest.' );
+							}
+							$checked = Trasloco_Manifest::inspect( $name );
+							if ( $checked['status'] !== 'verified' ) {
+								@unlink( $destination );
+								@unlink( $destination . Trasloco_Manifest::SUFFIX );
+								throw new RuntimeException( 'Downloaded archive failed verification.' );
+							}
+						}
+						WP_CLI::success( 'Downloaded backup from offsite storage.' );
+					} finally {
+						@unlink( $temp );
+						@unlink( $manifest_temp );
+					}
+				}
+			} catch ( Exception $e ) {
+				WP_CLI::error( $e->getMessage() );
+			}
+		}
+
+		/**
 		 * Restores a backup.
 		 *
 		 * Example:
