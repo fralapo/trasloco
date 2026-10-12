@@ -64,6 +64,7 @@ class Trasloco_Main_Controller {
 		// Init
 		add_action( 'admin_init', array( $this, 'init' ) );
 		add_action( 'rest_api_init', array( 'Trasloco_API', 'register' ) );
+		add_action( 'wp_abilities_api_init', array( 'Trasloco_API', 'register_abilities' ) );
 		add_action( Trasloco_Background::PERIODIC, array( 'Trasloco_Background', 'periodic' ) );
 		add_action( Trasloco_Background::TICK, array( 'Trasloco_Background', 'tick' ) );
 		add_action( 'admin_post_trasloco_schedule_save', array( 'Trasloco_Background', 'save_post' ) );
