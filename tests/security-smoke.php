@@ -419,3 +419,42 @@ try {
     $compressor->close();
     @unlink( $compression_target );
 }
+
+
+// Mandatory restore inputs must be checked before a safety snapshot or file
+// replacement. An archive may be structurally valid but lack database.sql.
+require dirname( __DIR__ ) . '/lib/model/import/class-trasloco-import-preflight.php';
+$make = function ( $include_database, $no_database ) {
+    $package = json_encode( array( 'NoDatabase' => $no_database ) );
+    $body = pack( 'a255a14a12a4096', 'package.json', (string) strlen( $package ), '0', '.' ) . $package;
+    if ( $include_database ) {
+        $body .= pack( 'a255a14a12a4096', 'database.sql', '9', '0', '.' ) . 'SELECT 1;';
+    }
+    $body .= pack( 'a255a14a12a4096', 'hello.txt', '5', '0', 'uploads' ) . 'hello';
+    $file = sys_get_temp_dir() . '/tr-missing-sql-' . bin2hex( random_bytes( 8 ) ) . '.wpress';
+    file_put_contents( $file, $body . str_repeat( chr( 0 ), 4377 ) );
+    return $file;
+};
+foreach ( array(
+    array( false, false, false ), // missing SQL is fatal for full restore
+    array( true, false, true ),   // valid full restore
+    array( false, true, true ),   // legitimate files-only backup
+    array( true, true, true ),    // conservative backwards compatibility
+) as $case ) {
+    list( $with_sql, $no_sql, $should_pass ) = $case;
+    $fixture = $make( $with_sql, $no_sql );
+    $inventory = Trasloco_Archive_Inspector::inspect( $fixture, 0 );
+    $passed = false;
+    try {
+        Trasloco_Import_Preflight::assert_required_payload( $inventory, array( 'NoDatabase' => $no_sql ) );
+        $passed = true;
+    } catch ( Trasloco_Import_Exception $expected ) {}
+    ensure( $passed === $should_pass, 'database presence must match explicit files-only export setting' );
+    unlink( $fixture );
+}
+try {
+    Trasloco_Import_Preflight::assert_required_payload(
+        array( 'restore_inputs' => array( 'database.sql' => 9 ) ), array( 'NoDatabase' => true )
+    );
+    ensure( false, 'missing package metadata allowed before destructive restore' );
+} catch ( Trasloco_Import_Exception $expected ) {}

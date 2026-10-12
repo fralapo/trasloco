@@ -30,6 +30,7 @@ class Trasloco_Archive_Inspector {
             'multisite.json' => true, 'blogs.json' => true,
         );
         $seen_root = array();
+        $root_lengths = array();
         try {
             while ( $position < $length - 4377 ) {
                 if ( fseek( $handle, $position, SEEK_SET ) !== 0 ) {
@@ -74,6 +75,7 @@ class Trasloco_Archive_Inspector {
                         throw new Trasloco_Archive_Exception( 'Duplicate root metadata in archive.' );
                     }
                     $seen_root[ $filename ] = true;
+                    $root_lengths[ $filename ] = $size;
                 }
                 $relative = ltrim( ( $folder === '' ? '' : $folder . '/' ) . $filename, '/' );
                 $group = $folder === '' ? 'root' : explode( '/', $folder )[0];
@@ -111,6 +113,9 @@ class Trasloco_Archive_Inspector {
             'not_present_on_destination' => $not_present,
             'groups' => $groups,
             'sample' => $sample,
+            // Authoritative archive-root entries, not limited by sample_limit.
+            // A missing required database.sql must be caught before copying files.
+            'restore_inputs' => $root_lengths,
             'warning' => 'Read-only file inventory. It does not compare file contents, database rows or plugin compatibility.',
         );
     }
