@@ -110,3 +110,5 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 - [x] Accessible recent job/progress dashboard and next-backup schedule indicator.
 
 - [x] Audit fix: distinguish recovery point archives by persistent filename prefix; exclude them from both automatic and CLI retention. End-to-end regression ensures a later retention run preserves the pre-import snapshot.
+
+- [x] Audit fix: changing backup frequency replaces the old WP-Cron recurrence; integration covers daily → weekly → daily → off.

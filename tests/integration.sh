@@ -190,6 +190,13 @@ update_option( Trasloco_Scheduled_Backups::OPTION, array( "frequency" => "daily"
 wp_clear_scheduled_hook( Trasloco_Scheduled_Backups::HOOK );
 Trasloco_Scheduled_Backups::sync();
 if ( ! wp_next_scheduled( Trasloco_Scheduled_Backups::HOOK ) ) { throw new Exception( "Schedule was not registered" ); }
+if ( wp_get_schedule( Trasloco_Scheduled_Backups::HOOK ) !== "daily" ) { throw new Exception( "Initial recurrence incorrect" ); }
+update_option( Trasloco_Scheduled_Backups::OPTION, array( "frequency" => "weekly", "keep" => 2 ) );
+Trasloco_Scheduled_Backups::sync();
+if ( wp_get_schedule( Trasloco_Scheduled_Backups::HOOK ) !== "weekly" ) { throw new Exception( "Old recurrence was not replaced" ); }
+update_option( Trasloco_Scheduled_Backups::OPTION, array( "frequency" => "daily", "keep" => 2 ) );
+Trasloco_Scheduled_Backups::sync();
+if ( wp_get_schedule( Trasloco_Scheduled_Backups::HOOK ) !== "daily" ) { throw new Exception( "Recurrence was not restored to daily" ); }
 $id = Trasloco_Scheduled_Backups::enqueue();
 if ( ! is_int( $id ) || $id < 1 ) { throw new Exception( "Schedule failed to enqueue" ); }
 $result = Trasloco_Job_Worker::run( $id );

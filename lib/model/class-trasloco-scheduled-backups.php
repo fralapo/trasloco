@@ -41,11 +41,17 @@ class Trasloco_Scheduled_Backups {
     public static function sync() {
         $frequency = self::settings()['frequency'];
         $next = wp_next_scheduled( self::HOOK );
+        $current = $next === false ? false : wp_get_schedule( self::HOOK );
+        // An existing event keeps its old recurrence until explicitly replaced.
         if ( $frequency === 'off' ) {
             if ( $next !== false ) {
                 wp_clear_scheduled_hook( self::HOOK );
             }
             return;
+        }
+        if ( $next !== false && $current !== $frequency ) {
+            wp_clear_scheduled_hook( self::HOOK );
+            $next = false;
         }
         if ( $next === false ) {
             $seconds = array( 'hourly' => HOUR_IN_SECONDS, 'daily' => DAY_IN_SECONDS, 'weekly' => WEEK_IN_SECONDS );
