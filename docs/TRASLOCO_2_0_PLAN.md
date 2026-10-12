@@ -45,6 +45,8 @@ Updated 2026-10-12. This plan is an implementation dependency map, not a claim t
 | 14 | (14) Automation API | scoped REST operations, audit and integration examples | credentials revocable, unauthorized mutations denied |
 | 15 | (11) Agency console | opt-in multi-site coordinator, per-site health and alerts | least-privileged onboarding, no central password storage |
 
+Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKFLOW.md), adapted from [ECC](https://github.com/affaan-m/ECC). The external repository provides guidance only; it is not a plugin dependency.
+
 ## Implementation protocol for every phase
 1. Design contract, failure cases, data retention and privilege boundary.
 2. Write fixtures/tests, including at least one deliberate failure scenario.
