@@ -18,7 +18,10 @@ for ROLE in source target; do
     $WP core install --path="$SITE" --url=http://new.example.test --title=Destination --admin_user=newadmin --admin_password=testpassword --admin_email=new@example.test
   fi
   $WP plugin activate trasloco --path="$SITE"
+  echo "$ROLE home before migration: $($WP option get home --path="$SITE")"
 done
+EXPECTED_HOME=$($WP option get home --path="$ROOT/target")
+EXPECTED_SITE=$($WP option get siteurl --path="$ROOT/target")
 
 $WP post create --path="$ROOT/source" --post_type=post --post_status=publish --post_title="Trasloco fixture: source post" --post_content="Migration round-trip verified"
 mkdir -p "$ROOT/source/wp-content/uploads/test-fixtures"
@@ -37,7 +40,10 @@ echo "Destination tables:"
 $WP db tables --path="$ROOT/target" || true
 HOME_URL=$($WP option get home --path="$ROOT/target" || true)
 echo "Destination home URL: $HOME_URL"
-if [ "$HOME_URL" != "http://new.example.test" ]; then
+echo "Expected destination home URL: $EXPECTED_HOME"
+echo "Expected destination siteurl: $EXPECTED_SITE"
+echo "Actual destination siteurl: $($WP option get siteurl --path="$ROOT/target")"
+if [ "$HOME_URL" != "$EXPECTED_HOME" ]; then
   echo "ERROR: destination URL was not preserved" >&2
   exit 1
 fi
