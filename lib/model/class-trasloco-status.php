@@ -54,6 +54,18 @@ class Trasloco_Status {
 	}
 
 	public static function log( $data ) {
+		// Periodic lease renewal during streamed exports prevents the job
+		// reconciler from treating an active long backup as abandoned.
+		if ( ! empty( $GLOBALS['trasloco_active_backup_job'] ) ) {
+			$job = &$GLOBALS['trasloco_active_backup_job'];
+			if ( isset( $job['id'], $job['owner'], $job['last_renew'] ) &&
+				time() - (int) $job['last_renew'] >= 60 ) {
+				if ( ! Trasloco_Job_Store::renew( (int) $job['id'], $job['owner'], 3600 ) ) {
+					throw new RuntimeException( 'Backup execution lease expired or was cancelled.' );
+				}
+				$job['last_renew'] = time();
+			}
+		}
 		if ( ! trasloco_is_scheduled_backup() && empty( $GLOBALS['trasloco_recovery_export_active'] ) ) {
 			update_option( TRASLOCO_STATUS, $data );
 		}

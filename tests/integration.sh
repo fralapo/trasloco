@@ -147,6 +147,13 @@ if ( ! is_wp_error( $collision_kind ) || $collision_kind->get_error_code() !== "
 if ( ! Trasloco_Job_Store::claim( $id, "runner-000000001" ) ) { throw new Exception( "Lease failed" ); }
 if ( Trasloco_Job_Store::claim( $id, "runner-000000002" ) ) { throw new Exception( "Duplicate lease was accepted" ); }
 if ( Trasloco_Job_Store::checkpoint( $id, "runner-000000002", 50 ) ) { throw new Exception( "Wrong owner checkpoint accepted" ); }
+$old_lease = (int) Trasloco_Job_Store::get( $id )["lease_until"];
+$GLOBALS["trasloco_active_backup_job"] = array( "id" => $id, "owner" => "runner-000000001", "last_renew" => 0 );
+Trasloco_Status::info( "CI renew active backup lease" );
+unset( $GLOBALS["trasloco_active_backup_job"] );
+if ( (int) Trasloco_Job_Store::get( $id )["lease_until"] <= $old_lease ) {
+    throw new Exception( "Progress heartbeat did not renew job lease" );
+}
 if ( ! Trasloco_Job_Store::checkpoint( $id, "runner-000000001", 50, array( "phase" => "digest" ) ) ) { throw new Exception( "Checkpoint failed" ); }
 if ( ! Trasloco_Job_Store::finish( $id, "runner-000000001" ) ) { throw new Exception( "Completion failed" ); }
 if ( Trasloco_Job_Store::claim( $id, "runner-000000002" ) ) { throw new Exception( "Completed job was reclaimed" ); }

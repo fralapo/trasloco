@@ -170,8 +170,15 @@ class Trasloco_Job_Worker {
             if ( $record['kind'] === 'backup' ) {
                 $backup_lock = self::acquire_backup_lock();
                 try {
+                    // The export pipeline emits progress events while streaming.
+                    // A bounded heartbeat keeps its job lease alive beyond
+                    // the initial hour, without restarting the export.
+                    $GLOBALS['trasloco_active_backup_job'] = array(
+                        'id' => $id, 'owner' => $owner, 'last_renew' => 0,
+                    );
                     $name = self::backup( $id, $owner, $record['payload'] );
                 } finally {
+                    unset( $GLOBALS['trasloco_active_backup_job'] );
                     flock( $backup_lock, LOCK_UN );
                     fclose( $backup_lock );
                 }
