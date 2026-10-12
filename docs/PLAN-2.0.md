@@ -91,3 +91,7 @@ WP-CLI `wp trasloco restore ...` now runs source preflight and creates a verifie
 ## Selective media restore progress
 
 WP-CLI now supports `wp trasloco restore-media backup.wpress path/inside/uploads.jpg` for a single allowlisted non-executable upload under `wp-content/uploads/`. Requires manifest verification and refuses existing destinations, unsafe relative paths, symbolic links and entries over 1 GiB. No DB tables touched. Granular database restore, conflict-aware overwrite and browser-based selection are pending.
+
+## Agency dashboard increment
+
+The new `Trasloco_Agency` module offers an opt-in, administrator-only overview of up to 15 externally configured client sites, using their HTTPS read-only health API and per-site application passwords. It does not yet operate as a multi-tenant remote command platform. See `docs/AGENCY.md`.

@@ -11,6 +11,48 @@
  */
 
 return array(
+	'Agency sites' => array(
+		'it' => 'Siti dell\'agenzia',
+		'es' => 'Sitios de agencia',
+		'fr' => 'Sites de l’agence',
+		'de' => 'Agentur-Websites',
+	),
+	'Monitor sites connected with WordPress Application Passwords. Credentials stay in server configuration.' => array(
+		'it' => 'Monitora siti collegati tramite le password per applicazioni WordPress. Le credenziali restano nella configurazione del server.',
+		'es' => 'Supervisa sitios con contraseñas de aplicación WordPress. Las credenciales permanecen en la configuración del servidor.',
+		'fr' => 'Surveillez les sites via les mots de passe d’application WordPress. Les identifiants restent dans la configuration serveur.',
+		'de' => 'Überwachen Sie Sites über WordPress-Anwendungspasswörter. Zugangsdaten bleiben in der Serverkonfiguration.',
+	),
+	'No sites configured. See docs/AGENCY.md to connect WordPress installations.' => array(
+		'it' => 'Nessun sito configurato. Consulta docs/AGENCY.md per collegare le installazioni WordPress.',
+		'es' => 'No hay sitios configurados. Consulta docs/AGENCY.md para conectar WordPress.',
+		'fr' => 'Aucun site configuré. Consultez docs/AGENCY.md pour connecter vos WordPress.',
+		'de' => 'Keine Sites konfiguriert. Siehe docs/AGENCY.md zur Verbindung.',
+	),
+	'Site' => array(
+		'it' => 'Sito',
+		'es' => 'Sitio',
+		'fr' => 'Site',
+		'de' => 'Website',
+	),
+	'Connection' => array(
+		'it' => 'Connessione',
+		'es' => 'Conexión',
+		'fr' => 'Connexion',
+		'de' => 'Verbindung',
+	),
+	'Backup storage' => array(
+		'it' => 'Archivio backup',
+		'es' => 'Almacenamiento de copias',
+		'fr' => 'Stockage des sauvegardes',
+		'de' => 'Backup-Speicher',
+	),
+	'Active job' => array(
+		'it' => 'Operazione attiva',
+		'es' => 'Trabajo activo',
+		'fr' => 'Tâche active',
+		'de' => 'Aktive Aufgabe',
+	),
 	'Automatic backups' => array(
 		'it' => 'Backup automatici',
 		'es' => 'Copias automáticas',

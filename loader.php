@@ -38,6 +38,8 @@ require_once TRASLOCO_MODEL_PATH . DIRECTORY_SEPARATOR . 'class-trasloco-recover
 
 require_once TRASLOCO_MODEL_PATH . DIRECTORY_SEPARATOR . 'class-trasloco-selective.php';
 
+require_once TRASLOCO_MODEL_PATH . DIRECTORY_SEPARATOR . 'class-trasloco-agency.php';
+
 // Include all the files that you want to load in here
 require_once TRASLOCO_VENDOR_PATH .
 			DIRECTORY_SEPARATOR .

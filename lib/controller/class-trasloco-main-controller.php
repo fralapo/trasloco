@@ -488,6 +488,15 @@ class Trasloco_Main_Controller {
 			'Trasloco_Background::settings_page'
 		);
 
+		add_submenu_page(
+			'trasloco_dashboard',
+			__( 'Agency sites', TRASLOCO_PLUGIN_NAME ),
+			__( 'Agency sites', TRASLOCO_PLUGIN_NAME ),
+			'manage_options',
+			'trasloco_agency',
+			'Trasloco_Agency::page'
+		);
+
 		// Sub-level Export menu
 		add_submenu_page(
 			'trasloco_dashboard',

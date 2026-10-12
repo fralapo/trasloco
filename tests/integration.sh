@@ -26,6 +26,8 @@ EXPECTED_SITE=$($WP option get siteurl --path="$ROOT/target")
 $WP eval '$user = get_user_by("login", "oldadmin"); wp_set_current_user($user->ID); $result = rest_do_request(new WP_REST_Request("GET", "/trasloco/v1/health")); if ($result->get_status() !== 200 || empty($result->get_data()["plugin_version"])) { throw new RuntimeException("Authenticated REST health failed"); } wp_set_current_user(0); $denied = rest_do_request(new WP_REST_Request("GET", "/trasloco/v1/health")); if ($denied->get_status() < 400) { throw new RuntimeException("REST health exposed to anonymous callers"); }' --path="$ROOT/source"
 $WP eval 'if (function_exists("wp_get_ability")) { $ability = wp_get_ability("trasloco/site-readiness"); if (!$ability) { throw new RuntimeException("Abilities not registered on initialization"); } $user = get_user_by("login","oldadmin"); wp_set_current_user($user->ID); $result = $ability->execute(); if (is_wp_error($result) || empty($result["plugin_version"])) { throw new RuntimeException("Abilities execution failed for administrator"); } }' --path="$ROOT/source"
 
+$WP eval 'if ( !class_exists("Trasloco_Agency") || count(Trasloco_Agency::sites()) !== 0 ) { throw new RuntimeException("Agency dashboard not safely opt-in"); }' --path="$ROOT/source"
+
 $WP post create --path="$ROOT/source" --post_type=post --post_status=publish --post_title="Trasloco fixture: source post" --post_content="Migration round-trip verified"
 mkdir -p "$ROOT/source/wp-content/uploads/test-fixtures"
 printf 'media is preserved\n' > "$ROOT/source/wp-content/uploads/test-fixtures/fixture.txt"
