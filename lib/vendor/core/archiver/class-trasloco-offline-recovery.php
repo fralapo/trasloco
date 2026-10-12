@@ -118,6 +118,124 @@ class Trasloco_Offline_Recovery {
         return array( 'integrity' => $integrity, 'entries' => $entries, 'files' => $files );
     }
 
+
+    /**
+     * Stage WordPress content OUTSIDE the live site. Paths must be absent.
+     * Files are capped to avoid exhausting disk space with untrusted archives.
+     * This never executes PHP/SQL or modifies WordPress.
+     */
+    public static function stage_content( $archive, $destination, $max_bytes = 1073741824 ) {
+        // Full entry preflight (including paths and archive terminator) before writes.
+        self::inspect( $archive );
+        if ( ! is_int( $max_bytes ) || $max_bytes < 1 ||
+            ! is_string( $destination ) || file_exists( $destination ) || is_link( $destination ) ||
+            ! is_dir( dirname( $destination ) ) || ! mkdir( $destination, 0700 ) ) {
+            throw new RuntimeException( 'Cannot allocate private staging storage.' );
+        }
+        @chmod( $destination, 0700 );
+        $length = filesize( $archive );
+        $input = fopen( $archive, 'rb' );
+        $position = 0;
+        $bytes = 0;
+        $count = 0;
+        try {
+            while ( $position < $length - self::HEADER_BYTES ) {
+                if ( fseek( $input, $position, SEEK_SET ) !== 0 ) {
+                    throw new RuntimeException( 'Cannot seek within archive.' );
+                }
+                $header = fread( $input, self::HEADER_BYTES );
+                if ( ! is_string( $header ) || strlen( $header ) !== self::HEADER_BYTES ) {
+                    throw new RuntimeException( 'Archive header changed during staging.' );
+                }
+                $name = trim( substr( $header, 0, 255 ), "\0 " );
+                $size_str = trim( substr( $header, 255, 14 ), "\0 " );
+                $folder = substr( $header, 281, 4096 );
+                $nul = strpos( $folder, "\0" );
+                $folder = $nul !== false ? substr( $folder, 0, $nul ) : substr( $folder, 0, -8 );
+                $folder = str_replace( '\\', '/', trim( $folder ) );
+                if ( $folder === '.' ) { $folder = ''; }
+                $parts = explode( '/', $folder );
+                if ( $name === '' || $name === '.' || $name === '..' ||
+                    strpbrk( $name, "/\\\0" ) !== false ||
+                    preg_match( '/[\x00-\x1f]/', $name . $folder ) ||
+                    preg_match( '#^(/|[A-Za-z]:)#', $folder ) ||
+                    in_array( '..', $parts, true ) || in_array( '.', $parts, true ) ||
+                    in_array( '', $parts, true ) ||
+                    ! ctype_digit( $size_str ) ) {
+                    if ( $folder !== '' ) {
+                        throw new RuntimeException( 'Unsafe staged file path.' );
+                    }
+                    // Root metadata was already validated by inspect().
+                }
+                $size = filter_var( $size_str, FILTER_VALIDATE_INT, array(
+                    'options' => array( 'min_range' => 0 ),
+                ) );
+                if ( $size === false || $size > $length - self::HEADER_BYTES - $position - self::HEADER_BYTES ) {
+                    throw new RuntimeException( 'Invalid staged file length.' );
+                }
+                if ( in_array( $parts[0], array( 'uploads', 'plugins', 'themes', 'mu-plugins' ), true ) ) {
+                    if ( $bytes > $max_bytes - $size ) {
+                        throw new RuntimeException( 'Staged contents exceed the configured safety limit.' );
+                    }
+                    $cursor = $destination;
+                    foreach ( $parts as $part ) {
+                        if ( $part === '' || $part === '.' || $part === '..' ) {
+                            throw new RuntimeException( 'Invalid staged directory.' );
+                        }
+                        $cursor .= DIRECTORY_SEPARATOR . $part;
+                        if ( is_link( $cursor ) ) {
+                            throw new RuntimeException( 'Symlink in staging directory.' );
+                        }
+                        if ( ! is_dir( $cursor ) && ! mkdir( $cursor, 0700 ) ) {
+                            throw new RuntimeException( 'Cannot create private staging directory.' );
+                        }
+                    }
+                    $target = $cursor . DIRECTORY_SEPARATOR . $name;
+                    if ( file_exists( $target ) || is_link( $target ) ) {
+                        throw new RuntimeException( 'Duplicate archive path cannot be staged.' );
+                    }
+                    $out = @fopen( $target, 'xb' );
+                    if ( $out === false ) {
+                        throw new RuntimeException( 'Cannot create staged content file.' );
+                    }
+                    @chmod( $target, 0600 );
+                    try {
+                        $left = $size;
+                        while ( $left > 0 ) {
+                            $part = fread( $input, min( 1048576, $left ) );
+                            if ( ! is_string( $part ) || $part === '' ) {
+                                throw new RuntimeException( 'Archive changed during staging.' );
+                            }
+                            $offset = 0;
+                            while ( $offset < strlen( $part ) ) {
+                                $written = fwrite( $out, substr( $part, $offset ) );
+                                if ( $written === false || $written === 0 ) {
+                                    throw new RuntimeException( 'Cannot write staged content.' );
+                                }
+                                $offset += $written;
+                            }
+                            $left -= strlen( $part );
+                        }
+                        if ( ! fflush( $out ) ) {
+                            throw new RuntimeException( 'Cannot flush staged content.' );
+                        }
+                    } finally {
+                        fclose( $out );
+                    }
+                    $bytes += $size;
+                    $count++;
+                }
+                $position += self::HEADER_BYTES + $size;
+            }
+            if ( $position !== $length - self::HEADER_BYTES ) {
+                throw new RuntimeException( 'Staging ended at an invalid archive offset.' );
+            }
+        } finally {
+            fclose( $input );
+        }
+        return array( 'files_staged' => $count, 'bytes_staged' => $bytes );
+    }
+
     /** The destination must not exist: never overwrite an operator's files. */
     public static function extract_metadata( $archive, $destination ) {
         $report = self::inspect( $archive );

@@ -140,3 +140,5 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 - [x] Read-only administrator/CLI preflight report with backup directory status, public-root risk, disk free space, required extensions and cron mode; does not return paths or secrets. A positive report is not restore certification.
 
 - [ ] Runtime compatibility matrix (experimental until green): PHP 7.4, 8.2 and 8.4 crossed with MySQL 8.0 and MariaDB 11.4. Evaluate failures before expanding support claims.
+
+- [x] Phase 2B-1B: independent CLI offline staging of uploads/themes/plugins into a new private directory with bounded bytes, no overwrite and malicious-path tests; no live-file or SQL restore.

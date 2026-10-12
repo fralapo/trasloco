@@ -11,8 +11,10 @@ if ( PHP_SAPI !== 'cli' ) {
     exit( 1 );
 }
 require_once dirname( __DIR__ ) . '/lib/vendor/core/archiver/class-trasloco-offline-recovery.php';
-if ( $argc !== 2 || ! is_string( $argv[1] ) ) {
-    fwrite( STDERR, "Usage: php tools/rescue-extract.php /private/site.wpress\n" );
+if ( ! in_array( $argc, array( 2, 3 ), true ) ||
+    ! is_string( $argv[1] ) ||
+    ( $argc === 3 && $argv[2] !== '--content' ) ) {
+    fwrite( STDERR, "Usage: php tools/rescue-extract.php /private/site.wpress [--content]\n" );
     exit( 2 );
 }
 try {
@@ -20,6 +22,10 @@ try {
     $report = Trasloco_Offline_Recovery::extract_metadata( $argv[1], $directory );
     fwrite( STDOUT, "Recovery metadata saved in: {$directory}\n" );
     fwrite( STDOUT, "Archive integrity: {$report['integrity']}\n" );
+    if ( $argc === 3 ) {
+        $staged = Trasloco_Offline_Recovery::stage_content( $argv[1], $directory . '/content' );
+        fwrite( STDOUT, "Private WordPress files staged: {$staged['files_staged']} ({$staged['bytes_staged']} bytes)\n" );
+    }
     fwrite( STDOUT, "This is manual recovery material, NOT a restored site.\n" );
     fwrite( STDOUT, "Keep database.sql and package.json private. Do not execute SQL without checking table prefixes and backups.\n" );
 } catch ( Throwable $e ) {

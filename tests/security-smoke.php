@@ -237,6 +237,32 @@ ensure( $report['integrity'] === 'unverified_legacy', 'offline legacy backup is 
 ensure( file_get_contents( $dest . '/package.json' ) === '{}', 'offline package extraction' );
 ensure( file_get_contents( $dest . '/database.sql' ) === 'SELECT 1;', 'offline database extraction' );
 ensure( ! is_file( $dest . '/wp-config.php' ), 'offline utility extracts only selected root metadata' );
+$content_out = sys_get_temp_dir() . '/tr-stage-out-' . bin2hex( random_bytes( 8 ) );
+$stage_archive = sys_get_temp_dir() . '/tr-stage-' . bin2hex( random_bytes( 8 ) ) . '.wpress';
+$stage_fixture = pack( 'a255a14a12a4096', 'package.json', '2', '0', '.' ) . '{}';
+$stage_fixture .= pack( 'a255a14a12a4096', 'fixture.txt', '4', '0', 'uploads/docs' ) . 'SAFE';
+$stage_fixture .= str_repeat( chr( 0 ), 4377 );
+file_put_contents( $stage_archive, $stage_fixture );
+$staged = Trasloco_Offline_Recovery::stage_content( $stage_archive, $content_out, 4 );
+ensure( $staged['files_staged'] === 1 && $staged['bytes_staged'] === 4, 'standalone content staging counted correctly' );
+ensure( file_get_contents( $content_out . '/uploads/docs/fixture.txt' ) === 'SAFE', 'content staged without WordPress' );
+ensure( ! is_file( $content_out . '/package.json' ), 'metadata not mixed into staged content' );
+try {
+    Trasloco_Offline_Recovery::stage_content( $stage_archive, $content_out, 4 );
+    ensure( false, 'existing staging directory was overwritten' );
+} catch ( RuntimeException $expected ) {}
+$too_small = sys_get_temp_dir() . '/tr-stage-small-' . bin2hex( random_bytes( 8 ) );
+try {
+    Trasloco_Offline_Recovery::stage_content( $stage_archive, $too_small, 1 );
+    ensure( false, 'content size limit bypassed' );
+} catch ( RuntimeException $expected ) {}
+@rmdir( $too_small . '/uploads' );
+@rmdir( $too_small );
+unlink( $content_out . '/uploads/docs/fixture.txt' );
+rmdir( $content_out . '/uploads/docs' );
+rmdir( $content_out . '/uploads' );
+rmdir( $content_out );
+unlink( $stage_archive );
 unlink( $dest . '/database.sql' );
 unlink( $dest . '/package.json' );
 rmdir( $dest );
