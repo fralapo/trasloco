@@ -68,4 +68,6 @@ Updated 2026-10-12. This plan is an implementation dependency map, not a claim t
 - [ ] Phase 0B: persistent job lease engine and adapters.
 - [x] Phase 1A: create local SHA-256 sidecar manifests and add WP-CLI verification with WordPress integration test.
 - [ ] Phase 1B: verified UI, restore rehearsals and full archive content checks.
+- [x] Initial feature 14 foundation: read-only admin-scoped REST inventory with integration permission test.
+- [ ] Feature 14 mutating API (only after durable job engine and audit log).
 - [ ] Phases 2-15 as ordered above.

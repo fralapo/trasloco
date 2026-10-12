@@ -107,6 +107,10 @@ require_once dirname( __FILE__ ) . DIRECTORY_SEPARATOR . 'functions.php';
 // Include exceptions
 require_once dirname( __FILE__ ) . DIRECTORY_SEPARATOR . 'exceptions.php';
 
+// Read-only automation API: WordPress enforces user authentication and permissions.
+require_once dirname( __FILE__ ) . '/lib/controller/class-trasloco-rest-api.php';
+add_action( 'rest_api_init', array( 'Trasloco_REST_API', 'register' ) );
+
 // Include loader
 require_once dirname( __FILE__ ) . DIRECTORY_SEPARATOR . 'loader.php';
 

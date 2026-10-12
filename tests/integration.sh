@@ -62,4 +62,14 @@ if [ ! -f "$ROOT/target/wp-content/uploads/test-fixtures/fixture.txt" ]; then
   exit 1
 fi
 grep -Fx "media is preserved" "$ROOT/target/wp-content/uploads/test-fixtures/fixture.txt"
+# Authorization: regular unauthenticated visitors cannot enumerate archives.
+$WP eval '
+wp_set_current_user( 0 );
+$deny = rest_do_request( new WP_REST_Request( "GET", "/trasloco/v1/backups" ) );
+if ( $deny->get_status() < 400 ) { throw new Exception( "REST endpoint accessible to anonymous user" ); }
+$admins = get_users( array( "role" => "administrator", "number" => 1 ) );
+wp_set_current_user( $admins[0]->ID );
+$ok = rest_do_request( new WP_REST_Request( "GET", "/trasloco/v1/backups" ) );
+if ( $ok->get_status() !== 200 ) { throw new Exception( "REST backup inventory refused administrator" ); }
+' --path="$ROOT/target"
 echo "WordPress backup + database + users + media migration passed."
