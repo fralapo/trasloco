@@ -402,7 +402,7 @@ Trasloco_Job_Worker::submit_verification();
 $WP eval '
 global $wpdb;
 $table = Trasloco_Job_Store::table();
-$count = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table} WHERE kind = \"verify\"" );
+$count = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$table} WHERE kind = %s", "verify" ) );
 if ( $count < 1 ) { throw new Exception( "Admin POST failed to create verification job" ); }
 ' --path="$ROOT/source"
 
