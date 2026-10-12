@@ -126,7 +126,7 @@ class Trasloco_Export_Controller {
 
 
 	public static function http_export_headers( $headers = array() ) {
-		if ( ( $user = get_option( TRASLOCO_AUTH_USER ) ) && ( $password = get_option( TRASLOCO_AUTH_PASSWORD ) ) ) {
+		if ( ( $user = get_option( TRASLOCO_AUTH_USER ) ) && ( $password = trasloco_get_http_password() ) ) {
 			if ( ( $hash = base64_encode( sprintf( '%s:%s', $user, $password ) ) ) ) {
 				$headers['Authorization'] = sprintf( 'Basic %s', $hash );
 			}

@@ -6,12 +6,13 @@
 error_reporting( E_ALL );
 define( 'TRASLOCO_PLUGIN_NAME', 'trasloco' );
 define( 'TRASLOCO_SECRET_KEY', 'trasloco_secret_key' );
+define( 'TRASLOCO_AUTH_PASSWORD', 'trasloco_auth_password' );
 define( 'TRASLOCO_BACKUPS_PATH', sys_get_temp_dir() );
 define( 'HOUR_IN_SECONDS', 3600 );
 
 $GLOBALS['allow_admin'] = true;
 function current_user_can( $capability ) { return $GLOBALS['allow_admin'] && $capability === 'manage_options'; }
-function get_option( $name ) { return $name === TRASLOCO_SECRET_KEY ? 'a-mock-secret-123' : false; }
+function get_option( $name ) { return $name === TRASLOCO_SECRET_KEY ? 'a-mock-secret-123' : ( $name === TRASLOCO_AUTH_PASSWORD ? ( $GLOBALS['encrypted_password'] ?? false ) : false ); }
 function wp_salt( $scheme = 'auth' ) { return 'fixed-test-salt'; }
 function __( $message, $domain = '' ) { return $message; }
 function validate_file( $name ) {
@@ -34,6 +35,13 @@ function denied( $token, $scope ) {
     } catch ( Trasloco_Not_Valid_Secret_Key_Exception $e ) {
         return true;
     }
+}
+if ( function_exists( 'openssl_encrypt' ) ) {
+    $GLOBALS['encrypted_password'] = trasloco_encrypt_http_password( 'private-secret' );
+    ensure( strpos( $GLOBALS['encrypted_password'], 'v1:' ) === 0, 'encrypt HTTP Basic password' );
+    ensure( trasloco_get_http_password() === 'private-secret', 'decrypt HTTP Basic password' );
+    $GLOBALS['encrypted_password'] .= 'tampered';
+    ensure( trasloco_get_http_password() === '', 'reject modified encrypted credentials' );
 }
 $import = trasloco_issue_operation_token( 'import' );
 ensure( is_string( $import ) && strlen( $import ) > 50, 'issue token' );

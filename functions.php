@@ -1194,6 +1194,39 @@ function trasloco_fseek( $file_handle, Math_BigInteger $offset ) {
 
 /** Issue a short-lived action-scoped token. Background migration requests can
  * outlive the destination WordPress admin session when users are replaced. */
+/**
+ * Encrypt staging HTTP Basic credentials in the options table with WP salts.
+ * Never fall back to persisting plaintext if OpenSSL is unavailable.
+ */
+function trasloco_encrypt_http_password( $password ) {
+	if ( ! function_exists( 'openssl_encrypt' ) || ! is_string( $password ) ) {
+		return false;
+	}
+	$iv = random_bytes( 12 );
+	$tag = '';
+	$key = hash( 'sha256', wp_salt( 'auth' ) . '|trasloco-http-basic', true );
+	$encrypted = openssl_encrypt( $password, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag );
+	if ( $encrypted === false ) {
+		return false;
+	}
+	return 'v1:' . base64_encode( $iv . $tag . $encrypted );
+}
+
+/** Read a credential encrypted for the current WordPress installation. */
+function trasloco_get_http_password() {
+	$stored = get_option( TRASLOCO_AUTH_PASSWORD );
+	if ( ! is_string( $stored ) || substr( $stored, 0, 3 ) !== 'v1:' || ! function_exists( 'openssl_decrypt' ) ) {
+		return '';
+	}
+	$payload = base64_decode( substr( $stored, 3 ), true );
+	if ( $payload === false || strlen( $payload ) < 28 ) {
+		return '';
+	}
+	$key = hash( 'sha256', wp_salt( 'auth' ) . '|trasloco-http-basic', true );
+	$decrypted = openssl_decrypt( substr( $payload, 28 ), 'aes-256-gcm', $key, OPENSSL_RAW_DATA, substr( $payload, 0, 12 ), substr( $payload, 12, 16 ) );
+	return is_string( $decrypted ) ? $decrypted : '';
+}
+
 function trasloco_issue_operation_token( $operation ) {
 	if ( ! current_user_can( 'manage_options' ) || ! in_array( $operation, array( 'export', 'import', 'backups' ), true ) ) {
 		return '';

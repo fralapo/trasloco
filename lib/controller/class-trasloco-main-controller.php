@@ -810,7 +810,18 @@ class Trasloco_Main_Controller {
 
 		// Set password
 		if ( isset( $_SERVER['PHP_AUTH_PW'] ) ) {
-			update_option( TRASLOCO_AUTH_PASSWORD, $_SERVER['PHP_AUTH_PW'] );
+			$encrypted = trasloco_encrypt_http_password( $_SERVER['PHP_AUTH_PW'] );
+			if ( $encrypted !== false ) {
+				update_option( TRASLOCO_AUTH_PASSWORD, $encrypted );
+			} else {
+				delete_option( TRASLOCO_AUTH_PASSWORD );
+			}
+		} else {
+			// Remove passwords stored by older versions, without exposing them.
+			$stored = get_option( TRASLOCO_AUTH_PASSWORD );
+			if ( is_string( $stored ) && $stored !== '' && substr( $stored, 0, 3 ) !== 'v1:' ) {
+				delete_option( TRASLOCO_AUTH_PASSWORD );
+			}
 		}
 	}
 
