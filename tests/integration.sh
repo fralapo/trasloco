@@ -343,6 +343,37 @@ $recent = Trasloco_Job_Store::recent();
 if ( empty( $recent ) || ! isset( $recent[0]["id"] ) ) { throw new Exception( "Recent job listing failed" ); }
 ' --path="$ROOT/source"
 
+
+# V2 verification yields durable checkpoints in bounded two-chunk batches.
+$WP eval '
+$path = TRASLOCO_BACKUPS_PATH . "/ci-chunked-verification.wpress";
+$handle = fopen( $path, "wb" );
+for ( $i = 0; $i < 5; $i++ ) {
+    fwrite( $handle, str_repeat( chr( 65 + $i ), Trasloco_Integrity::CHUNK_BYTES ) );
+}
+fclose( $handle );
+$manifest = Trasloco_Integrity::create_chunked( $path );
+$id = Trasloco_Job_Store::create( "verify", array( "archive" => basename( $path ) ), "ci-v2-resumable-verify-0000001" );
+if ( is_wp_error( $id ) ) { throw new Exception( "Cannot start resumable verification" ); }
+$a = Trasloco_Job_Worker::run( $id );
+$first = Trasloco_Job_Store::get( $id );
+if ( $a["status"] !== "pending" || $first["checkpoint"]["next_chunk"] !== 2 ||
+     $first["progress"] < 1 || $first["state"] !== "pending" || $first["attempts"] !== 0 ) {
+    throw new Exception( "First chunk checkpoint failed: " . wp_json_encode( $first ) );
+}
+$b = Trasloco_Job_Worker::run( $id );
+$second = Trasloco_Job_Store::get( $id );
+if ( $b["status"] !== "pending" || $second["checkpoint"]["next_chunk"] !== 4 ) {
+    throw new Exception( "Second chunk checkpoint failed" );
+}
+$c = Trasloco_Job_Worker::run( $id );
+if ( $c["status"] !== "completed" || Trasloco_Job_Store::get( $id )["state"] !== "completed" ) {
+    throw new Exception( "Resumable verification did not complete" );
+}
+unlink( $path );
+unlink( $manifest );
+' --path="$ROOT/source"
+
 # A crashed verification must not retry endlessly or block reconciliation.
 $WP eval '
 global $wpdb;

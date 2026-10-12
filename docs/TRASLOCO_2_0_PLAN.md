@@ -125,3 +125,5 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 
 - [x] Phase 1C-1: optional version-2 SHA-256 chunk manifests (4 MiB) with bounded per-chunk validation, unchanged v1 compatibility and corruption regression tests.
 - [ ] Phase 1C-2: use chunk checkpoints in cron workers and new exports once integration is green.
+
+- [x] Phase 1C-2: verification jobs can yield and resume v2 4-MiB chunk checks in bounded batches, with persisted offsets, archive/manifest stability checks, lease-safe handoff and MySQL integration. No claim of resumable export yet.

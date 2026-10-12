@@ -187,6 +187,64 @@ class Trasloco_Job_Worker {
         return $params['archive'];
     }
 
+
+    /** Advance bounded v2 verification with an owned, crash-replay checkpoint. */
+    private static function verify_chunk_job( $id, $owner, $archive, $manifest ) {
+        $size = (int) filesize( $archive );
+        $mtime = (int) filemtime( $archive );
+        if ( $size !== $manifest['size_bytes'] || is_link( $archive ) ) {
+            throw new RuntimeException( 'Archive changed size or is a symlink.' );
+        }
+        $previous = Trasloco_Job_Store::get( $id );
+        $checkpoint = ! empty( $previous['checkpoint']['phase'] ) &&
+            $previous['checkpoint']['phase'] === 'chunks' ? $previous['checkpoint'] : array();
+        $index = 0;
+        if ( ! empty( $checkpoint ) ) {
+            if ( ! isset( $checkpoint['manifest_sha256'], $checkpoint['size_bytes'],
+                         $checkpoint['file_mtime'], $checkpoint['next_chunk'] ) ||
+                $checkpoint['manifest_sha256'] !== $manifest['_manifest_sha256'] ||
+                (int) $checkpoint['size_bytes'] !== $size ||
+                (int) $checkpoint['file_mtime'] !== $mtime ||
+                ! is_int( $checkpoint['next_chunk'] ) ||
+                $checkpoint['next_chunk'] < 0 ||
+                $checkpoint['next_chunk'] > count( $manifest['chunks'] ) ) {
+                throw new RuntimeException( 'Archive or manifest changed during staged verification.' );
+            }
+            $index = $checkpoint['next_chunk'];
+        }
+        $total = count( $manifest['chunks'] );
+        $stop = min( $total, $index + 2 );
+        while ( $index < $stop ) {
+            if ( ! Trasloco_Integrity::verify_chunk( $archive, $manifest, $index ) ) {
+                throw new RuntimeException( 'Archive chunk checksum mismatch.' );
+            }
+            $index++;
+        }
+        clearstatcache( true, $archive );
+        if ( filesize( $archive ) !== $size || filemtime( $archive ) !== $mtime ||
+             hash_file( 'sha256', Trasloco_Integrity::manifest_path( $archive ) ) !== $manifest['_manifest_sha256'] ) {
+            throw new RuntimeException( 'Archive or manifest modified during staged verification.' );
+        }
+        if ( $index === $total ) {
+            // The per-chunk digests cover the entire byte range; whole SHA-256
+            // was computed at backup creation. This is not a signed origin proof.
+            if ( ! Trasloco_Job_Store::finish( $id, $owner ) ) {
+                return array( 'status' => 'not_claimed' );
+            }
+            return array( 'status' => 'completed' );
+        }
+        $progress = min( 99, (int) floor( ( $index / $total ) * 100 ) );
+        $next = array( 'phase' => 'chunks', 'manifest_sha256' => $manifest['_manifest_sha256'],
+            'file_mtime' => $mtime, 'size_bytes' => $size, 'next_chunk' => $index );
+        if ( ! Trasloco_Job_Store::yield_verification( $id, $owner, $progress, $next ) ) {
+            return array( 'status' => 'not_claimed' );
+        }
+        // Failed scheduling is picked up by the reconciler without repeating
+        // previously verified chunks.
+        self::schedule( $id );
+        return array( 'status' => 'pending', 'progress' => $progress );
+    }
+
     public static function run( $id ) {
         $id = (int) $id;
         $record = Trasloco_Job_Store::workload( $id );
@@ -226,10 +284,16 @@ class Trasloco_Job_Worker {
                 throw new RuntimeException( 'Invalid archive reference.' );
             }
             $archive = trasloco_backup_path( array( 'archive' => $filename ) );
+            require_once TRASLOCO_LIB_PATH . '/vendor/core/archiver/class-trasloco-integrity.php';
+            $v2 = Trasloco_Integrity::chunked_manifest( $archive );
+            if ( $v2 !== null ) {
+                $result = self::verify_chunk_job( $id, $owner, $archive, $v2 );
+                $result['archive'] = $filename;
+                return $result;
+            }
             if ( ! Trasloco_Job_Store::checkpoint( $id, $owner, 5, array( 'phase' => 'verifying' ) ) ) {
                 throw new RuntimeException( 'Verification cancelled or lease lost.' );
             }
-            require_once TRASLOCO_LIB_PATH . '/vendor/core/archiver/class-trasloco-integrity.php';
             $result = Trasloco_Integrity::verify( $archive );
             if ( $result['status'] !== 'verified' ) {
                 throw new RuntimeException( 'Backup verification: ' . $result['status'] );

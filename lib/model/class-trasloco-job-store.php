@@ -207,6 +207,32 @@ class Trasloco_Job_Store {
         ) );
     }
 
+
+    /**
+     * Normal progress yielding is not a crash. Release ownership and reset the
+     * interrupted-attempt counter after atomically publishing the checkpoint.
+     * A dead process that never yields will still exhaust its three retries.
+     */
+    public static function yield_verification( $id, $worker, $progress, $checkpoint ) {
+        global $wpdb;
+        if ( ! is_int( $progress ) || $progress < 0 || $progress > 99 ||
+             ! is_array( $checkpoint ) ) {
+            return false;
+        }
+        $encoded = wp_json_encode( $checkpoint );
+        if ( ! is_string( $encoded ) ) {
+            return false;
+        }
+        $table = self::table();
+        return 1 === $wpdb->query( $wpdb->prepare(
+            "UPDATE {$table} SET state = 'pending', progress = %d,
+            checkpoint = %s, attempts = 0, lease_owner = '', lease_until = 0,
+            updated_at = %s WHERE id = %d AND kind = 'verify'
+            AND state = 'running' AND lease_owner = %s AND lease_until >= %d",
+            $progress, $encoded, gmdate( 'Y-m-d H:i:s' ), $id, $worker, time()
+        ) );
+    }
+
     /** Bounded recent job listing; excludes payloads, credentials and paths. */
     public static function recent( $limit = 20 ) {
         global $wpdb;
