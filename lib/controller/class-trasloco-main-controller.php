@@ -438,16 +438,25 @@ class Trasloco_Main_Controller {
 			'Trasloco',
 			'Trasloco',
 			'manage_options',
-			'trasloco_export',
-			'Trasloco_Export_Controller::index',
+			'trasloco_dashboard',
+			'Trasloco_Main_Controller::dashboard',
 			// Monochrome SVG: WordPress recolors it to match the admin color scheme
 			'data:image/svg+xml;base64,' . base64_encode( file_get_contents( TRASLOCO_PATH . '/lib/view/assets/img/menu-icon.svg' ) ),
 			'76.295'
 		);
 
+		add_submenu_page(
+			'trasloco_dashboard',
+			__( 'Overview', TRASLOCO_PLUGIN_NAME ),
+			__( 'Overview', TRASLOCO_PLUGIN_NAME ),
+			'manage_options',
+			'trasloco_dashboard',
+			'Trasloco_Main_Controller::dashboard'
+		);
+
 		// Sub-level Export menu
 		add_submenu_page(
-			'trasloco_export',
+			'trasloco_dashboard',
 			__( 'Export', TRASLOCO_PLUGIN_NAME ),
 			__( 'Export', TRASLOCO_PLUGIN_NAME ),
 			'manage_options',
@@ -457,7 +466,7 @@ class Trasloco_Main_Controller {
 
 		// Sub-level Import menu
 		add_submenu_page(
-			'trasloco_export',
+			'trasloco_dashboard',
 			__( 'Import', TRASLOCO_PLUGIN_NAME ),
 			__( 'Import', TRASLOCO_PLUGIN_NAME ),
 			'manage_options',
@@ -467,7 +476,7 @@ class Trasloco_Main_Controller {
 
 		// Sub-level Backups menu
 		add_submenu_page(
-			'trasloco_export',
+			'trasloco_dashboard',
 			__( 'Backups', TRASLOCO_PLUGIN_NAME ),
 			__( 'Backups', TRASLOCO_PLUGIN_NAME ),
 			'manage_options',
@@ -477,7 +486,7 @@ class Trasloco_Main_Controller {
 
 		// Sub-level Guide menu
 		add_submenu_page(
-			'trasloco_export',
+			'trasloco_dashboard',
 			__( 'Guide', TRASLOCO_PLUGIN_NAME ),
 			__( 'Guide', TRASLOCO_PLUGIN_NAME ),
 			'manage_options',
@@ -491,6 +500,10 @@ class Trasloco_Main_Controller {
 	 *
 	 * @return void
 	 */
+	public static function dashboard() {
+		Trasloco_Template::render( 'main/dashboard' );
+	}
+
 	public static function guide() {
 		Trasloco_Template::render( 'guide/index' );
 	}
@@ -529,7 +542,7 @@ class Trasloco_Main_Controller {
 	 * @return void
 	 */
 	public function enqueue_export_scripts_and_styles( $hook ) {
-		if ( stripos( 'toplevel_page_trasloco_export', $hook ) === false ) {
+		if ( strpos( (string) $hook, '_page_trasloco_export' ) === false ) {
 			return;
 		}
 

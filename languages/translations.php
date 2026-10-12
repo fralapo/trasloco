@@ -11,6 +11,84 @@
  */
 
 return array(
+	'Overview' => array(
+		'it' => 'Panoramica',
+		'es' => 'Vista general',
+		'fr' => 'Vue d’ensemble',
+		'de' => 'Übersicht',
+	),
+	'What would you like to do?' => array(
+		'it' => 'Cosa vuoi fare?',
+		'es' => '¿Qué quieres hacer?',
+		'fr' => 'Que voulez-vous faire ?',
+		'de' => 'Was möchten Sie tun?',
+	),
+	'Choose a task. You can review the details before anything changes.' => array(
+		'it' => 'Scegli un’attività. Potrai esaminare tutto prima di apportare modifiche.',
+		'es' => 'Elige una tarea. Puedes revisar los detalles antes de modificar nada.',
+		'fr' => 'Choisissez une tâche. Vous pourrez vérifier les détails avant toute modification.',
+		'de' => 'Wählen Sie eine Aufgabe. Sie können alle Details vor Änderungen prüfen.',
+	),
+	'Tasks' => array(
+		'it' => 'Attività',
+		'es' => 'Tareas',
+		'fr' => 'Tâches',
+		'de' => 'Aufgaben',
+	),
+	'Move to another site' => array(
+		'it' => 'Migra su un altro sito',
+		'es' => 'Migrar a otro sitio',
+		'fr' => 'Migrer vers un autre site',
+		'de' => 'Auf eine andere Website umziehen',
+	),
+	'Create an export on the old site, then import it on the destination.' => array(
+		'it' => 'Crea un’esportazione sul vecchio sito, poi importala su quello di destinazione.',
+		'es' => 'Crea una exportación en el sitio antiguo e impórtala en el nuevo.',
+		'fr' => 'Créez une exportation sur l’ancien site puis importez-la sur le nouveau.',
+		'de' => 'Erstellen Sie auf der alten Website einen Export und importieren Sie ihn auf der Zielwebsite.',
+	),
+	'Back up this site' => array(
+		'it' => 'Crea un backup del sito',
+		'es' => 'Haz una copia de este sitio',
+		'fr' => 'Sauvegarder ce site',
+		'de' => 'Diese Website sichern',
+	),
+	'Save a complete site copy without replacing anything.' => array(
+		'it' => 'Salva una copia completa del sito senza sostituire nulla.',
+		'es' => 'Guarda una copia completa sin reemplazar nada.',
+		'fr' => 'Enregistrez une copie complète sans rien remplacer.',
+		'de' => 'Speichern Sie eine vollständige Kopie, ohne etwas zu ersetzen.',
+	),
+	'Replace this site' => array(
+		'it' => 'Sostituisci questo sito',
+		'es' => 'Reemplazar este sitio',
+		'fr' => 'Remplacer ce site',
+		'de' => 'Diese Website ersetzen',
+	),
+	'Import a .wpress archive. Back up the destination before continuing.' => array(
+		'it' => 'Importa un archivio .wpress. Fai prima un backup del sito di destinazione.',
+		'es' => 'Importa un archivo .wpress. Guarda antes una copia del sitio de destino.',
+		'fr' => 'Importez une archive .wpress. Sauvegardez d’abord le site de destination.',
+		'de' => 'Importieren Sie ein .wpress-Archiv. Sichern Sie zuvor die Zielwebsite.',
+	),
+	'Manage saved backups' => array(
+		'it' => 'Gestisci i backup salvati',
+		'es' => 'Gestionar copias guardadas',
+		'fr' => 'Gérer les sauvegardes',
+		'de' => 'Gespeicherte Backups verwalten',
+	),
+	'Download, restore or remove archives previously saved on this server.' => array(
+		'it' => 'Scarica, ripristina o elimina gli archivi salvati su questo server.',
+		'es' => 'Descarga, restaura o elimina archivos guardados en este servidor.',
+		'fr' => 'Téléchargez, restaurez ou supprimez les archives de ce serveur.',
+		'de' => 'Laden Sie gespeicherte Archive herunter, stellen Sie sie wieder her oder löschen Sie sie.',
+	),
+	'Need help with migration or recovery?' => array(
+		'it' => 'Hai bisogno di aiuto con migrazione o ripristino?',
+		'es' => '¿Necesitas ayuda con la migración o restauración?',
+		'fr' => 'Besoin d’aide pour migrer ou restaurer ?',
+		'de' => 'Benötigen Sie Hilfe bei Migration oder Wiederherstellung?',
+	),
 	'Not enough free space for a safe restore. Available: %s. Archive size: %s. Free disk space and try again.' => array(
 		'it' => 'Spazio insufficiente per un ripristino sicuro. Disponibile: %s. Dimensione archivio: %s. Libera spazio su disco e riprova.',
 		'es' => 'Espacio insuficiente para restaurar con seguridad. Disponible: %s. Tamaño del archivo: %s. Libera espacio e inténtalo de nuevo.',

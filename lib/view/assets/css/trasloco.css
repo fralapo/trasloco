@@ -555,3 +555,15 @@
 @media (prefers-reduced-motion: reduce) {
 	.tr-page *, .tr-progress > span { transition: none !important; }
 }
+
+/* Task-oriented dashboard: comfortable targets and keyboard focus. */
+.tr-dashboard.tr-page { max-width: 1000px; }
+.tr-dashboard-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 24px 0; }
+.tr-page .tr-dashboard-card { display: flex; flex-direction: column; min-height: 224px; margin: 0; }
+.tr-dashboard-card > .dashicons { color: var(--tr-accent); font-size: 28px; width: 28px; height: 28px; }
+.tr-page .tr-dashboard-card h2 { margin: 14px 0 8px; font-size: 18px; }
+.tr-page .tr-dashboard-card p { margin: 0 0 18px; flex: 1; color: var(--tr-muted); }
+.tr-page .tr-dashboard-card .tr-btn { align-self: flex-start; min-height: 44px; display: inline-flex; align-items: center; gap: 8px; }
+.tr-dashboard-guide { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 24px 0; }
+.tr-dashboard a:focus-visible { outline: 3px solid var(--tr-accent-dark); outline-offset: 3px; }
+@media (max-width: 782px) { .tr-dashboard-grid { grid-template-columns: 1fr; } }
