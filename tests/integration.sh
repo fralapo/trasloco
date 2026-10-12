@@ -148,6 +148,9 @@ if ( ! Trasloco_Job_Store::claim( $id, "runner-000000001" ) ) { throw new Except
 if ( Trasloco_Job_Store::claim( $id, "runner-000000002" ) ) { throw new Exception( "Duplicate lease was accepted" ); }
 if ( Trasloco_Job_Store::checkpoint( $id, "runner-000000002", 50 ) ) { throw new Exception( "Wrong owner checkpoint accepted" ); }
 $old_lease = (int) Trasloco_Job_Store::get( $id )["lease_until"];
+if ( ! Trasloco_Job_Store::renew( $id, "runner-000000001", 60 ) ) {
+    throw new Exception( "Same-second lease renewal was rejected" );
+}
 $GLOBALS["trasloco_active_backup_job"] = array( "id" => $id, "owner" => "runner-000000001", "last_renew" => 0 );
 Trasloco_Status::info( "CI renew active backup lease" );
 unset( $GLOBALS["trasloco_active_backup_job"] );

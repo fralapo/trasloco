@@ -174,7 +174,7 @@ class Trasloco_Job_Worker {
                     // A bounded heartbeat keeps its job lease alive beyond
                     // the initial hour, without restarting the export.
                     $GLOBALS['trasloco_active_backup_job'] = array(
-                        'id' => $id, 'owner' => $owner, 'last_renew' => 0,
+                        'id' => $id, 'owner' => $owner, 'last_renew' => time(),
                     );
                     $name = self::backup( $id, $owner, $record['payload'] );
                 } finally {

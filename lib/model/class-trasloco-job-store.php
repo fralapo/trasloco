@@ -144,7 +144,7 @@ class Trasloco_Job_Store {
         $now = time();
         $table = self::table();
         return 1 === $wpdb->query( $wpdb->prepare(
-            "UPDATE {$table} SET lease_until = %d, updated_at = %s
+            "UPDATE {$table} SET lease_until = GREATEST(lease_until + 1, %d), updated_at = %s
             WHERE id = %d AND state = 'running' AND lease_owner = %s AND lease_until >= %d",
             $now + $lease_seconds, gmdate( 'Y-m-d H:i:s' ), $id, $worker, $now
         ) );
