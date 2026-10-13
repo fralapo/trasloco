@@ -2,7 +2,7 @@
 /**
  * Offline, operator-controlled recovery of ORIGINAL wp-content bytes.
  *
- * Preparation is read-only for the live site: stage the authenticated
+ * Preparation is read-only for the live site: stage the checksum-verified
  * snapshot, inventory replacements, then preserve ALL overwritten files.
  * Application never deletes untracked content or changes SQL. A crash can
  * leave a partial overlay; re-applying the same plan is idempotent.
@@ -92,7 +92,7 @@ class Trasloco_Offline_File_Recovery {
     }
 
     /** Private exclusive-copy, for retained original contents and staging. */
-    private static function copy_new( $from, $to ) {
+    private static function copy_new( $from, $to, $max_bytes ) {
         $in = @fopen( $from, 'rb' );
         $out = @fopen( $to, 'xb' );
         if ( $in === false || $out === false ) {
@@ -101,8 +101,12 @@ class Trasloco_Offline_File_Recovery {
             throw new RuntimeException( 'Cannot create a private recovery file.' );
         }
         try {
-            @chmod( $to, 0600 );
-            if ( stream_copy_to_stream( $in, $out ) === false || ! fflush( $out ) ) {
+            if ( ! @chmod( $to, 0600 ) ) {
+                throw new RuntimeException( 'Cannot protect private recovery file.' );
+            }
+            $copied = stream_copy_to_stream( $in, $out, $max_bytes );
+            // Read one byte without writing it: a growing source cannot exceed the budget.
+            if ( $copied === false || fread( $in, 1 ) !== '' || ! feof( $in ) || ! fflush( $out ) ) {
                 throw new RuntimeException( 'Private recovery file could not be copied.' );
             }
         } catch ( Throwable $e ) {
@@ -113,6 +117,16 @@ class Trasloco_Offline_File_Recovery {
         }
         fclose( $out );
         fclose( $in );
+        return $copied;
+    }
+
+    private static function file_mode( $path ) {
+        clearstatcache( true, $path );
+        $mode = @fileperms( $path );
+        if ( $mode === false ) {
+            throw new RuntimeException( 'Cannot read recovery destination permissions.' );
+        }
+        return $mode & 0777; // Never propagate setuid, setgid or sticky bits.
     }
 
     private static function mkdir_parents( $root, $relative, $mode ) {
@@ -197,7 +211,8 @@ class Trasloco_Offline_File_Recovery {
         $staged = $workspace . DIRECTORY_SEPARATOR . 'snapshot';
         $originals = $workspace . DIRECTORY_SEPARATOR . 'originals';
         try {
-            Trasloco_Offline_Recovery::stage_content( $archive, $staged, $max_bytes );
+            $staging = Trasloco_Offline_Recovery::stage_content( $archive, $staged, $max_bytes );
+            $payload_bytes = $staging['bytes_staged'];
             if ( ! @mkdir( $originals, 0700 ) ) {
                 throw new RuntimeException( 'Cannot create private originals directory.' );
             }
@@ -218,6 +233,7 @@ class Trasloco_Offline_File_Recovery {
                 $new_sha = self::file_digest( $item->getPathname() );
                 $size = $item->getSize();
                 $old_sha = file_exists( $target ) ? self::file_digest( $target ) : null;
+                $old_mode = $old_sha !== null ? self::file_mode( $target ) : null;
                 if ( $old_sha === $new_sha ) {
                     continue;
                 }
@@ -226,9 +242,14 @@ class Trasloco_Offline_File_Recovery {
                 }
                 $total += $size;
                 if ( $old_sha !== null ) {
+                    clearstatcache( true, $target );
+                    $old_size = filesize( $target );
+                    if ( $old_size === false || $old_size > $max_bytes - $payload_bytes ) {
+                        throw new RuntimeException( 'Recovery payload exceeds safety limits.' );
+                    }
                     self::mkdir_parents( $originals, $relative, 0700 );
                     $original = $originals . DIRECTORY_SEPARATOR . str_replace( '/', DIRECTORY_SEPARATOR, $relative );
-                    self::copy_new( $target, $original );
+                    $payload_bytes += self::copy_new( $target, $original, $max_bytes - $payload_bytes );
                     if ( self::file_digest( $original ) !== $old_sha ||
                         self::file_digest( $target ) !== $old_sha ) {
                         throw new RuntimeException( 'Destination changed while preserving its original files.' );
@@ -236,7 +257,7 @@ class Trasloco_Offline_File_Recovery {
                 }
                 $records[] = array(
                     'relative_path' => $relative, 'sha256' => $new_sha,
-                    'previous_sha256' => $old_sha, 'bytes' => $size,
+                    'previous_sha256' => $old_sha, 'bytes' => $size, 'previous_mode' => $old_mode,
                 );
             }
             // Close the archive race window between initial inspection and staging.
@@ -245,10 +266,10 @@ class Trasloco_Offline_File_Recovery {
             }
             $plan = array( 'version' => self::VERSION, 'state' => 'prepared',
                 'content_root' => $root, 'archive_sha256' => self::file_digest( $archive ),
-                'files' => $records, 'change_bytes' => $total );
+                'files' => $records, 'change_bytes' => $total, 'payload_bytes' => $payload_bytes );
             self::write_plan( $workspace, $plan );
             return array( 'state' => 'prepared', 'files_to_restore' => count( $records ),
-                'change_bytes' => $total );
+                'change_bytes' => $total, 'payload_bytes' => $payload_bytes );
         } catch ( Throwable $e ) {
             // Work is private and intentionally retained for inspection.
             // No destination file was modified.
@@ -290,6 +311,12 @@ class Trasloco_Offline_File_Recovery {
                     ! preg_match( '/^[a-f0-9]{64}$/D', $record['previous_sha256'] ) ) ) ) {
                 throw new RuntimeException( 'Recovery plan contains invalid file metadata.' );
             }
+            if ( array_key_exists( 'previous_mode', $record ) &&
+                ( $record['previous_sha256'] === null ? $record['previous_mode'] !== null :
+                  ( ! is_int( $record['previous_mode'] ) || $record['previous_mode'] < 0 ||
+                    $record['previous_mode'] > 0777 ) ) ) {
+                throw new RuntimeException( 'Recovery plan contains invalid permission metadata.' );
+            }
             $relative = $record['relative_path'];
             self::relative( $relative );
             if ( isset( $seen[ $relative ] ) ) {
@@ -312,13 +339,15 @@ class Trasloco_Offline_File_Recovery {
             if ( $current !== $record['sha256'] && $current !== $record['previous_sha256'] ) {
                 throw new RuntimeException( 'Destination was independently modified: recovery stopped.' );
             }
-            $changes[] = array( $relative, $source, $record['sha256'], $record['previous_sha256'] );
+            // Old v1 plans have no mode: retain the current destination's permissions.
+            $mode = $record['previous_mode'] ?? ( $current !== null ? self::file_mode( $target ) : 0644 );
+            $changes[] = array( $relative, $source, $record['sha256'], $record['previous_sha256'], $mode );
         }
         $plan['state'] = 'applying';
         self::write_plan( $work, $plan );
         $restored = 0;
         foreach ( $changes as $change ) {
-            list( $relative, $source, $expected, $previous ) = $change;
+            list( $relative, $source, $expected, $previous, $mode ) = $change;
             self::mkdir_parents( $root, $relative, 0755 );
             $target = self::target( $root, $relative );
             $current = file_exists( $target ) ? self::file_digest( $target ) : null;
@@ -333,7 +362,9 @@ class Trasloco_Offline_File_Recovery {
                 throw new RuntimeException( 'Cannot allocate atomic destination update.' );
             }
             try {
-                @chmod( $temp, 0644 );
+                if ( ! @chmod( $temp, 0600 ) ) {
+                    throw new RuntimeException( 'Cannot protect destination recovery temp file.' );
+                }
                 $from = fopen( $source, 'rb' );
                 $to = fopen( $temp, 'wb' );
                 if ( $from === false || $to === false ) {
@@ -352,6 +383,8 @@ class Trasloco_Offline_File_Recovery {
                 if ( self::file_digest( $temp ) !== $expected ||
                     self::target( $root, $relative ) !== $target ||
                     ( file_exists( $target ) ? self::file_digest( $target ) : null ) !== $previous ||
+                    // Respect permissions tightened after preparation, too.
+                    ! @chmod( $temp, $previous !== null ? $mode & self::file_mode( $target ) : $mode ) ||
                     ! rename( $temp, $target ) ) {
                     throw new RuntimeException( 'Recovery destination changed or atomic rename failed.' );
                 }

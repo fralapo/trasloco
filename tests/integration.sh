@@ -199,6 +199,9 @@ test -f "$ROOT/target/wp-content/uploads/target-before-import/untracked-after-fa
 # Two-phase, independent filesystem rescue requires no WordPress bootstrap.
 # The operator explicitly confirms that the target site is offline. A prior
 # copy of each replaced file remains in the private workspace for reversal.
+# A restrictive existing file must stay private after replacing its bytes.
+printf 'modified private content\n' > "$ROOT/target/wp-content/uploads/target-before-import/safety-marker.txt"
+chmod 600 "$ROOT/target/wp-content/uploads/target-before-import/safety-marker.txt"
 RESCUE_OVERLAY="$ROOT/file-overlay-recovery"
 php "$GITHUB_WORKSPACE/tools/recovery-files.php" prepare \
   "$FAILED_RECOVERY" "$ROOT/target/wp-content" "$RESCUE_OVERLAY"
@@ -210,6 +213,8 @@ php "$GITHUB_WORKSPACE/tools/recovery-files.php" apply \
 cmp -s "$ROOT/target-safety-marker.expected" \
   "$ROOT/target/wp-content/uploads/target-before-import/safety-marker.txt"
 test -f "$ROOT/target/wp-content/uploads/target-before-import/untracked-after-failure.txt"
+php -r 'clearstatcache(); if ((fileperms($argv[1]) & 0777) !== 0600) { fwrite(STDERR, "Recovery widened private file permissions\n"); exit(1); }' \
+  "$ROOT/target/wp-content/uploads/target-before-import/safety-marker.txt"
 php "$GITHUB_WORKSPACE/tools/recovery-files.php" apply \
   "$RESCUE_OVERLAY" "$ROOT/target/wp-content" --site-offline-confirmed | grep -F '"already_completed": true'
 
