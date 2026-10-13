@@ -68,7 +68,7 @@ class Trasloco_Recovery_Journal {
         }
     }
 
-    public static function begin( $directory, $source_archive, $recovery_archive ) {
+    public static function begin( $directory, $source_archive, $recovery_archive, $operation_key = null ) {
         $dir = self::directory( $directory );
         $source = self::archive_name( $source_archive );
         $recovery = self::archive_name( $recovery_archive );
@@ -77,8 +77,29 @@ class Trasloco_Recovery_Journal {
              is_link( $archive ) || ! is_file( $archive . '.manifest.json' ) ) {
             throw new RuntimeException( 'A verified recovery archive is required.' );
         }
-        $id = bin2hex( random_bytes( 16 ) );
-        self::publish( self::receipt_path( $dir, $id ), array(
+        if ( $operation_key !== null && ( ! is_string( $operation_key ) ||
+             strlen( $operation_key ) < 12 || strlen( $operation_key ) > 200 ) ) {
+            throw new InvalidArgumentException( 'Invalid recovery operation identity.' );
+        }
+        // Browser/cron retries of the same restore must reuse a single receipt
+        // rather than creating many misleading pending recovery points.
+        $id = $operation_key === null ? bin2hex( random_bytes( 16 ) ) :
+            substr( hash( 'sha256', 'trasloco-recovery|' . $operation_key ), 0, 32 );
+        $receipt = self::receipt_path( $dir, $id );
+        if ( file_exists( $receipt ) || is_link( $receipt ) ) {
+            if ( is_link( $receipt ) || ! is_file( $receipt ) || filesize( $receipt ) > 2048 ) {
+                throw new RuntimeException( 'An unsafe recovery receipt already exists.' );
+            }
+            $previous = json_decode( (string) file_get_contents( $receipt ), true );
+            if ( ! is_array( $previous ) ||
+                 ! isset( $previous['id'], $previous['source_archive'], $previous['recovery_archive'], $previous['status'] ) ||
+                 $previous['id'] !== $id || $previous['source_archive'] !== $source ||
+                 $previous['recovery_archive'] !== $recovery || $previous['status'] !== 'pending' ) {
+                throw new RuntimeException( 'Recovery operation identity conflicts with an existing receipt.' );
+            }
+            return $id;
+        }
+        self::publish( $receipt, array(
             'version' => self::VERSION,
             'id' => $id,
             'status' => 'pending',

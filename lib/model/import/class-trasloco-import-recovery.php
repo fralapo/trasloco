@@ -38,7 +38,8 @@ class Trasloco_Import_Recovery {
             if ( Trasloco_Integrity::verify( trasloco_backup_path( array( 'archive' => $name ) ) )['status'] === 'verified' ) {
                 $params['recovery_archive'] = $name;
                 $params['recovery_receipt'] = Trasloco_Recovery_Journal::begin(
-                    TRASLOCO_BACKUPS_PATH, $params['archive'], $name
+                    TRASLOCO_BACKUPS_PATH, $params['archive'], $name,
+                    $params['storage'] . '|' . $params['archive']
                 );
                 return $params;
             }
@@ -49,7 +50,8 @@ class Trasloco_Import_Recovery {
         }
         $params['recovery_archive'] = $result['archive'];
         $params['recovery_receipt'] = Trasloco_Recovery_Journal::begin(
-            TRASLOCO_BACKUPS_PATH, $params['archive'], $result['archive']
+            TRASLOCO_BACKUPS_PATH, $params['archive'], $result['archive'],
+            $params['storage'] . '|' . $params['archive']
         );
         Trasloco_Status::info( __( 'Recovery point verified. Starting the import...', TRASLOCO_PLUGIN_NAME ) );
         return $params;

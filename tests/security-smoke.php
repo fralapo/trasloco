@@ -484,7 +484,13 @@ $journal_dir = sys_get_temp_dir() . '/trasloco-journal-' . bin2hex( random_bytes
 mkdir( $journal_dir, 0700 );
 file_put_contents( $journal_dir . '/recovery-safe.wpress', 'fixture' );
 file_put_contents( $journal_dir . '/recovery-safe.wpress.manifest.json', '{}' );
-$id = Trasloco_Recovery_Journal::begin( $journal_dir, 'incoming.wpress', 'recovery-safe.wpress' );
+$id = Trasloco_Recovery_Journal::begin( $journal_dir, 'incoming.wpress', 'recovery-safe.wpress', 'same-import-retry-key-2026' );
+$retry = Trasloco_Recovery_Journal::begin( $journal_dir, 'incoming.wpress', 'recovery-safe.wpress', 'same-import-retry-key-2026' );
+ensure( $retry === $id, 'same restore retry uses existing receipt' );
+try {
+    Trasloco_Recovery_Journal::begin( $journal_dir, 'different.wpress', 'recovery-safe.wpress', 'same-import-retry-key-2026' );
+    ensure( false, 'recovery receipt accepted conflicting import identity' );
+} catch ( RuntimeException $expected ) {}
 $records = Trasloco_Recovery_Journal::entries( $journal_dir );
 ensure( count( $records ) === 1 && $records[0]['status'] === 'pending', 'journal is pending before import' );
 ensure( $records[0]['recovery_archive'] === 'recovery-safe.wpress', 'journal records recovery archive' );
