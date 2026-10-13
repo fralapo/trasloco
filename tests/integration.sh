@@ -229,7 +229,21 @@ if [ "$($WP option get home --path="$ROOT/target")" != "$EXPECTED_HOME" ]; then
 fi
 rm "$BAD_DIR/corrupted.wpress" "$BAD_DIR/corrupted.wpress.manifest.json"
 $WP trasloco restore "$(basename "$ARCHIVE")" --path="$ROOT/target"
-RECOVERY=$(find "$ROOT/target/wp-content/trasloco-backups" -maxdepth 1 -type f -name 'recovery-*.wpress' -print -quit)
+# Multiple legitimate restore attempts now create multiple recovery files.
+# Select the receipt belonging to THIS successful restore, not the first
+# filesystem entry (directory iteration order is not stable).
+RECOVERY_NAME=$(php "$GITHUB_WORKSPACE/tools/recovery-status.php" \
+  "$ROOT/target/wp-content/trasloco-backups" --json | php -r '
+  $rows = json_decode(stream_get_contents(STDIN), true);
+  foreach ((array) $rows as $entry) {
+    if ($entry["status"] === "completed" &&
+        $entry["source_archive"] === $argv[1]) {
+        echo $entry["recovery_archive"]; exit(0);
+    }
+  }
+  fwrite(STDERR, "No completed recovery receipt for the selected import\n"); exit(1);
+' "$(basename "$ARCHIVE")")
+RECOVERY="$ROOT/target/wp-content/trasloco-backups/$RECOVERY_NAME"
 test -n "$RECOVERY"
 test -s "$RECOVERY.manifest.json"
 [[ "$(basename "$RECOVERY")" == recovery-*.wpress ]]
