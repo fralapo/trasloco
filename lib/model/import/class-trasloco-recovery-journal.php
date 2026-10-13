@@ -129,14 +129,16 @@ class Trasloco_Recovery_Journal {
         $dir = self::directory( $directory );
         $limit = max( 1, min( 100, (int) $limit ) );
         $entries = array();
+        $scanned = 0;
         foreach ( new DirectoryIterator( $dir ) as $item ) {
-            if ( count( $entries ) >= $limit ) {
-                break;
-            }
             if ( $item->isDot() || $item->isLink() || ! $item->isFile() ||
                  ! preg_match( '/^\.trasloco-recovery-([a-f0-9]{32})\.json$/D', $item->getFilename(), $matches ) ||
                  $item->getSize() > 2048 ) {
                 continue;
+            }
+            $scanned++;
+            if ( $scanned > 5000 ) {
+                throw new RuntimeException( 'Recovery directory has too many receipts for safe listing.' );
             }
             $data = json_decode( (string) file_get_contents( $item->getPathname() ), true );
             if ( ! is_array( $data ) || ! isset( $data['version'], $data['id'], $data['status'],
@@ -162,9 +164,16 @@ class Trasloco_Recovery_Journal {
                 'created_at' => $data['created_at'],
             );
         }
+        // Important: never stop at the first $limit directory entries.
+        // Directory iteration order is unspecified; a recent failed import
+        // could otherwise disappear behind many older completed receipts.
         usort( $entries, function ( $a, $b ) {
-            return strcmp( $b['created_at'], $a['created_at'] );
+            if ( $a['status'] !== $b['status'] ) {
+                return $a['status'] === 'pending' ? -1 : 1;
+            }
+            $date = strcmp( $b['created_at'], $a['created_at'] );
+            return $date !== 0 ? $date : strcmp( $b['id'], $a['id'] );
         } );
-        return $entries;
+        return array_slice( $entries, 0, $limit );
     }
 }

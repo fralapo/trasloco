@@ -500,7 +500,12 @@ try {
 } catch ( InvalidArgumentException $expected ) {}
 Trasloco_Recovery_Journal::complete( $journal_dir, $id );
 ensure( Trasloco_Recovery_Journal::entries( $journal_dir )[0]['status'] === 'completed', 'successful import closes receipt' );
+$pending = Trasloco_Recovery_Journal::begin( $journal_dir, 'incoming-next.wpress', 'recovery-safe.wpress' );
+$limited = Trasloco_Recovery_Journal::entries( $journal_dir, 1 );
+ensure( count( $limited ) === 1 && $limited[0]['id'] === $pending && $limited[0]['status'] === 'pending',
+    'pending recovery point prioritized before limiting inventory' );
 unlink( $journal_dir . '/recovery-safe.wpress' );
 unlink( $journal_dir . '/recovery-safe.wpress.manifest.json' );
 unlink( $journal_dir . '/.trasloco-recovery-' . $id . '.json' );
+unlink( $journal_dir . '/.trasloco-recovery-' . $pending . '.json' );
 rmdir( $journal_dir );
