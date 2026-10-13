@@ -142,6 +142,8 @@ $WP trasloco verify "$(basename "$FAILED_RECOVERY")" --path="$ROOT/target"
 # The failed restore can remove target-only directories before SQL fails:
 # first prove that the offline comparison detects the actually missing file.
 RECOVERY_MISSING=$(php "$GITHUB_WORKSPACE/tools/recovery-diff.php" "$FAILED_RECOVERY" "$ROOT/target/wp-content" --json)
+# Temporary fixture diagnostics (relative paths only) for cross-matrix regression.
+printf 'Recovery comparison after SQL failure: %s\n' "$RECOVERY_MISSING"
 printf '%s' "$RECOVERY_MISSING" | php -r '
   $data = json_decode(stream_get_contents(STDIN), true);
   if (!is_array($data) || $data["missing"] < 1) {
