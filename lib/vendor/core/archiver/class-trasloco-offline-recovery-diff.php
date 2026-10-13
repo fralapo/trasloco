@@ -227,9 +227,17 @@ class Trasloco_Offline_Recovery_Diff {
         $report[ $state ]++;
         if ( count( $report['untracked_sample'] ) < 25 ) {
             $report['untracked_sample'][] = array(
-                'relative_path' => $relative,
+                'relative_path' => self::safe_display_path( $relative ),
                 'state' => $state,
             );
         }
+    }
+
+    /** Keep malicious or non-UTF8 filesystem names out of CLI log controls. */
+    private static function safe_display_path( $relative ) {
+        $pattern = preg_match( '//u', $relative ) ? '/[\\x00-\\x1f\\x7f]/' : '/[^\\x20-\\x7e]/';
+        return preg_replace_callback( $pattern, function ( $match ) {
+            return sprintf( '\\\\x%02X', ord( $match[0] ) );
+        }, $relative );
     }
 }

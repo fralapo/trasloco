@@ -595,6 +595,18 @@ if ( function_exists( 'symlink' ) && symlink( $scan_outside, $scan_root . '/uplo
         'symlink must be flagged but never followed during untracked scan' );
     unlink( $scan_root . '/uploads/docs/linked.txt' );
 }
+// A malicious live filename must not inject new lines, ANSI control codes
+// or invalid UTF-8 into the operator-facing recovery report.
+$bad_target_name = "untrusted\\nname.txt";
+file_put_contents( $scan_root . '/uploads/docs/' . $bad_target_name, 'TEST' );
+$clean = Trasloco_Offline_Recovery_Diff::compare( $scan_archive, $scan_root,
+    Trasloco_Offline_Recovery_Diff::DEFAULT_MAX_BYTES, true );
+ensure( $clean['not_in_snapshot'] === 2, 'control-character file not inventoried' );
+$paths_to_display = array_column( $clean['untracked_sample'], 'relative_path' );
+ensure( in_array( 'uploads/docs/untrusted\\\\x0Aname.txt', $paths_to_display, true ),
+    'untracked report did not escape control characters' );
+ensure( is_string( json_encode( $clean ) ), 'untracked report must be JSON-safe' );
+unlink( $scan_root . '/uploads/docs/' . $bad_target_name );
 ensure( file_get_contents( $scan_outside ) === 'SECRET', 'untracked scan altered external file' );
 unlink( $scan_outside );
 unlink( $scan_root . '/uploads/docs/later.txt' );
