@@ -64,6 +64,22 @@ class Trasloco_Offline_File_Recovery {
         return $cursor;
     }
 
+    private static function recovery_file( $base, $relative ) {
+        $segments = self::relative( $relative );
+        if ( is_link( $base ) || ! is_dir( $base ) ) {
+            throw new RuntimeException( 'Invalid private recovery directory.' );
+        }
+        $cursor = $base;
+        foreach ( $segments as $index => $segment ) {
+            $cursor .= DIRECTORY_SEPARATOR . $segment;
+            if ( is_link( $cursor ) ||
+                ( $index < count( $segments ) - 1 && ! is_dir( $cursor ) ) ) {
+                throw new RuntimeException( 'Invalid private recovery subdirectory.' );
+            }
+        }
+        return $cursor;
+    }
+
     private static function file_digest( $path ) {
         if ( is_link( $path ) || ! is_file( $path ) || ! is_readable( $path ) ) {
             throw new RuntimeException( 'Recovery source or existing file is unsafe.' );
@@ -280,7 +296,7 @@ class Trasloco_Offline_File_Recovery {
                 throw new RuntimeException( 'Recovery plan repeats a destination path.' );
             }
             $seen[ $relative ] = true;
-            $source = $staged . DIRECTORY_SEPARATOR . str_replace( '/', DIRECTORY_SEPARATOR, $relative );
+            $source = self::recovery_file( $staged, $relative );
             if ( self::file_digest( $source ) !== $record['sha256'] ||
                 filesize( $source ) !== $record['bytes'] ) {
                 throw new RuntimeException( 'Recovery staged file was modified.' );
@@ -288,7 +304,7 @@ class Trasloco_Offline_File_Recovery {
             $target = self::target( $root, $relative );
             $current = file_exists( $target ) ? self::file_digest( $target ) : null;
             if ( $record['previous_sha256'] !== null ) {
-                $old = $originals . DIRECTORY_SEPARATOR . str_replace( '/', DIRECTORY_SEPARATOR, $relative );
+                $old = self::recovery_file( $originals, $relative );
                 if ( self::file_digest( $old ) !== $record['previous_sha256'] ) {
                     throw new RuntimeException( 'Preserved original file is unavailable or corrupted.' );
                 }
