@@ -133,6 +133,23 @@ if ( strpos( wp_json_encode( $data ), ABSPATH ) !== false ) {
 $WP trasloco verify "$(basename "$FAILED_RECOVERY")" --path="$ROOT/target"
 # A recovery point must expose changed and missing files independently
 # of the potentially damaged WordPress/MySQL installation.
+# The failed restore can remove target-only directories before SQL fails:
+# first prove that the offline comparison detects the actually missing file.
+RECOVERY_MISSING=$(php "$GITHUB_WORKSPACE/tools/recovery-diff.php" "$FAILED_RECOVERY" "$ROOT/target/wp-content" --json)
+printf '%s' "$RECOVERY_MISSING" | php -r '
+  $data = json_decode(stream_get_contents(STDIN), true);
+  if (!is_array($data) || $data["missing"] < 1) {
+      fwrite(STDERR, "Offline comparison missed a deleted target file\n"); exit(1);
+  }
+  $found = false;
+  foreach ($data["sample"] as $entry) {
+      if ($entry["relative_path"] === "uploads/target-before-import/safety-marker.txt" &&
+          $entry["state"] === "missing") { $found = true; }
+  }
+  if (!$found) { fwrite(STDERR, "Missing destination media not reported\n"); exit(1); }
+'
+# Simulate a same-path, different-content survivor of a partial import.
+mkdir -p "$ROOT/target/wp-content/uploads/target-before-import"
 printf 'CHANGED BY FAILED IMPORT\n' > "$ROOT/target/wp-content/uploads/target-before-import/safety-marker.txt"
 RECOVERY_DIFF=$(php "$GITHUB_WORKSPACE/tools/recovery-diff.php" "$FAILED_RECOVERY" "$ROOT/target/wp-content" --json)
 printf '%s' "$RECOVERY_DIFF" | php -r '
