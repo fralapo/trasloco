@@ -21,7 +21,7 @@ Commit `7eb0d24` passed [quality checks](https://github.com/fralapo/trasloco/act
 
 - [x] Preserve restrictive ordinary POSIX permissions on replaced files, including permissions tightened after planning; retain old v1 plan compatibility.
 - [x] Count staged content plus preserved originals in one payload budget and bound original copies even if the source grows.
-- [x] Standalone regressions and permission assertion in the post-SQL-failure integration fixture. See the PR checks for validation of this increment; the baseline run above predates these fixes.
+- [x] Standalone regressions and permission assertion in the post-SQL-failure integration fixture. This increment passed [quality CI on all three PHP versions](https://github.com/fralapo/trasloco/actions/runs/38415500101) and [all six PHP/database integration jobs](https://github.com/fralapo/trasloco/actions/runs/38415499626), including the private-file assertion after real SQL failure.
 
 ## Required before production certification
 
