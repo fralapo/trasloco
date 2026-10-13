@@ -20,4 +20,4 @@
 - Local PHP 8.5.4: recovery and archive/security smoke tests, 346 translation strings, all PHP syntax, integration shell syntax and whitespace checks passed.
 - [Quality CI](https://github.com/fralapo/trasloco/actions/runs/38415500101): PHP 7.4/8.2/8.4 all passed.
 - [WordPress integration](https://github.com/fralapo/trasloco/actions/runs/38415499626): all six PHP × MySQL/MariaDB jobs passed, including private permissions after real SQL failure.
-- [PR #3](https://github.com/fralapo/trasloco/pull/3) delivers the isolated increment against hardening. Full integration of the divergent feature branch remains pending under `docs/BRANCH_RECONCILIATION.md`; production rollback certification is outside this increment.
+- [PR #3](https://github.com/fralapo/trasloco/pull/3) delivers the isolated increment against hardening. Full integration of the divergent feature branch remains pending under `docs/BRANCH_RECONCILIATION.md`; archive-absent deletion policy, cross-host fencing and power-failure durability remain open; production rollback certification is outside this increment.

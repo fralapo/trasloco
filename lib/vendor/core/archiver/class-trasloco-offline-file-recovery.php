@@ -281,7 +281,44 @@ class Trasloco_Offline_File_Recovery {
      * Caller must have independently stopped ALL writers to wp-content.
      * No deletes, no SQL writes. A stopped process may be replayed safely.
      */
+    /** Serialize concurrent operators applying the same private workspace. */
     public static function apply( $workspace, $content_root ) {
+        if ( ! is_string( $workspace ) || is_link( $workspace ) || ! is_dir( $workspace ) ) {
+            throw new RuntimeException( 'Recovery workspace is inaccessible.' );
+        }
+        $work = realpath( $workspace );
+        if ( $work === false ) {
+            throw new RuntimeException( 'Recovery workspace cannot be resolved.' );
+        }
+        $lock_path = $work . DIRECTORY_SEPARATOR . '.apply.lock';
+        if ( is_link( $lock_path ) ) {
+            throw new RuntimeException( 'Unsafe recovery lock path.' );
+        }
+        $lock = @fopen( $lock_path, 'c+b' );
+        if ( $lock === false ) {
+            throw new RuntimeException( 'Cannot open recovery workspace lock.' );
+        }
+        try {
+            $opened = fstat( $lock );
+            if ( is_link( $lock_path ) || $opened === false ||
+                ! isset( $opened['mode'], $opened['nlink'] ) ||
+                ( $opened['mode'] & 0170000 ) !== 0100000 || $opened['nlink'] !== 1 ||
+                ! @chmod( $lock_path, 0600 ) ) {
+                throw new RuntimeException( 'Recovery workspace lock is unsafe.' );
+            }
+            if ( ! flock( $lock, LOCK_EX | LOCK_NB ) ) {
+                throw new RuntimeException( 'Another recovery process is applying this plan.' );
+            }
+            return self::apply_locked( $workspace, $content_root );
+        } finally {
+            if ( is_resource( $lock ) ) {
+                @flock( $lock, LOCK_UN );
+                fclose( $lock );
+            }
+        }
+    }
+
+    private static function apply_locked( $workspace, $content_root ) {
         $root = self::root( $content_root, true );
         if ( ! is_string( $workspace ) || is_link( $workspace ) ||
             ! is_dir( $workspace ) || ! is_writable( $workspace ) ) {
