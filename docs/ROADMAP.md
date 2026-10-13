@@ -1,10 +1,10 @@
 # Production readiness roadmap
 
-Updated 2026-10-13. The hardening branch is an active implementation effort, not a production release. [The 2.0 execution plan](TRASLOCO_2_0_PLAN.md) contains detailed increments; [branch reconciliation](BRANCH_RECONCILIATION.md) records how the separate draft implementation will be ported.
+Updated 2026-10-13. Version 1.2.0 ships the reviewed hardening work on `main`; it is a maintenance release, not production certification. [The 2.0 execution plan](TRASLOCO_2_0_PLAN.md) contains the next feature increments; [branch reconciliation](BRANCH_RECONCILIATION.md) records how the separate draft implementation will be ported.
 
 ## Verified baseline
 
-Commit `7eb0d24` passed [quality checks](https://github.com/fralapo/trasloco/actions/runs/38411048213) on PHP 7.4/8.2/8.4 and [six CLI integration jobs](https://github.com/fralapo/trasloco/actions/runs/38411048239) across those PHP versions with MySQL 8.0 and MariaDB 11.4. The integration downloads WordPress at execution time; this is not a pinned current/previous-major WordPress matrix or an HTTP hosting test.
+Release candidate `d9581af` passed [quality checks](https://github.com/fralapo/trasloco/actions/runs/38417080300) on PHP 7.4/8.2/8.4 and [six CLI integration jobs](https://github.com/fralapo/trasloco/actions/runs/38417080326) across those PHP versions with MySQL 8.0 and MariaDB 11.4. The integration downloads WordPress at execution time; this is not a pinned current/previous-major WordPress matrix or an HTTP hosting test.
 
 - [x] Expiring operation-scoped tokens, administrator permissions and authenticated backup downloads.
 - [x] Apache/IIS access rules for archives and private staging; Nginx configuration documented.
@@ -23,7 +23,7 @@ Commit `7eb0d24` passed [quality checks](https://github.com/fralapo/trasloco/act
 - [x] Count staged content plus preserved originals in one payload budget and bound original copies even if the source grows.
 - [x] Standalone regressions and permission assertion in the post-SQL-failure integration fixture. This increment passed [quality CI on all three PHP versions](https://github.com/fralapo/trasloco/actions/runs/38415500101) and [all six PHP/database integration jobs](https://github.com/fralapo/trasloco/actions/runs/38415499626), including the private-file assertion after real SQL failure.
 
-## Required before production certification
+## Remaining production certification work
 
 - [ ] Full independently rehearsed site rollback, including archive-absent paths; overlay recovery is not globally atomic.
 - [ ] Multi-process locking, durable fsync/power-failure and true interrupted-PHP crash/replay tests.
@@ -34,4 +34,4 @@ Commit `7eb0d24` passed [quality checks](https://github.com/fralapo/trasloco/act
 - [ ] Accessibility, keyboard/screen-reader audits and independent security review.
 - [ ] Module-by-module reconciliation of draft PR #2; textual conflict resolution alone is insufficient.
 
-Keep `main` at its published release until the release gates above are met. Green CLI CI is necessary but does not prove complete disaster recovery or host compatibility.
+Green CLI CI is necessary but does not prove complete disaster recovery or host compatibility. Version 1.2.0 does not claim those remaining certification results.

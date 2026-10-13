@@ -54,7 +54,7 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 4. Integrate admin UX and the translation catalog, including accessibility.
 5. Run quality + full WordPress integration and HTTP security checks.
 6. Ship atomic commit, update tests/docs/roadmap and include test evidence in PR.
-7. Release only after actual restore verification across at least two hosting configurations.
+7. Release a 2.0 restore workflow only after actual restore verification across at least two hosting configurations.
 
 ## Research references and reasons
 
