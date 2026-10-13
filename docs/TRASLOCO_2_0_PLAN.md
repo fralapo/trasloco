@@ -197,3 +197,7 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 
 - [x] P0 read-only extension: optional bounded offline scan of destination files absent from a verified recovery archive, with separate symlink warnings, independent relative-path samples and post-SQL-failure integration. Untracked files are not proven imported-only and are never automatically deleted.
 - [ ] Safe staged filesystem rollback and full-site atomic restore remain open; the untracked report is an input for operator review, not a deletion policy.
+
+
+- [x] Phase 2B-2D-1: independent two-phase, SHA-256-verified wp-content file recovery (prepare/apply) with offline confirmation, preserved replaced bytes, preflight symlink rejection, atomic per-file replacement, retry-idempotent workspace and no deletion of untracked files. Standalone and induced-SQL-failure integration regressions included.
+- [ ] Phase 2B-2D-2: operator-verified complete filesystem rollback including archive-absent paths, multi-process locking, durable fsync and power-failure testing. Two-phase overlay is intentionally NOT an atomic full-site transaction.

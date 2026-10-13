@@ -196,6 +196,23 @@ printf '%s' "$UNTRACKED_REPORT" | php -r '
 '
 test -f "$ROOT/target/wp-content/uploads/target-before-import/untracked-after-failure.txt"
 
+# Two-phase, independent filesystem rescue requires no WordPress bootstrap.
+# The operator explicitly confirms that the target site is offline. A prior
+# copy of each replaced file remains in the private workspace for reversal.
+RESCUE_OVERLAY="$ROOT/file-overlay-recovery"
+php "$GITHUB_WORKSPACE/tools/recovery-files.php" prepare \
+  "$FAILED_RECOVERY" "$ROOT/target/wp-content" "$RESCUE_OVERLAY"
+test -f "$RESCUE_OVERLAY/plan.json"
+test -f "$RESCUE_OVERLAY/originals/uploads/target-before-import/safety-marker.txt" || \
+  test ! -f "$ROOT/target/wp-content/uploads/target-before-import/safety-marker.txt"
+php "$GITHUB_WORKSPACE/tools/recovery-files.php" apply \
+  "$RESCUE_OVERLAY" "$ROOT/target/wp-content" --site-offline-confirmed
+cmp -s "$ROOT/target-safety-marker.expected" \
+  "$ROOT/target/wp-content/uploads/target-before-import/safety-marker.txt"
+test -f "$ROOT/target/wp-content/uploads/target-before-import/untracked-after-failure.txt"
+php "$GITHUB_WORKSPACE/tools/recovery-files.php" apply \
+  "$RESCUE_OVERLAY" "$ROOT/target/wp-content" --site-offline-confirmed | grep -F '"already_completed": true'
+
 # Operator-driven rollback: do NOT silently restore in the failed import
 # process, whose database and active plugin set may already be inconsistent.
 $WP trasloco restore "$(basename "$FAILED_RECOVERY")" --path="$ROOT/target"

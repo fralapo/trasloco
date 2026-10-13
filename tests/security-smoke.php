@@ -618,3 +618,51 @@ rmdir( $scan_root . '/languages' );
 rmdir( $scan_root );
 unlink( $scan_archive . '.manifest.json' );
 unlink( $scan_archive );
+
+
+// Offline two-phase file recovery: preserve originals and do not delete
+// destination-only files; reject symlink traversal and corrupted staging.
+require dirname( __DIR__ ) . '/lib/vendor/core/archiver/class-trasloco-offline-file-recovery.php';
+$repair_root = sys_get_temp_dir() . '/tr-repair-test-' . bin2hex( random_bytes( 8 ) );
+mkdir( $repair_root, 0700 );
+mkdir( $repair_root . '/wp-content/uploads/docs', 0700, true );
+file_put_contents( $repair_root . '/wp-content/uploads/docs/modified.txt', 'CURRENT' );
+file_put_contents( $repair_root . '/wp-content/uploads/docs/untracked.txt', 'DO NOT DELETE' );
+$repair_archive = $repair_root . '/snapshot.wpress';
+$repair_packet = pack( 'a255a14a12a4096', 'package.json', '2', '0', '.' ) . '{}';
+$repair_packet .= pack( 'a255a14a12a4096', 'modified.txt', '8', '0', 'uploads/docs' ) . 'ORIGINAL';
+$repair_packet .= pack( 'a255a14a12a4096', 'missing.txt', '4', '0', 'uploads/docs' ) . 'BACK';
+$repair_packet .= str_repeat( chr( 0 ), 4377 );
+file_put_contents( $repair_archive, $repair_packet );
+file_put_contents( $repair_archive . '.manifest.json', json_encode( array(
+    'manifest_version' => 1, 'algorithm' => 'sha256',
+    'size_bytes' => filesize( $repair_archive ),
+    'sha256' => hash_file( 'sha256', $repair_archive ),
+) ) );
+$repair_work = $repair_root . '/private-work';
+$prepared = Trasloco_Offline_File_Recovery::prepare( $repair_archive, $repair_root . '/wp-content', $repair_work );
+ensure( $prepared['files_to_restore'] === 2, 'file recovery stages missing and modified originals' );
+ensure( file_get_contents( $repair_root . '/wp-content/uploads/docs/modified.txt' ) === 'CURRENT', 'file recovery prepare never touches site' );
+ensure( file_get_contents( $repair_work . '/originals/uploads/docs/modified.txt' ) === 'CURRENT', 'file recovery retains overwritten bytes' );
+symlink( $repair_root . '/wp-content/uploads/docs/modified.txt', $repair_root . '/wp-content/uploads/docs/missing.txt' );
+try {
+    Trasloco_Offline_File_Recovery::apply( $repair_work, $repair_root . '/wp-content' );
+    ensure( false, 'unsafe destination link accepted during file recovery' );
+} catch ( RuntimeException $expected ) {}
+ensure( file_get_contents( $repair_root . '/wp-content/uploads/docs/modified.txt' ) === 'CURRENT', 'unsafe destination rejected before changes' );
+unlink( $repair_root . '/wp-content/uploads/docs/missing.txt' );
+$applied = Trasloco_Offline_File_Recovery::apply( $repair_work, $repair_root . '/wp-content' );
+ensure( $applied['files_restored'] === 2 && $applied['untracked_deleted'] === 0, 'file overlay applied only to tracked paths' );
+ensure( file_get_contents( $repair_root . '/wp-content/uploads/docs/modified.txt' ) === 'ORIGINAL', 'modified destination restored' );
+ensure( file_get_contents( $repair_root . '/wp-content/uploads/docs/missing.txt' ) === 'BACK', 'missing destination restored' );
+ensure( file_get_contents( $repair_root . '/wp-content/uploads/docs/untracked.txt' ) === 'DO NOT DELETE', 'unknown file preserved' );
+ensure( Trasloco_Offline_File_Recovery::apply( $repair_work, $repair_root . '/wp-content' )['already_completed'] === true,
+    'file overlay replay is idempotent' );
+$repair_bad = $repair_root . '/private-tampered';
+Trasloco_Offline_File_Recovery::prepare( $repair_archive, $repair_root . '/wp-content', $repair_bad );
+file_put_contents( $repair_archive, 'tampered' );
+try {
+    Trasloco_Offline_File_Recovery::prepare( $repair_archive, $repair_root . '/wp-content', $repair_root . '/rejected-work' );
+    ensure( false, 'tampered rescue snapshot accepted' );
+} catch ( RuntimeException $expected ) {}
+ensure( ! file_exists( $repair_root . '/rejected-work' ), 'tampered snapshot did not allocate workspace' );
