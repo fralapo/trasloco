@@ -22,6 +22,12 @@ for ROLE in source target; do
 done
 EXPECTED_HOME=$($WP option get home --path="$ROOT/target")
 EXPECTED_SITE=$($WP option get siteurl --path="$ROOT/target")
+# Set up an original destination file BEFORE intentionally failing SQL.
+# The recovery snapshot must contain it to prove that the offline diff sees
+# files lost by the partially destructive restore.
+mkdir -p "$ROOT/target/wp-content/uploads/target-before-import"
+printf 'target media survived independent rescue\n' > "$ROOT/target/wp-content/uploads/target-before-import/safety-marker.txt"
+
 
 $WP post create --path="$ROOT/source" --post_type=post --post_status=publish --post_title="Trasloco fixture: source post" --post_content="Migration round-trip verified"
 mkdir -p "$ROOT/source/wp-content/uploads/test-fixtures"
