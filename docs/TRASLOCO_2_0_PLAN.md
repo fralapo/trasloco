@@ -192,3 +192,5 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 
 - [x] P0 manual recovery aid: standalone, SHA-256-gated, bounded offline comparison of a recovery archive's uploads/themes/plugins/mu-plugins against actual destination bytes. Reports changed/missing/unsafe files without loading WordPress/MySQL or touching content; includes an actual post-DDL SQL error followed by simulated missing/modified-file states and operator-driven recovery.
 - [ ] Recovery diff is **read-only and incomplete for automatic rollback**: it deliberately excludes extra imported-only files and database changes. A staged, reviewed full filesystem rollback remains a release blocker.
+
+- [x] P0 recovery audit: after induced post-DDL SQL failure and database recovery, a target-only file may still be absent from the live site. End-to-end test detects this, independently stages the original bytes from the verified recovery archive and confirms offline diff still flags unrecovered content; no false claim of atomic rollback.

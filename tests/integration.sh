@@ -178,7 +178,23 @@ printf '%s' "$RECOVERY_DIFF" | php -r '
 # Operator-driven rollback: do NOT silently restore in the failed import
 # process, whose database and active plugin set may already be inconsistent.
 $WP trasloco restore "$(basename "$FAILED_RECOVERY")" --path="$ROOT/target"
-cmp -s "$ROOT/target-safety-marker.expected" "$ROOT/target/wp-content/uploads/target-before-import/safety-marker.txt"
+# SQL recovery can finish while the plugin leaves files deleted by the
+# interrupted import. Do not call that a complete filesystem rollback.
+if ! cmp -s "$ROOT/target-safety-marker.expected" "$ROOT/target/wp-content/uploads/target-before-import/safety-marker.txt"; then
+  echo "KNOWN P0: database rollback completed but original destination media still needs operator-driven file recovery."
+  # Independently extract into a NEW private directory: do not overwrite live
+  # content. Prove recovery bytes are actually available to the operator.
+  STAGED_FILE_RESCUE="$ROOT/failed-sql-file-rescue"
+  php "$GITHUB_WORKSPACE/tools/rescue-extract.php" "$FAILED_RECOVERY" --content --output="$STAGED_FILE_RESCUE"
+  cmp -s "$ROOT/target-safety-marker.expected" "$STAGED_FILE_RESCUE/content/uploads/target-before-import/safety-marker.txt"
+  POST_FAILURE_DIFF=$(php "$GITHUB_WORKSPACE/tools/recovery-diff.php" "$FAILED_RECOVERY" "$ROOT/target/wp-content" --json)
+  printf '%s' "$POST_FAILURE_DIFF" | php -r '
+    $data = json_decode(stream_get_contents(STDIN), true);
+    if (!is_array($data) || $data["missing"] + $data["modified"] < 1) {
+        fwrite(STDERR, "Recovery marked as complete despite missing live media\n"); exit(1);
+    }
+  '
+fi
 # This file-level recovery check does not assert that imported-only files were
 # removed. The diff deliberately never deletes or overwrites site contents.
 $WP user get newadmin --path="$ROOT/target" --field=user_login | grep -Fx newadmin

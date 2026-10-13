@@ -14,3 +14,13 @@ The comparison is **read only** and **does not bootstrap WordPress or MySQL**. I
 Limitations: this does not detect imported-only extra files that are not in the recovery archive, database mutations, or concurrent live writes. It **does not delete or replace anything** and is not an automated, atomic rollback. Do not use `rsync --delete` against production based only on this report. For a full rollback, stop writes and rehearse disaster recovery on an isolated site; follow the recovery runbook.
 
 Only a backup with a valid local SHA-256 sidecar is eligible; legacy backups without sidecars are rejected. The manifest is a corruption check, not proof of who created the backup.
+
+## Manual recovery of missing files
+
+If the comparison reports missing/modified files after a database rollback, use the existing standalone rescue command to create a **new private staging directory**, then review the staged content and perform an operator-controlled restore of the affected files:
+
+```bash
+php tools/rescue-extract.php /private/trasloco-backups/recovery-example.wpress --content --output=/private/manual-file-rescue
+```
+
+The command does not write into the live site. Take the site offline before any manual copy, check permissions and unexpected files, and avoid deleting live files not present in the archive. Database recovery alone is not a full site rollback.
