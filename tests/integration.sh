@@ -85,6 +85,9 @@ printf '%s\n' "$FAILURE_LOG" | grep -F 'trasloco_ci_forced_sql_failure_2026'
 # A real partial restore happened: database.sql was executed before its final
 # invalid statement. Confirm the preexisting destination user was replaced.
 $WP user get oldadmin --path="$ROOT/target" --field=user_login | grep -Fx oldadmin
+# A failed restore may replace active_plugins before the final "Done" stage.
+# The operator must still be able to re-enable the existing plugin and recover.
+$WP plugin activate trasloco --path="$ROOT/target"
 FAILED_RECOVERY=$(find "$ROOT/target/wp-content/trasloco-backups" -maxdepth 1 \
   -type f -name 'recovery-*.wpress' -print -quit)
 test -s "$FAILED_RECOVERY"
