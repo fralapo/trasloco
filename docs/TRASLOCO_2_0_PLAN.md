@@ -1,6 +1,6 @@
 # Trasloco 2.0 — execution plan (15 features)
 
-Updated 2026-10-12. This plan is an implementation dependency map, not a claim that unfinished capabilities exist.
+Updated 2026-10-13. This plan is an implementation dependency map, not a claim that unfinished capabilities exist.
 
 ## Ground rules and non-negotiable release gates
 
@@ -183,4 +183,9 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 - [ ] Phase 2B-2B-2: provoke real post-DDL SQL import failure and prove manual database rollback using recorded archive on both MySQL and MariaDB.
 
 - [x] Phase 2B-2B-2A: tested independent filesystem recovery journal and offline CLI receipt discovery, requiring no WordPress/MySQL process.
-- [ ] Phase 2B-2B-2B: post-DDL SQL failure and manual database rollback matrix validation (await six integration checks).
+- [x] Phase 2B-2B-2B: induced real SQL error after DDL/data import, preserved independent pending receipt, and operator-driven database rollback. WordPress integration passed across PHP 7.4/8.2/8.4 × MySQL 8.0/MariaDB 11.4 on commit fdd5dbfe.
+
+- [x] Phase 2B-2C: independent CLI `tools/recovery-status.php`, retry-idempotent recovery receipts, pending-first bounded inventory, administrator-only read-only REST and admin warning panel. Regression includes anonymous permission denial and no server-path leakage.
+- [x] Recovery audit: a failed SQL import can deactivate the Trasloco plugin before import finalization; documented safe WP-CLI reactivation, plus a real recovery rehearsal after failure.
+- [ ] **P0: Atomic full-site rollback is not implemented.** Restoring the previous database does not automatically remove newly created filesystem contents; unbootable WordPress and other hosting configurations still require independently rehearsed recovery and operator intervention.
+- [ ] P0: cross-host HTTP denial tests, truly interrupted PHP crash/replay, WooCommerce order consistency and multisite fidelity before production certification.
