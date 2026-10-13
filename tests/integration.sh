@@ -27,6 +27,7 @@ EXPECTED_SITE=$($WP option get siteurl --path="$ROOT/target")
 # files lost by the partially destructive restore.
 mkdir -p "$ROOT/target/wp-content/uploads/target-before-import"
 printf 'target media survived independent rescue\n' > "$ROOT/target/wp-content/uploads/target-before-import/safety-marker.txt"
+cp "$ROOT/target/wp-content/uploads/target-before-import/safety-marker.txt" "$ROOT/target-safety-marker.expected"
 
 
 $WP post create --path="$ROOT/source" --post_type=post --post_status=publish --post_title="Trasloco fixture: source post" --post_content="Migration round-trip verified"
