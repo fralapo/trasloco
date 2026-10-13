@@ -476,3 +476,25 @@ try {
     $bad_reader->close();
     unlink( $bad_log_archive );
 }
+
+
+// A recovery receipt survives a replaced WordPress database: no WP functions.
+require dirname( __DIR__ ) . '/lib/model/import/class-trasloco-recovery-journal.php';
+$journal_dir = sys_get_temp_dir() . '/trasloco-journal-' . bin2hex( random_bytes( 8 ) );
+mkdir( $journal_dir, 0700 );
+file_put_contents( $journal_dir . '/recovery-safe.wpress', 'fixture' );
+file_put_contents( $journal_dir . '/recovery-safe.wpress.manifest.json', '{}' );
+$id = Trasloco_Recovery_Journal::begin( $journal_dir, 'incoming.wpress', 'recovery-safe.wpress' );
+$records = Trasloco_Recovery_Journal::entries( $journal_dir );
+ensure( count( $records ) === 1 && $records[0]['status'] === 'pending', 'journal is pending before import' );
+ensure( $records[0]['recovery_archive'] === 'recovery-safe.wpress', 'journal records recovery archive' );
+try {
+    Trasloco_Recovery_Journal::begin( $journal_dir, '../traversal.wpress', 'recovery-safe.wpress' );
+    ensure( false, 'unsafe receipt input accepted' );
+} catch ( InvalidArgumentException $expected ) {}
+Trasloco_Recovery_Journal::complete( $journal_dir, $id );
+ensure( Trasloco_Recovery_Journal::entries( $journal_dir )[0]['status'] === 'completed', 'successful import closes receipt' );
+unlink( $journal_dir . '/recovery-safe.wpress' );
+unlink( $journal_dir . '/recovery-safe.wpress.manifest.json' );
+unlink( $journal_dir . '/.trasloco-recovery-' . $id . '.json' );
+rmdir( $journal_dir );

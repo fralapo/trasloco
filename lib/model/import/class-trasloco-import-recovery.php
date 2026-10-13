@@ -37,6 +37,9 @@ class Trasloco_Import_Recovery {
             require_once TRASLOCO_LIB_PATH . '/vendor/core/archiver/class-trasloco-integrity.php';
             if ( Trasloco_Integrity::verify( trasloco_backup_path( array( 'archive' => $name ) ) )['status'] === 'verified' ) {
                 $params['recovery_archive'] = $name;
+                $params['recovery_receipt'] = Trasloco_Recovery_Journal::begin(
+                    TRASLOCO_BACKUPS_PATH, $params['archive'], $name
+                );
                 return $params;
             }
         }
@@ -45,6 +48,9 @@ class Trasloco_Import_Recovery {
             throw new Trasloco_Import_Exception( 'The safety backup failed. The destination has not been replaced.' );
         }
         $params['recovery_archive'] = $result['archive'];
+        $params['recovery_receipt'] = Trasloco_Recovery_Journal::begin(
+            TRASLOCO_BACKUPS_PATH, $params['archive'], $result['archive']
+        );
         Trasloco_Status::info( __( 'Recovery point verified. Starting the import...', TRASLOCO_PLUGIN_NAME ) );
         return $params;
     }

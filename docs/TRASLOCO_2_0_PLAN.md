@@ -178,3 +178,6 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 
 - [x] Disaster recovery runbook now documents the CI-verified fresh WordPress/MySQL bootstrap path and clearly distinguishes it from offline metadata rescue and automatic rollback.
 - [x] Malformed archive filenames are not included verbatim in restore exceptions or WP-CLI logs; newline/control-character fixture checks the log boundary.
+
+- [x] Phase 2B-2B-1: filesystem recovery receipts survive database replacement, mark pending until import completes, and are testable without WordPress.
+- [ ] Phase 2B-2B-2: provoke real post-DDL SQL import failure and prove manual database rollback using recorded archive on both MySQL and MariaDB.

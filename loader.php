@@ -280,6 +280,10 @@ require_once TRASLOCO_IMPORT_PATH .
 			'class-trasloco-import-preflight.php';
 
 require_once TRASLOCO_IMPORT_PATH .
+            DIRECTORY_SEPARATOR .
+            'class-trasloco-recovery-journal.php';
+
+require_once TRASLOCO_IMPORT_PATH .
 			DIRECTORY_SEPARATOR .
 			'class-trasloco-import-recovery.php';
 
