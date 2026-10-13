@@ -74,6 +74,41 @@ try {
     Trasloco_Offline_File_Recovery::apply( $base . '/work', $base . '/wp-content' );
     clearstatcache();
     recovery_assert( ( fileperms( $base . '/wp-content/uploads/file.txt' ) & 0777 ) === 0644, 'Missing file did not receive default permissions.' );
+    $base = recovery_fixture( $root, 'concurrent', 'OLD', 'NEW' );
+    Trasloco_Offline_File_Recovery::prepare( $base . '/snapshot.wpress', $base . '/wp-content', $base . '/work' );
+    $lock = fopen( $base . '/work/.apply.lock', 'c+b' );
+    recovery_assert( $lock !== false && flock( $lock, LOCK_EX | LOCK_NB ), 'Could not arrange competing recovery lock.' );
+    $command = escapeshellarg( PHP_BINARY ) . ' ' . escapeshellarg( dirname( __DIR__ ) . '/tools/recovery-files.php' ) .
+        ' apply ' . escapeshellarg( $base . '/work' ) . ' ' . escapeshellarg( $base . '/wp-content' ) .
+        ' --site-offline-confirmed 2>&1';
+    $output = array();
+    $status = 0;
+    exec( $command, $output, $status );
+    flock( $lock, LOCK_UN );
+    fclose( $lock );
+    recovery_assert( $status !== 0 && strpos( implode( "\n", $output ), 'Another recovery process' ) !== false,
+        'Concurrent recovery was not rejected with a clear diagnostic.' );
+    recovery_assert( file_get_contents( $base . '/wp-content/uploads/file.txt' ) === 'OLD',
+        'A rejected concurrent recovery modified the site.' );
+    recovery_assert( json_decode( file_get_contents( $base . '/work/plan.json' ), true )['state'] === 'prepared',
+        'A rejected concurrent recovery changed the plan state.' );
+    $applied = Trasloco_Offline_File_Recovery::apply( $base . '/work', $base . '/wp-content' );
+    recovery_assert( $applied['state'] === 'completed' &&
+        file_get_contents( $base . '/wp-content/uploads/file.txt' ) === 'NEW',
+        'Recovery did not resume after competing process released lock.' );
+    $base = recovery_fixture( $root, 'hardlink-lock', 'OLD', 'NEW' );
+    Trasloco_Offline_File_Recovery::prepare( $base . '/snapshot.wpress', $base . '/wp-content', $base . '/work' );
+    $lock_target = $base . '/outside-lock-target';
+    file_put_contents( $lock_target, 'Do not chmod through a workspace lock link.' );
+    chmod( $lock_target, 0644 );
+    recovery_assert( link( $lock_target, $base . '/work/.apply.lock' ), 'Could not arrange lock hard-link fixture.' );
+    $rejected = false;
+    try { Trasloco_Offline_File_Recovery::apply( $base . '/work', $base . '/wp-content' ); }
+    catch ( RuntimeException $e ) { $rejected = true; }
+    clearstatcache();
+    recovery_assert( $rejected, 'Hard-linked lock file was accepted.' );
+    recovery_assert( ( fileperms( $lock_target ) & 0777 ) === 0644, 'Lock validation changed permissions through a hard link.' );
+    recovery_assert( file_get_contents( $base . '/wp-content/uploads/file.txt' ) === 'OLD', 'Unsafe lock changed live content.' );
     $base = recovery_fixture( $root, 'invalid-mode', 'OLD', 'NEW' );
     Trasloco_Offline_File_Recovery::prepare( $base . '/snapshot.wpress', $base . '/wp-content', $base . '/work' );
     $path = $base . '/work/plan.json';

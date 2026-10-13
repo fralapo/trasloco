@@ -200,8 +200,10 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 
 
 - [x] Phase 2B-2D-1: independent two-phase, SHA-256-verified wp-content file recovery (prepare/apply) with offline confirmation, preserved replaced bytes, preflight symlink rejection, atomic per-file replacement, retry-idempotent workspace and no deletion of untracked files. Standalone and induced-SQL-failure integration regressions included.
-- [ ] Phase 2B-2D-2: operator-verified complete filesystem rollback including archive-absent paths, multi-process locking, durable fsync and power-failure testing. Two-phase overlay is intentionally NOT an atomic full-site transaction.
+- [ ] Phase 2B-2D-2: operator-reviewed deletion of archive-absent paths, cross-host/fencing semantics, durable fsync and power-failure testing. A local workspace lock now serializes apply processes. Two-phase overlay is still not a globally atomic full-site transaction.
 
 - [x] Offline recovery safety: preserve restrictive POSIX file permissions and enforce a shared payload budget for staged snapshots plus retained originals. Old v1 plans remain readable; special modes/ownership/ACLs are not restored.
 
 See [branch reconciliation](BRANCH_RECONCILIATION.md) before porting features from PR #2.
+
+- [x] Offline file recovery now uses a workspace-scoped exclusive process lock; concurrent apply attempts fail before mutations and can resume after lock release. This local filesystem lock does not provide cross-host/NFS fencing or power-loss durability.
