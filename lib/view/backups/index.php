@@ -63,6 +63,50 @@
 		<p role="alert" class="notice notice-error"><?php esc_html_e( 'Backup verification could not be queued.', TRASLOCO_PLUGIN_NAME ); ?></p>
 	<?php endif; ?>
 
+	<?php
+    $tr_pending_recoveries = array();
+    $tr_recovery_error = false;
+    try {
+        if ( is_dir( TRASLOCO_BACKUPS_PATH ) ) {
+            foreach ( Trasloco_Recovery_Journal::entries( TRASLOCO_BACKUPS_PATH, 30 ) as $tr_receipt ) {
+                if ( $tr_receipt['status'] === 'pending' ) {
+                    $tr_pending_recoveries[] = $tr_receipt;
+                }
+            }
+        }
+    } catch ( Throwable $tr_error ) {
+        $tr_recovery_error = true;
+    }
+    ?>
+    <?php if ( $tr_pending_recoveries || $tr_recovery_error ) : ?>
+        <section class="tr-card" aria-labelledby="tr-recovery-attention">
+            <h2 id="tr-recovery-attention"><?php esc_html_e( 'Recovery points requiring attention', TRASLOCO_PLUGIN_NAME ); ?></h2>
+            <p class="tr-hint"><?php esc_html_e( 'A previous import did not confirm completion. Keep its recovery archive, check the site, and recover manually if needed.', TRASLOCO_PLUGIN_NAME ); ?></p>
+            <?php if ( $tr_recovery_error ) : ?>
+                <p role="alert"><?php esc_html_e( 'Recovery receipts could not be read.', TRASLOCO_PLUGIN_NAME ); ?></p>
+            <?php endif; ?>
+            <?php if ( $tr_pending_recoveries ) : ?>
+                <table class="widefat striped">
+                    <thead><tr>
+                        <th scope="col"><?php esc_html_e( 'Created', TRASLOCO_PLUGIN_NAME ); ?></th>
+                        <th scope="col"><?php esc_html_e( 'Imported archive', TRASLOCO_PLUGIN_NAME ); ?></th>
+                        <th scope="col"><?php esc_html_e( 'Recovery archive', TRASLOCO_PLUGIN_NAME ); ?></th>
+                    </tr></thead>
+                    <tbody>
+                    <?php foreach ( $tr_pending_recoveries as $tr_receipt ) : ?>
+                        <tr>
+                            <td><?php echo esc_html( $tr_receipt['created_at'] ); ?> UTC</td>
+                            <td><code><?php echo esc_html( $tr_receipt['source_archive'] ); ?></code></td>
+                            <td><code><?php echo esc_html( $tr_receipt['recovery_archive'] ); ?></code></td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            <?php endif; ?>
+            <p class="tr-hint"><?php esc_html_e( 'A recovery point is not an automatic rollback. Rehearse restoration on a separate site before replacing production data.', TRASLOCO_PLUGIN_NAME ); ?></p>
+        </section>
+    <?php endif; ?>
+
 	<?php include TRASLOCO_TEMPLATES_PATH . '/backups/legend.php'; ?>
 
 				<form action="" method="post" id="trasloco-backups-form" class="trasloco-clear">

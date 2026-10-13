@@ -6,6 +6,11 @@
  */
 class Trasloco_REST_API {
     public static function register() {
+        register_rest_route( 'trasloco/v1', '/recovery-points', array(
+            'methods' => 'GET',
+            'callback' => array( __CLASS__, 'list_recovery_points' ),
+            'permission_callback' => array( __CLASS__, 'can_manage' ),
+        ) );
         register_rest_route( 'trasloco/v1', '/preflight', array(
             'methods' => 'GET',
             'callback' => array( __CLASS__, 'preflight' ),
@@ -155,6 +160,25 @@ class Trasloco_REST_API {
 
     public static function preflight( $request ) {
         return rest_ensure_response( Trasloco_Preflight::report() );
+    }
+
+
+    /** Read-only recovery journal inventory for site administrators only. */
+    public static function list_recovery_points( $request ) {
+        try {
+            $records = Trasloco_Recovery_Journal::entries( TRASLOCO_BACKUPS_PATH, 100 );
+        } catch ( Throwable $e ) {
+            return new WP_Error( 'trasloco_recovery_unavailable',
+                'Recovery receipts could not be read.', array( 'status' => 503 ) );
+        }
+        $pending = array_values( array_filter( $records, function ( $entry ) {
+            return $entry['status'] === 'pending';
+        } ) );
+        return rest_ensure_response( array(
+            'pending' => $pending,
+            'limit' => 100,
+            'warning' => 'A pending receipt is not proof of recoverability or an automatic rollback.',
+        ) );
     }
 
     public static function can_manage() {

@@ -113,6 +113,23 @@ printf '%s' "$OFFLINE_RECEIPTS" | php -r '
       fwrite(STDERR, "Offline rescue receipt discovery failed\n"); exit(1);
   }
 ' "$(basename "$FAILED_RECOVERY")"
+# Recovery receipts are visible only to administrators; API includes no paths.
+$WP eval '
+wp_set_current_user( 0 );
+$denied = rest_do_request( new WP_REST_Request( "GET", "/trasloco/v1/recovery-points" ) );
+if ( $denied->get_status() < 400 ) { throw new Exception( "Anonymous recovery journal disclosed" ); }
+$admin = get_users( array( "role" => "administrator", "number" => 1 ) );
+wp_set_current_user( $admin[0]->ID );
+$found = rest_do_request( new WP_REST_Request( "GET", "/trasloco/v1/recovery-points" ) );
+$data = $found->get_data();
+if ( $found->get_status() !== 200 || empty( $data["pending"] ) ||
+     $data["pending"][0]["status"] !== "pending" ) {
+    throw new Exception( "Pending recovery not visible to administrator" );
+}
+if ( strpos( wp_json_encode( $data ), ABSPATH ) !== false ) {
+    throw new Exception( "Recovery API disclosed filesystem paths" );
+}
+' --path="$ROOT/target"
 $WP trasloco verify "$(basename "$FAILED_RECOVERY")" --path="$ROOT/target"
 # Operator-driven rollback: do NOT silently restore in the failed import
 # process, whose database and active plugin set may already be inconsistent.

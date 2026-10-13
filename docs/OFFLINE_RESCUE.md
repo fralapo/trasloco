@@ -125,3 +125,7 @@ wp trasloco restore recovery-EXAMPLE.wpress --path=/absolute/path/to/wordpress
 ```
 
 Use the **exact** recovery filename reported by `php tools/recovery-status.php`, not an arbitrary archive. When WordPress or the database will not boot, the `wp plugin activate` workaround is unavailable: preserve the backup files and use the independent staging and disaster-recovery steps above. Restoration remains a manual operator action, not an automatic rollback.
+
+## Administrator view and API
+
+When WordPress still runs and the plugin is enabled, open **Trasloco → Backups** to inspect pending recovery points. This is a **read-only** table: it does not delete archives or launch a rollback. Authenticated administrators may also use `GET /wp-json/trasloco/v1/recovery-points` with their normal WordPress REST nonce or an Application Password; anonymous access is denied. The API returns a bounded list of pending receipts and archive filenames only, never absolute paths or database credentials.

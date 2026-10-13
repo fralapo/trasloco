@@ -11,6 +11,48 @@
  */
 
 return array(
+	'Recovery points requiring attention' => array(
+		'it' => 'Punti di ripristino da verificare',
+		'es' => 'Puntos de recuperación que requieren atención',
+		'fr' => 'Points de récupération à vérifier',
+		'de' => 'Wiederherstellungspunkte prüfen',
+	),
+	'A previous import did not confirm completion. Keep its recovery archive, check the site, and recover manually if needed.' => array(
+		'it' => 'Una precedente importazione non ha confermato il completamento. Conserva l\'archivio di recupero, controlla il sito e ripristina manualmente se necessario.',
+		'es' => 'Una importación anterior no confirmó su finalización. Conserva el archivo de recuperación, revisa el sitio y recupera manualmente si hace falta.',
+		'fr' => 'Une importation précédente n\'a pas confirmé sa fin. Conservez l\'archive de récupération, vérifiez le site et restaurez manuellement si nécessaire.',
+		'de' => 'Ein früherer Import wurde nicht bestätigt. Bewahren Sie das Wiederherstellungsarchiv auf und prüfen Sie die Website.',
+	),
+	'Recovery receipts could not be read.' => array(
+		'it' => 'Impossibile leggere i registri di recupero.',
+		'es' => 'No se pudieron leer los registros de recuperación.',
+		'fr' => 'Impossible de lire les reçus de récupération.',
+		'de' => 'Wiederherstellungsprotokolle konnten nicht gelesen werden.',
+	),
+	'Created' => array(
+		'it' => 'Creato',
+		'es' => 'Creado',
+		'fr' => 'Créé',
+		'de' => 'Erstellt',
+	),
+	'Imported archive' => array(
+		'it' => 'Archivio importato',
+		'es' => 'Archivo importado',
+		'fr' => 'Archive importée',
+		'de' => 'Importiertes Archiv',
+	),
+	'Recovery archive' => array(
+		'it' => 'Archivio di ripristino',
+		'es' => 'Archivo de recuperación',
+		'fr' => 'Archive de récupération',
+		'de' => 'Wiederherstellungsarchiv',
+	),
+	'A recovery point is not an automatic rollback. Rehearse restoration on a separate site before replacing production data.' => array(
+		'it' => 'Un punto di ripristino non è un rollback automatico. Prova il recupero su un sito separato prima di modificare i dati di produzione.',
+		'es' => 'Un punto de recuperación no revierte cambios automáticamente. Ensaya la restauración en otro sitio antes de modificar producción.',
+		'fr' => 'Un point de récupération n\'est pas un retour arrière automatique. Testez-le sur un site séparé avant de modifier la production.',
+		'de' => 'Ein Wiederherstellungspunkt ist kein automatisches Rollback. Testen Sie die Wiederherstellung auf einer separaten Website.',
+	),
 	'Manifest available (not verified)' => array(
 		'it' => 'Manifest disponibile (non verificato)',
 		'es' => 'Manifiesto disponible (sin verificar)',
