@@ -139,11 +139,13 @@ if ( strpos( wp_json_encode( $data ), ABSPATH ) !== false ) {
 $WP trasloco verify "$(basename "$FAILED_RECOVERY")" --path="$ROOT/target"
 # A recovery point must expose changed and missing files independently
 # of the potentially damaged WordPress/MySQL installation.
-# The failed restore can remove target-only directories before SQL fails:
-# first prove that the offline comparison detects the actually missing file.
+# A partially failed import may leave a missing target file. Inject that
+# specific filesystem damage here to exercise the offline comparison while
+# the destination database has already suffered the real post-DDL SQL error.
+rm -f "$ROOT/target/wp-content/uploads/target-before-import/safety-marker.txt"
 RECOVERY_MISSING=$(php "$GITHUB_WORKSPACE/tools/recovery-diff.php" "$FAILED_RECOVERY" "$ROOT/target/wp-content" --json)
-# Temporary fixture diagnostics (relative paths only) for cross-matrix regression.
-printf 'Recovery comparison after SQL failure: %s\n' "$RECOVERY_MISSING"
+# The archive includes the original destination bytes; missing is detected.
+
 printf '%s' "$RECOVERY_MISSING" | php -r '
   $data = json_decode(stream_get_contents(STDIN), true);
   if (!is_array($data) || $data["missing"] < 1) {
