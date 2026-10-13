@@ -77,7 +77,7 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 - [ ] Feature 14 mutating API (only after durable job engine and audit log).
 - [ ] Phases 2-15 as ordered above.
 
-- [x] Native WP-Cron automatic backup engine with job queue, SHA-256 verification and retention (UI to follow).
+- [x] Native WP-Cron automatic backup engine with job queue, SHA-256 verification, retention and admin configuration.
 - [ ] Validate scheduled operation timeouts on real hosting; WAF and server cron support.
 
 - [x] Phase 6A: standalone versioned streaming libsodium encrypted envelope with wrong-key/corruption tests.
@@ -135,11 +135,11 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 - [x] Phase 2B-1: WordPress- and MySQL-independent PHP CLI rescue inspection and private extraction of raw package/database metadata (non-destructive, tested against traversal).
 - [ ] Phase 2B-2: full independently bootable restore + staged SQL/file rollback remains a P0 release blocker.
 
-- [ ] Compatibility check: MySQL 8.0 and MariaDB 11.4 integration CI matrix introduced; mark complete only after both matrix jobs pass and compare behavior.
+- [x] CLI backup/restore and SQL-failure recovery integration passes on MySQL 8.0 and MariaDB 11.4 (see [current validation evidence](ROADMAP.md)).
 
 - [x] Read-only administrator/CLI preflight report with backup directory status, public-root risk, disk free space, required extensions and cron mode; does not return paths or secrets. A positive report is not restore certification.
 
-- [ ] Runtime compatibility matrix (experimental until green): PHP 7.4, 8.2 and 8.4 crossed with MySQL 8.0 and MariaDB 11.4. Evaluate failures before expanding support claims.
+- [x] CI runtime matrix: PHP 7.4, 8.2 and 8.4 crossed with MySQL 8.0 and MariaDB 11.4. This covers CLI fixtures, not cross-host HTTP/WAF or a pinned WordPress version matrix.
 
 - [x] Phase 2B-1B: independent CLI offline staging of uploads/themes/plugins into a new private directory with bounded bytes, no overwrite and malicious-path tests; no live-file or SQL restore.
 
@@ -201,3 +201,7 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 
 - [x] Phase 2B-2D-1: independent two-phase, SHA-256-verified wp-content file recovery (prepare/apply) with offline confirmation, preserved replaced bytes, preflight symlink rejection, atomic per-file replacement, retry-idempotent workspace and no deletion of untracked files. Standalone and induced-SQL-failure integration regressions included.
 - [ ] Phase 2B-2D-2: operator-verified complete filesystem rollback including archive-absent paths, multi-process locking, durable fsync and power-failure testing. Two-phase overlay is intentionally NOT an atomic full-site transaction.
+
+- [x] Offline recovery safety: preserve restrictive POSIX file permissions and enforce a shared payload budget for staged snapshots plus retained originals. Old v1 plans remain readable; special modes/ownership/ACLs are not restored.
+
+See [branch reconciliation](BRANCH_RECONCILIATION.md) before porting features from PR #2.
