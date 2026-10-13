@@ -31,7 +31,7 @@ define( 'TRASLOCO_DEBUG', false );
 // ==================
 // = Plugin Version =
 // ==================
-define( 'TRASLOCO_VERSION', '1.1.3' );
+define( 'TRASLOCO_VERSION', '1.2.0' );
 
 // ===============
 // = Plugin Name =
@@ -293,7 +293,8 @@ define( 'TRASLOCO_SITES_PATH', TRASLOCO_UPLOADS_PATH . DIRECTORY_SEPARATOR . 'si
 // ================
 // = Backups Path =
 // ================
-define( 'TRASLOCO_BACKUPS_PATH', WP_CONTENT_DIR . DIRECTORY_SEPARATOR . 'trasloco-backups' );
+// Optional absolute directory outside the web document root, configured in wp-config.php.
+define( 'TRASLOCO_BACKUPS_PATH', defined( 'TRASLOCO_BACKUPS_DIR' ) && TRASLOCO_BACKUPS_DIR ? TRASLOCO_BACKUPS_DIR : WP_CONTENT_DIR . DIRECTORY_SEPARATOR . 'trasloco-backups' );
 
 // ==========================
 // = Storage index.php File =

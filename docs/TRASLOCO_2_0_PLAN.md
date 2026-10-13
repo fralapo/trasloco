@@ -1,0 +1,209 @@
+# Trasloco 2.0 — execution plan (15 features)
+
+Updated 2026-10-13. This plan is an implementation dependency map, not a claim that unfinished capabilities exist.
+
+## Ground rules and non-negotiable release gates
+
+- Keep `main` at its published release. Deliver code to feature branches and reviewed PRs.
+- Preserve .wpress read/write compatibility; version new manifests independently and never silently break existing backups.
+- A successful backup means independently verified restore, not simply writing an archive.
+- Never experiment on a live destination to validate a destructive import. Recovery needs an independent copy.
+- Never store cloud credentials or encryption keys in logs, archives or source control. Support key rotation and revocation.
+- Gate each feature with CLI unit tests, WordPress/MySQL integration, and permission/CSRF tests; run browser tests for changed UI.
+- Cover PHP 7.4/8.2/8.4, WordPress current stable and previous major, MySQL/MariaDB. Test Apache, Nginx and relevant IIS configurations with real HTTP requests.
+- All external requests use HTTPS and certificate verification; outbound site-to-site connections must prevent SSRF against localhost, private networks, rebinding and redirects.
+- Explicitly mark WooCommerce order-sensitive and Multisite workflows experimental until data-consistency tests pass.
+
+## Core technical decisions
+
+- **Job engine:** persistent small job rows using a custom WordPress table, atomic compare-and-swap leases, lease expiry, idempotency keys, structured stage/progress/errors, cancellation between checkpoints. Prefer Action Scheduler when present or bundled and tested; implement resilient WP-Cron fallback and document system cron for low-traffic sites. Never base resumability on browser state.
+- **Storage:** `StorageAdapter` contracts: put-stream/get-stream/range/list/delete/health; local filesystem first, then S3-compatible, SFTP, WebDAV, OAuth cloud connectors. No direct public archive URL.
+- **Integrity:** sidecar manifest version 1 with SHA-256, byte count, timestamps, source identity and file format. Verify against actual bytes in constant memory. Adopt optional signed manifests for remote repositories; encryption with versioned AEAD envelope.
+- **Restore:** phased preflight, maintenance lock, isolated safety snapshot, manifest verification, atomic file staging when supported, SQL prepare/validate, commit, postflight and recovery instructions. MySQL DDL is not transactional; a full rollback requires separate recoverable data.
+- **API:** /trasloco/v1 routes with WP permissions, bounded pagination, `permission_callback`, REST nonce for browser use and Application Passwords for external use. Follow WordPress Abilities API where available; no privilege escalation through generic bearer keys.
+- **Frontend:** progressive enhancement in WP admin, semantic UI, keyboard navigation, visible job state and clear warnings. Keep EN/IT/ES/FR/DE translation parity.
+- **Commercial constraints:** all core features free and OSS; no mandatory accounts or remote telemetry.
+
+## Ordered deliverables
+
+| Phase | Feature | Core deliverables | Acceptance |
+|---|---|---|---|
+| 0 | Platform foundation | storage and job contracts, manifest, test fixtures, browser smoke | crash recovery and scoped authorization test |
+| 1 | (4) Backup verification | SHA-256 manifest, corruption reporting, CLI+UI verify, restore rehearsal harness | mismatched byte fails; good archive passes |
+| 2 | (3) Recovery Point | pre-restore snapshot and independent rescue routine | induced SQL failure followed by successful recovery |
+| 3 | (5) Durable resumability | checkpoints, leases, duplicate request protection, pause/resume | interrupted browser and PHP process resume correctly |
+| 4 | (1) Schedules | hourly/daily/weekly/monthly rules, timezone, retention, notifications | schedule fires once per interval and survives traffic gaps |
+| 5 | (2) Cloud destinations | S3/R2/B2, SFTP, WebDAV, Google Drive/Dropbox/OneDrive providers | upload, list, verify, download, restore and credential rotation |
+| 6 | (13) Encryption | optional AEAD encryption and scoped key handling | wrong key rejects without leaking plaintext |
+| 7 | (6) Direct site transfer | paired connections, chunked encrypted relay/direct transport | staged cross-domain migration, dropped-link resume |
+| 8 | (8) Selective restore | granular manifests, DB/media/plugin selectors | unrelated target data unchanged |
+| 9 | (9) Preflight diff | SQL and file inventory diff, exclusions and compatibility warnings | deterministic review before destructive action |
+| 10 | (10) Update safety | snapshot policy and update hooks | failure recovery works, no recursive backups |
+| 11 | (7) Incremental/differential | content hashes, catalogs, referenced chains, pruning | corruption/retention cannot orphan restore chain |
+| 12 | (12) Staging | isolated clone, selective deployment, production change guards | no overwriting live store orders |
+| 13 | (15) Multisite/WooCommerce | network-aware mapping and HPOS tests | network+subsite and order fidelity proven |
+| 14 | (14) Automation API | scoped REST operations, audit and integration examples | credentials revocable, unauthorized mutations denied |
+| 15 | (11) Agency console | opt-in multi-site coordinator, per-site health and alerts | least-privileged onboarding, no central password storage |
+
+Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKFLOW.md), adapted from [ECC](https://github.com/affaan-m/ECC). The external repository provides guidance only; it is not a plugin dependency.
+
+## Implementation protocol for every phase
+1. Design contract, failure cases, data retention and privilege boundary.
+2. Write fixtures/tests, including at least one deliberate failure scenario.
+3. Implement backend with feature flag where migrations and storage contracts change.
+4. Integrate admin UX and the translation catalog, including accessibility.
+5. Run quality + full WordPress integration and HTTP security checks.
+6. Ship atomic commit, update tests/docs/roadmap and include test evidence in PR.
+7. Release a 2.0 restore workflow only after actual restore verification across at least two hosting configurations.
+
+## Research references and reasons
+
+- Action Scheduler provides durable queued actions for WordPress and is widely used by WooCommerce: https://wordpress.org/plugins/action-scheduler/
+- Authenticated REST routes require `permission_callback`: https://developer.wordpress.org/rest-api/extending-the-rest-api/adding-custom-endpoints/
+- External API credentials should use revocable WordPress Application Passwords: https://developer.wordpress.org/advanced-administration/security/application-passwords/
+- WordPress Abilities API can expose capabilities selectively: https://developer.wordpress.org/apis/abilities-api/rest-api-endpoints/
+- These are engineering design references; they are not evidence that every host meets the requirements.
+
+## Progress
+- [x] Foundation hardening from PR #1: operation tokens, private download, first end-to-end CI, core UX.
+- [x] Phase 0A: documented architecture and persistent-work design.
+- [x] Phase 0B-1: persistent job ledger, idempotent insertion and atomic owner leases, tested on MySQL.
+- [x] Phase 0B-2A: queued verification worker with leases, checkpoint, REST status/cancel and scheduled execution.
+- [x] Phase 0B-2B-1: common stream adapter with tested local atomic writer and path/symlink defenses.
+- [ ] Phase 0B-2B-2: bounded-time chunk hashing, remote adapters, durable retries.
+- [x] Phase 1A: create local SHA-256 sidecar manifests and add WP-CLI verification with WordPress integration test.
+- [ ] Phase 1B: verified UI, restore rehearsals and full archive content checks.
+- [x] Initial feature 14 foundation: read-only admin-scoped REST inventory with integration permission test.
+- [ ] Feature 14 mutating API (only after durable job engine and audit log).
+- [ ] Phases 2-15 as ordered above.
+
+- [x] Native WP-Cron automatic backup engine with job queue, SHA-256 verification, retention and admin configuration.
+- [ ] Validate scheduled operation timeouts on real hosting; WAF and server cron support.
+
+- [x] Phase 6A: standalone versioned streaming libsodium encrypted envelope with wrong-key/corruption tests.
+- [ ] Phase 6B: CLI and UI workflows, storage protection and recovery integration.
+
+- [x] Optional encryption via wp trasloco encrypt/decrypt with Argon2id and XChaCha20 secretstream (CLI and test).
+- [ ] In-app encryption UI and encrypted cloud storage integration.
+
+- [x] Phase 2A: verified pre-import recovery snapshot before file/database replacement; on failure import aborts.
+- [ ] Phase 2B: independent one-click rescue handler and tested true rollback, including large hosting environments.
+
+- [x] Phase 10A: optional verified recovery point before core/plugin/theme updates, fail closed when backup fails.
+- [ ] Phase 10B: automated rollback, failure alerts and cross-host upgrade checks.
+
+- [x] Initial feature 11 integration: private read-only site-health endpoint for future agency monitoring.
+- [ ] Multi-site coordinator with mutual trust, reconciliation, notifications, permissions and site onboarding.
+
+- [x] Scheduled backup failure alert hook with administrator email notification (subject to WordPress mail delivery).
+- [ ] Per-site notification settings, webhook integrations and delivery retries.
+
+- [x] Phase 9A: read-only archive file inventory and admin REST preview with explicit database-diff limitations.
+- [ ] Phase 9B: true file checksum diff, SQL changeset preview and selective preflight exclusions.
+
+- [x] Phase 8A: WP-CLI selective media/plugin/theme extraction into a new private directory without overwriting live site content.
+- [ ] Phase 8B: selective database table restore, UI, collision handling and live-site consistency checks.
+
+- [x] Bounded scheduled reconciliation of verification jobs, cancellation/retry and safe abandonment of crashed backups.
+- [ ] True byte-level continuation of interrupted backups, resumable multipart remote uploads and crash replay tests.
+
+- [x] Accessible recent job/progress dashboard and next-backup schedule indicator.
+
+- [x] Audit fix: distinguish recovery point archives by persistent filename prefix; exclude them from both automatic and CLI retention. End-to-end regression ensures a later retention run preserves the pre-import snapshot.
+
+- [x] Audit fix: changing backup frequency replaces the old WP-Cron recurrence; integration covers daily → weekly → daily → off.
+
+- [x] Audit fix: reuse of an idempotency key for a different job kind/archive now yields an explicit HTTP 409 conflict; integration includes cross-kind and cross-archive collisions.
+
+- [x] Audit fix: worker progress events renew owned backup leases in hourly export pipelines, preventing healthy long exports from being marked abandoned when they report progress. Integration tests check lease extension. Does not make interrupted backups byte-resumable.
+
+- [x] Phase 4B: monthly backup frequency as a calendar month in the WordPress timezone, including DST, with idempotent monthly job creation and cron transition tests.
+
+- [x] Phase 1B: admin-page checksum verification moved off the synchronous archive listing into a CSRF-protected POST that queues a durable verification job; a manifest alone is explicitly labelled unverified.
+
+- [x] Reconciliation stops retrying expired verification workers after three attempts and records a terminal failure. Crash-loop regression checks requeue, direct claims and manual retries.
+
+- [x] Phase 1C-1: optional version-2 SHA-256 chunk manifests (4 MiB) with bounded per-chunk validation, unchanged v1 compatibility and corruption regression tests.
+- [ ] Phase 1C-2: use chunk checkpoints in cron workers and new exports once integration is green.
+
+- [x] Phase 1C-2: verification jobs can yield and resume v2 4-MiB chunk checks in bounded batches, with persisted offsets, archive/manifest stability checks, lease-safe handoff and MySQL integration. No claim of resumable export yet.
+
+- [x] Phase 1C-3: all newly exported .wpress archives publish version 2 SHA-256/chunk manifests. Original archive bytes and legacy v1 verification remain compatible. CI exercises WP-CLI export, V2 manifest, encryption round trip, full restore and recovery.
+
+- [x] Phase 9C: read-only full header preflight before recovery snapshot or destructive import; rejects malformed/unsafe late archive entries and caps file inventory at one million entries, with malicious fixture regression.
+
+- [x] Phase 2B-1: WordPress- and MySQL-independent PHP CLI rescue inspection and private extraction of raw package/database metadata (non-destructive, tested against traversal).
+- [ ] Phase 2B-2: full independently bootable restore + staged SQL/file rollback remains a P0 release blocker.
+
+- [x] CLI backup/restore and SQL-failure recovery integration passes on MySQL 8.0 and MariaDB 11.4 (see [current validation evidence](ROADMAP.md)).
+
+- [x] Read-only administrator/CLI preflight report with backup directory status, public-root risk, disk free space, required extensions and cron mode; does not return paths or secrets. A positive report is not restore certification.
+
+- [x] CI runtime matrix: PHP 7.4, 8.2 and 8.4 crossed with MySQL 8.0 and MariaDB 11.4. This covers CLI fixtures, not cross-host HTTP/WAF or a pinned WordPress version matrix.
+
+- [x] Phase 2B-1B: independent CLI offline staging of uploads/themes/plugins into a new private directory with bounded bytes, no overwrite and malicious-path tests; no live-file or SQL restore.
+
+- [x] Phase 14A-2: bounded administrator REST backup inventory pagination with total/total-pages headers, stable default response and invalid query rejection.
+
+- [x] Offline staging now removes its private files/directories on failed safety limits or interrupted reads, so a partial stage is not presented as a successful recovery copy.
+
+- [x] Offline encrypted recovery: standalone PHP CLI decrypts authenticated .wpress.enc archives without WordPress/MySQL, validates .wpress structure, rejects existing targets and wrong keys; WP integration exercises the full round trip.
+
+- [x] Independent offline rescue rehearsals on actual WP-CLI exports and on mandatory pre-import recovery snapshots, including target-only media checks and real SQL metadata. Output can be placed in an explicitly selected private directory without overwriting existing files.
+- [ ] This is NOT an independent bootable site restore; production release still requires isolated SQL + WordPress recovery and hosting-level tests.
+
+- [x] Restoring corrupted .wpress archives: malformed dot/control/empty path components are blocked by preflight and extractor; incomplete reads and writes abort instead of being counted as successful. Added regression fixtures.
+
+- [x] Local storage publication now fails closed on filename collisions and cleans partial plaintext temporary files; integration checks archive content remains unchanged.
+
+- [x] Preflight rejects duplicate root restore metadata (package.json, database.sql, multisite.json and blogs.json) before creating a recovery point or overwriting the destination.
+
+- [x] Symlink export audit: never recurse into or archive symlinks outside wp-content; defend again against post-enumeration path swapping. Linux integration checks external secret content is absent from .wpress archives. Operators must review symlinked plugin/theme deployments before relying on full-file restores.
+
+- [x] Safe symlink policy: when linked content is encountered, a full export fails visibly instead of silently omitting required files or dereferencing secrets. Integration verifies failure, then a clean successful backup after removing test links.
+
+- [x] Compressor now rejects files disappearing between enumeration and content copy, source seek/read failures, and empty non-EOF reads rather than publishing a misleadingly complete export. A standalone regression exercises the missing-source failure.
+
+- [x] P0 audit fix: expired in-progress backup leases can no longer be claimed by a second worker; only non-destructive verification may reclaim an interrupted lease. MySQL/MariaDB regression covers stale leases, safe retry and terminal abandoned state.
+
+- [x] Offline emergency recovery now rejects the same malformed path components and DEL/control characters as live import preflight, including unsafe late archive entries. Regression verifies private staging does not create partial recovery output.
+
+- [x] P0 preflight: require nonempty root `database.sql` before destructive restore unless `package.json` explicitly has `NoDatabase=true`; reject missing/invalid root package and add full/files-only negative fixtures.
+- [ ] Independent bootable recovery and SQL failure rollback still require isolated end-to-end disaster tests.
+
+- [x] Phase 2B-2A: independent disaster-rehearsal fixture provisions fresh WordPress/MySQL, verifies archived bytes, restores users/posts/media and preserves the new site's URL, without using source WordPress runtime.
+- [ ] Phase 2B-2B: staged rollback on induced SQL failures, operating-system-level disaster tests, and production rescue setup.
+
+- [x] P0 negative end-to-end: derive a structurally valid .wpress from a real export with only database.sql removed; attempted restore must fail at preflight with an explicit diagnostic, leaving destination URL/user/media unchanged.
+
+- [x] Disaster recovery runbook now documents the CI-verified fresh WordPress/MySQL bootstrap path and clearly distinguishes it from offline metadata rescue and automatic rollback.
+- [x] Malformed archive filenames are not included verbatim in restore exceptions or WP-CLI logs; newline/control-character fixture checks the log boundary.
+
+- [x] Phase 2B-2B-1: filesystem recovery receipts survive database replacement, mark pending until import completes, and are testable without WordPress.
+- [ ] Phase 2B-2B-2: provoke real post-DDL SQL import failure and prove manual database rollback using recorded archive on both MySQL and MariaDB.
+
+- [x] Phase 2B-2B-2A: tested independent filesystem recovery journal and offline CLI receipt discovery, requiring no WordPress/MySQL process.
+- [x] Phase 2B-2B-2B: induced real SQL error after DDL/data import, preserved independent pending receipt, and operator-driven database rollback. WordPress integration passed across PHP 7.4/8.2/8.4 × MySQL 8.0/MariaDB 11.4 on commit fdd5dbfe.
+
+- [x] Phase 2B-2C: independent CLI `tools/recovery-status.php`, retry-idempotent recovery receipts, pending-first bounded inventory, administrator-only read-only REST and admin warning panel. Regression includes anonymous permission denial and no server-path leakage.
+- [x] Recovery audit: a failed SQL import can deactivate the Trasloco plugin before import finalization; documented safe WP-CLI reactivation, plus a real recovery rehearsal after failure.
+- [ ] **P0: Atomic full-site rollback is not implemented.** Restoring the previous database does not automatically remove newly created filesystem contents; unbootable WordPress and other hosting configurations still require independently rehearsed recovery and operator intervention.
+- [ ] P0: cross-host HTTP denial tests, truly interrupted PHP crash/replay, WooCommerce order consistency and multisite fidelity before production certification.
+
+- [x] P0 manual recovery aid: standalone, SHA-256-gated, bounded offline comparison of a recovery archive's uploads/themes/plugins/mu-plugins against actual destination bytes. Reports changed/missing/unsafe files without loading WordPress/MySQL or touching content; includes an actual post-DDL SQL error followed by simulated missing/modified-file states and operator-driven recovery.
+- [ ] Recovery diff is **read-only and incomplete for automatic rollback**: it deliberately excludes extra imported-only files and database changes. A staged, reviewed full filesystem rollback remains a release blocker.
+
+- [x] P0 recovery audit: after induced post-DDL SQL failure and database recovery, a target-only file may still be absent from the live site. End-to-end test detects this, independently stages the original bytes from the verified recovery archive and confirms offline diff still flags unrecovered content; no false claim of atomic rollback.
+
+- [x] P0 read-only extension: optional bounded offline scan of destination files absent from a verified recovery archive, with separate symlink warnings, independent relative-path samples and post-SQL-failure integration. Untracked files are not proven imported-only and are never automatically deleted.
+- [ ] Safe staged filesystem rollback and full-site atomic restore remain open; the untracked report is an input for operator review, not a deletion policy.
+
+
+- [x] Phase 2B-2D-1: independent two-phase, SHA-256-verified wp-content file recovery (prepare/apply) with offline confirmation, preserved replaced bytes, preflight symlink rejection, atomic per-file replacement, retry-idempotent workspace and no deletion of untracked files. Standalone and induced-SQL-failure integration regressions included.
+- [ ] Phase 2B-2D-2: operator-reviewed deletion of archive-absent paths, cross-host/fencing semantics, durable fsync and power-failure testing. A local workspace lock now serializes apply processes. Two-phase overlay is still not a globally atomic full-site transaction.
+
+- [x] Offline recovery safety: preserve restrictive POSIX file permissions and enforce a shared payload budget for staged snapshots plus retained originals. Old v1 plans remain readable; special modes/ownership/ACLs are not restored.
+
+See [branch reconciliation](BRANCH_RECONCILIATION.md) before porting features from PR #2.
+
+- [x] Offline file recovery now uses a workspace-scoped exclusive process lock; concurrent apply attempts fail before mutations and can resume after lock release. This local filesystem lock does not provide cross-host/NFS fencing or power-loss durability.

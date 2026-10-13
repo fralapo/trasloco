@@ -38,6 +38,10 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 		 * | migration-wp-20170908-151428-266.wpress        | 4 days ago   | 536.77 MB |
 		 * +------------------------------------------------+--------------+-----------+
 		 *
+		 * [--keep=<count>]
+		 * After a successful backup, retain only the newest count archives on this site.
+		 * This is opt-in; by default no existing backups are deleted.
+		 *
 		 * [--exclude-spam-comments]
 		 * Do not export spam comments
 		 *
@@ -203,6 +207,188 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 
 			WP_CLI::log( __( 'Backup complete.', TRASLOCO_PLUGIN_NAME ) );
 			WP_CLI::log( sprintf( __( 'Backup location: %s', TRASLOCO_PLUGIN_NAME ), trasloco_backup_path( $params ) ) );
+			// Opt-in retention for unattended schedules. Keep newest backups
+			// only after the current archive was successfully created.
+			if ( isset( $assoc_args['keep'] ) ) {
+				$keep = filter_var( $assoc_args['keep'], FILTER_VALIDATE_INT, array( 'options' => array( 'min_range' => 1 ) ) );
+				if ( $keep === false ) {
+					WP_CLI::error( '--keep must be a positive integer.' );
+				}
+				$archive_list = new Trasloco_Backups;
+				foreach ( array_slice( $archive_list->get_retention_files(), $keep ) as $old_backup ) {
+					if ( ! $archive_list->delete_file( $old_backup['filename'] ) ) {
+						WP_CLI::warning( 'Unable to remove old backup: ' . $old_backup['filename'] );
+					}
+				}
+			}
+		}
+
+
+		/**
+		 * Encrypt an archive into a .wpress.enc file using a libsodium stream.
+		 * Set TRASLOCO_ARCHIVE_PASSPHRASE securely in the environment.
+		 *
+		 * @subcommand encrypt
+		 */
+		public function encrypt( array $args, array $assoc_args ) {
+			if ( empty( $args[0] ) ) {
+				WP_CLI::error( 'Specify a .wpress archive filename.' );
+			}
+			$passphrase = getenv( 'TRASLOCO_ARCHIVE_PASSPHRASE' );
+			if ( ! is_string( $passphrase ) || strlen( $passphrase ) < 12 ) {
+				WP_CLI::error( 'Set TRASLOCO_ARCHIVE_PASSPHRASE (at least 12 characters).' );
+			}
+			try {
+				$source = trasloco_backup_path( array( 'archive' => $args[0] ) );
+				require_once TRASLOCO_LIB_PATH . '/model/class-trasloco-encryption.php';
+				Trasloco_Encryption::encrypt( $source, $source . '.enc', $passphrase );
+				WP_CLI::success( 'Encrypted backup: ' . basename( $source ) . '.enc' );
+			} catch ( Exception $e ) {
+				WP_CLI::error( $e->getMessage() );
+			}
+		}
+
+		/**
+		 * Decrypt a .wpress.enc archive into a new, verified .wpress file.
+		 * Does not overwrite either the encrypted source or existing output.
+		 *
+		 * @subcommand decrypt
+		 */
+		public function decrypt( array $args, array $assoc_args ) {
+			if ( empty( $args[0] ) || ! is_string( $args[0] ) ||
+				! preg_match( '/^[a-zA-Z0-9_.-]+\.wpress\.enc$/D', $args[0] ) ) {
+				WP_CLI::error( 'Specify a valid .wpress.enc filename.' );
+			}
+			$passphrase = getenv( 'TRASLOCO_ARCHIVE_PASSPHRASE' );
+			if ( ! is_string( $passphrase ) || strlen( $passphrase ) < 12 ) {
+				WP_CLI::error( 'Set TRASLOCO_ARCHIVE_PASSPHRASE (at least 12 characters).' );
+			}
+			try {
+				$name = substr( $args[0], 0, -11 );
+				$source = trasloco_backup_path( array( 'archive' => $name . '.wpress' ) ) . '.enc';
+				$target = trasloco_backup_path( array( 'archive' => $name . '-decrypted.wpress' ) );
+				require_once TRASLOCO_LIB_PATH . '/model/class-trasloco-encryption.php';
+				Trasloco_Encryption::decrypt( $source, $target, $passphrase );
+				$check = new Trasloco_Extractor( $target );
+				$valid = $check->is_valid();
+				$check->close();
+				if ( ! $valid ) {
+					@unlink( $target );
+					WP_CLI::error( 'Decrypted data is not a valid .wpress archive.' );
+				}
+				require_once TRASLOCO_LIB_PATH . '/vendor/core/archiver/class-trasloco-integrity.php';
+				Trasloco_Integrity::create( $target );
+				WP_CLI::success( 'Decrypted backup: ' . basename( $target ) );
+			} catch ( Exception $e ) {
+				WP_CLI::error( $e->getMessage() );
+			}
+		}
+
+
+		/**
+		 * Extract a chosen uploads/themes/plugins file or directory into a
+		 * private temporary folder. NEVER overwrites live WordPress content.
+		 *
+		 * ## OPTIONS
+		 * <archive>
+		 * <relative-file-or-directory>
+		 *
+		 * @subcommand extract-files
+		 */
+		public function extract_files( array $args, array $assoc_args ) {
+			if ( count( $args ) < 2 || ! is_string( $args[1] ) ) {
+				WP_CLI::error( 'Specify an archive and a relative path under uploads/, themes/, plugins/ or mu-plugins/.' );
+			}
+			$relative = str_replace( '\\', '/', $args[1] );
+			if ( strlen( $relative ) > 512 || strpos( $relative, "\0" ) !== false ||
+				preg_match( '#^(/|[A-Za-z]:)#', $relative ) ||
+				! preg_match( '#^(uploads|themes|plugins|mu-plugins)/[^/]+#', $relative ) ||
+				in_array( '..', explode( '/', $relative ), true ) ) {
+				WP_CLI::error( 'Unsafe or unsupported restore path.' );
+			}
+			try {
+				$source = trasloco_backup_path( array( 'archive' => $args[0] ) );
+				$directory = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'trasloco-file-restore-' . wp_generate_password( 20, false, false );
+				if ( ! mkdir( $directory, 0700 ) ) {
+					WP_CLI::error( 'Unable to create private extraction folder.' );
+				}
+				$archive = new Trasloco_Extractor( $source );
+				if ( ! $archive->is_valid() ) {
+					$archive->close();
+					WP_CLI::error( 'Invalid archive structure.' );
+				}
+				add_filter( 'trasloco_completed_timeout', '__return_zero' );
+				try {
+					$completed = $archive->extract_by_files_array( $directory, array( $relative ) );
+				} finally {
+					remove_filter( 'trasloco_completed_timeout', '__return_zero' );
+					$archive->close();
+				}
+				if ( ! $completed ) {
+					WP_CLI::error( 'Selective extraction did not complete.' );
+				}
+				$iterator = new RecursiveIteratorIterator(
+					new RecursiveDirectoryIterator( $directory, FilesystemIterator::SKIP_DOTS )
+				);
+				$count = 0;
+				foreach ( $iterator as $item ) {
+					if ( $item->isFile() ) { $count++; }
+				}
+				if ( $count < 1 ) {
+					Trasloco_Directory::delete( $directory );
+					WP_CLI::error( 'No files matched the requested path.' );
+				}
+				WP_CLI::success( 'Files extracted to: ' . $directory );
+			} catch ( Exception $e ) {
+				WP_CLI::error( $e->getMessage() );
+			}
+		}
+
+		/**
+         * Show non-destructive hosting safety diagnostics.
+         * This command never prints credentials or private filesystem paths.
+         *
+         * @subcommand doctor
+         */
+        public function doctor( array $args, array $assoc_args ) {
+            $report = Trasloco_Preflight::report();
+            if ( isset( $assoc_args['format'] ) && $assoc_args['format'] === 'json' ) {
+                WP_CLI::line( wp_json_encode( $report, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) );
+                return;
+            }
+            foreach ( array( 'backup_directory', 'backup_web_access', 'php_64_bit',
+                'mysqli_available', 'sodium_available', 'wp_cron' ) as $field ) {
+                WP_CLI::line( $field . ': ' . ( is_bool( $report[$field] )
+                    ? ( $report[$field] ? 'yes' : 'no' ) : $report[$field] ) );
+            }
+            WP_CLI::line( 'free_space_bytes: ' .
+                ( $report['free_space_bytes'] === null ? 'unknown' : $report['free_space_bytes'] ) );
+            foreach ( $report['issues'] as $issue ) {
+                WP_CLI::warning( $issue );
+            }
+            WP_CLI::log( $report['warning'] );
+        }
+
+		/**
+		 * Verify a backup against its SHA-256 manifest.
+		 *
+		 * ## OPTIONS
+		 * <archive>
+		 * Existing archive basename inside the configured backup folder.
+		 *
+		 * @subcommand verify
+		 */
+		public function verify( array $args, array $assoc_args ) {
+			if ( empty( $args[0] ) ) {
+				WP_CLI::error( 'Specify an archive filename.' );
+			}
+			$archive = trasloco_backup_path( array( 'archive' => $args[0] ) );
+			require_once TRASLOCO_LIB_PATH . '/vendor/core/archiver/class-trasloco-integrity.php';
+			$result = Trasloco_Integrity::verify( $archive );
+			if ( $result['status'] !== 'verified' ) {
+				WP_CLI::error( $result['status'] . ': ' . $result['message'] );
+			}
+			WP_CLI::success( $result['message'] );
 		}
 
 		/**

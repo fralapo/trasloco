@@ -106,7 +106,9 @@ class Trasloco_Export_Database {
 		}
 
 		$include_table_prefixes = array();
-		$exclude_table_prefixes = array();
+		// Internal job state belongs to this installation and may contain
+		// sensitive operands: it must never follow a site migration.
+		$exclude_table_prefixes = array( trasloco_table_prefix() . 'trasloco_jobs' );
 
 		// Include table prefixes
 		if ( trasloco_table_prefix() ) {

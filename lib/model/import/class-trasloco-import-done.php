@@ -218,6 +218,12 @@ class Trasloco_Import_Done {
 			)
 		);
 
+		// Only a successful end of the import marks the independent receipt
+        // complete. Any SQL exception, crash or process kill keeps it pending.
+        if ( ! empty( $params['recovery_receipt'] ) ) {
+            Trasloco_Recovery_Journal::complete( TRASLOCO_BACKUPS_PATH, $params['recovery_receipt'] );
+        }
+
 		return $params;
 	}
 }

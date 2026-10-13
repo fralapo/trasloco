@@ -105,6 +105,21 @@ class Trasloco_Export_Enumerate {
 		// Create map file
 		$filemap = trasloco_open( trasloco_filemap_path( $params ), 'w' );
 
+		// Inspect the complete source before applying export filters. A link
+		// omitted by LEAVES_ONLY still makes a complete backup impossible.
+		$scan = new RecursiveIteratorIterator(
+			new RecursiveDirectoryIterator( WP_CONTENT_DIR, FilesystemIterator::SKIP_DOTS ),
+			RecursiveIteratorIterator::SELF_FIRST,
+			RecursiveIteratorIterator::CATCH_GET_CHILD
+		);
+		foreach ( $scan as $entry ) {
+			if ( $entry->isLink() ) {
+				throw new Trasloco_Archive_Exception(
+					'Backup stopped: linked files in wp-content must be resolved first.'
+				);
+			}
+		}
+
 		// Iterate over content directory
 		$iterator = new Trasloco_Recursive_Directory_Iterator( WP_CONTENT_DIR );
 
@@ -119,7 +134,9 @@ class Trasloco_Export_Enumerate {
 
 		// Write path line
 		foreach ( $iterator as $item ) {
-			if ( $item->isFile() ) {
+			// Symbolic-link targets are not part of the portable site's
+			// own file tree and must never escape its export root.
+			if ( $item->isFile() && ! $item->isLink() ) {
 				if ( trasloco_write( $filemap, $iterator->getSubPathName() . PHP_EOL ) ) {
 					$total_files_count++;
 

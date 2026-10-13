@@ -3,7 +3,7 @@ Tags: backup, migration, migrate, export, import
 Requires at least: 5.5
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.1.3
+Stable tag: 1.2.0
 License: AGPL-3.0-or-later
 License URI: https://www.gnu.org/licenses/agpl-3.0.html
 
@@ -35,6 +35,14 @@ Trasloco exports a whole WordPress site (database, media, themes and plugins) to
 The new address is set by the import: there is nothing to type. Trasloco > Guide explains every option.
 
 == Changelog ==
+
+= 1.2.0 =
+* Scheduled backups with verified retention, resumable SHA-256 verification and authenticated backup downloads.
+* Optional authenticated encryption and independent rescue commands for encrypted archives.
+* Pre-import database recovery snapshots and two-phase offline recovery for changed or missing files, with preserved originals and safe resume after interruption.
+* Recovery apply is serialized per workspace; unrelated files are not deleted. Full-site rollback is not globally atomic or automatic.
+* Expanded security checks, administrator preflight and archive inventory, plus PHP 7.4/8.2/8.4 integration coverage with MySQL 8.0 and MariaDB 11.4.
+* Real-host HTTP/WAF certification, multisite and WooCommerce validation, and independent security review remain pending.
 
 = 1.1.3 =
 * Work folders left by an import or export that stopped halfway (for example a large upload cut off) are removed after a day, so they no longer take up disk space on the server.

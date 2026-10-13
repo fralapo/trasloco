@@ -42,6 +42,23 @@ class Trasloco_File_Htaccess {
 			'<IfModule mod_autoindex.c>',
 			'Options -Indexes',
 			'</IfModule>',
+			'# Trasloco private archives and integrity metadata',
+			'# Trasloco private directory (blocks archives AND temporary plaintext)',
+			'<IfModule mod_authz_core.c>',
+			'Require all denied',
+			'</IfModule>',
+			'<IfModule !mod_authz_core.c>',
+			'Order allow,deny',
+			'Deny from all',
+			'</IfModule>',
+			'<FilesMatch "\\.wpress(\\.manifest\\.json|\\.enc)?$">',
+			'<IfModule mod_authz_core.c>',
+			'Require all denied',
+			'</IfModule>',
+			'<IfModule !mod_authz_core.c>',
+			'Deny from all',
+			'</IfModule>',
+			'</FilesMatch>',
 		) ) );
 	}
 

@@ -7,7 +7,7 @@
 **Trasloco is a free, open source WordPress plugin that backs up and migrates a whole WordPress site.** It exports the database, media library, themes and plugins into a single `.wpress` file, then imports that file on any other WordPress install, with no file size limit, no paid add-ons and no account. It is tested with a real 1.64 GB site.
 
 [![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
-![Version](https://img.shields.io/badge/version-1.1.3-informational.svg)
+![Version](https://img.shields.io/badge/version-1.2.0-informational.svg)
 ![Languages](https://img.shields.io/badge/languages-en%20it%20es%20fr%20de-success.svg)
 ![Tested on PHP 8.2](https://img.shields.io/badge/tested_on-PHP_8.2-777bb4.svg)
 
@@ -33,7 +33,8 @@ I wrote it to move a 1.6 GB site to shared hosting without paying for a "remove 
 - **Four plain pages:** Export, Import, Backups and Guide. Every option has a one-line explanation under it, the Import page lists what to do before you start, and a progress bar shows each step. The Guide page explains every function, with a glossary for people who do not know how WordPress works inside.
 - **Five languages:** English, Italian, Spanish, French and German, all in one file. See [Languages](#languages).
 - **PHP 8.2 clean.** The iterators carry `#[\ReturnTypeWillChange]`, so the log is free of deprecation notices.
-- **WP-CLI:** `wp trasloco backup` and `wp trasloco restore <file>`.
+- **WP-CLI:** `wp trasloco backup` and `wp trasloco restore <file>`. For scheduled jobs, `wp trasloco backup --keep=7` keeps only the latest seven backups. See [automation](docs/AUTOMATION.md) for cron and offsite storage.
+- **Verified backups and recovery.** SHA-256 manifests, resumable verification jobs, scheduled backups with verified retention, encrypted rescue archives and a two-phase offline file recovery workflow. Full-site rollback is not yet automatic.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -110,7 +111,7 @@ Yes, on its own. When the file is imported, the old address is replaced with the
 At the end it switches on the theme and the plugins that were active on the old site. If the new site has no HTTPS, it switches off plugins that force HTTPS. It also switches off plugins that hide or rename the login page, so that you can log in at `/wp-login.php`. The users are those of the old site, so you log in with the old username and password.
 
 ### Who can download the backup files?
-They sit in `wp-content/trasloco-backups`. Visitors cannot list the folder, and every file name ends with a random 12-character code. Anyone who has the exact link can still download a file, and it contains the whole site, user accounts included, so do not share the links and delete the backups you no longer need.
+By default archives sit in `wp-content/trasloco-backups`. In the hardened branch the Backups screen downloads them via an authenticated WordPress endpoint. Apache and IIS rules block direct archive requests; Nginx requires a separate server rule. For stronger protection, configure an absolute private directory outside the document root with `TRASLOCO_BACKUPS_DIR` in `wp-config.php`. See [security](docs/SECURITY.md).
 
 ### Can I restore a site from the command line?
 Yes, with WP-CLI: `wp trasloco backup` creates a backup (it takes the same options as the Export page, such as `--exclude-media` or `--replace "old" "new"`), `wp trasloco backup --list` lists the backups, and `wp trasloco restore <file>` restores one from the `wp-content/trasloco-backups` folder.
@@ -119,7 +120,7 @@ Yes, with WP-CLI: `wp trasloco backup` creates a backup (it takes the same optio
 One `.wpress` file holds the database dump, the `wp-content` uploads, themes, plugins and must-use plugins. Spam comments, post revisions, media, themes, plugins, cache or the database can each be left out on the Export page.
 
 ### Which WordPress and PHP versions does Trasloco support?
-Trasloco needs WordPress 5.5 or later. It is tested on WordPress 7.1 with PHP 8.2. PHP 7.4 is supported by the code but has not been tested yet.
+Trasloco needs WordPress 5.5 or later. Version 1.2.0 passes CLI integration on PHP 7.4, 8.2 and 8.4 with MySQL 8.0 and MariaDB 11.4, using WordPress downloaded by CI. This is not a pinned multi-version WordPress or real-host HTTP certification. See [validation evidence](docs/ROADMAP.md).
 
 ### Which languages does the Trasloco admin interface support?
 English, Italian, Spanish, French and German. The language follows the WordPress user profile, and any other language falls back to English. See [Languages](#languages) to add one.
@@ -128,9 +129,10 @@ English, Italian, Spanish, French and German. The language follows the WordPress
 
 ## Known limits
 
-As of version 1.1.0 (October 2026):
+As of version 1.2.0 (October 2026):
 
-- **Not yet tried on a real host behind a firewall.** So far it has been tested on local WordPress installs with PHP 8.2, including an import of a real 1.64 GB site (12 pages, 73 media files, 19 plugins). The base64 upload was built for hosting firewalls, but it has not been seen working behind one yet. PHP 7.4 has not been tested either.
+- **Not yet tried on a real host behind a firewall.** So far it has been tested on local WordPress installs with PHP 8.2, including an import of a real 1.64 GB site (12 pages, 73 media files, 19 plugins). The base64 upload was built for hosting firewalls, but it has not been seen working behind one yet. PHP 7.4, 8.2 and 8.4 pass the release CLI integration matrix; real-host HTTP tests remain pending.
+- **Full-site rollback is not yet automatic.** File recovery restores planned files in two phases and preserves unrelated destination files; it does not make the entire site restore globally atomic.
 - **Single sites only.** Importing a multisite network is not supported.
 - **PHP's built-in web server is slow with big sites.** This is not a plugin problem, but if you use `php -S` for testing, each import step can take tens of seconds.
 

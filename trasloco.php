@@ -3,7 +3,7 @@
  * Plugin Name: Trasloco
  * Description: Free, open source plugin to back up and migrate WordPress sites. Export the whole site (database, media, themes and plugins) to a single file and import it anywhere, with no size limit.
  * Author: Trasloco contributors
- * Version: 1.1.3
+ * Version: 1.2.0
  * License: AGPL-3.0-or-later
  * License URI: https://www.gnu.org/licenses/agpl-3.0.html
  * Text Domain: trasloco
@@ -106,6 +106,44 @@ require_once dirname( __FILE__ ) . DIRECTORY_SEPARATOR . 'functions.php';
 
 // Include exceptions
 require_once dirname( __FILE__ ) . DIRECTORY_SEPARATOR . 'exceptions.php';
+
+// Stream-based storage contract for private local archives and future providers.
+require_once dirname( __FILE__ ) . '/lib/model/storage/interface-trasloco-storage-adapter.php';
+require_once dirname( __FILE__ ) . '/lib/model/storage/class-trasloco-local-storage.php';
+
+// Durable job records. Jobs are not executed until an explicit, tested worker is added.
+require_once dirname( __FILE__ ) . '/lib/model/class-trasloco-job-store.php';
+add_action( 'init', array( 'Trasloco_Job_Store', 'maybe_install' ) );
+
+// Optional safety checkpoints before WordPress updates.
+require_once dirname( __FILE__ ) . '/lib/model/class-trasloco-update-safety.php';
+Trasloco_Update_Safety::register();
+
+// Scheduled backup settings and WP-Cron tick.
+require_once dirname( __FILE__ ) . '/lib/model/class-trasloco-scheduled-backups.php';
+Trasloco_Scheduled_Backups::register();
+
+// Verify job runner: hooked to WP-Cron or Action Scheduler when available.
+require_once dirname( __FILE__ ) . '/lib/model/class-trasloco-job-worker.php';
+Trasloco_Job_Worker::register();
+
+// Deactivated plugins must not leave scheduled exports running later.
+// Keep backup archives and job history intact for future reactivation.
+register_deactivation_hook( __FILE__, function () {
+    wp_clear_scheduled_hook( Trasloco_Scheduled_Backups::HOOK );
+    wp_clear_scheduled_hook( 'trasloco_reconcile_jobs' );
+    wp_unschedule_hook( Trasloco_Job_Worker::HOOK );
+} );
+
+// Bounded preflight diagnostics shared by WP-CLI and administrator API.
+require_once dirname( __FILE__ ) . '/lib/model/class-trasloco-preflight.php';
+
+// Non-destructive archive inventory for restore planning.
+require_once dirname( __FILE__ ) . '/lib/model/class-trasloco-archive-inspector.php';
+
+// Read-only automation API: WordPress enforces user authentication and permissions.
+require_once dirname( __FILE__ ) . '/lib/controller/class-trasloco-rest-api.php';
+add_action( 'rest_api_init', array( 'Trasloco_REST_API', 'register' ) );
 
 // Include loader
 require_once dirname( __FILE__ ) . DIRECTORY_SEPARATOR . 'loader.php';

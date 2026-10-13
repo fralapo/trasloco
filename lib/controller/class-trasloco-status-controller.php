@@ -40,7 +40,8 @@ class Trasloco_Status_Controller {
 
 		try {
 			// Ensure that unauthorized people cannot access status action
-			trasloco_verify_secret_key( $secret_key );
+			$operation = isset( $params['operation'] ) ? sanitize_key( $params['operation'] ) : '';
+			trasloco_verify_operation_token( $secret_key, $operation );
 		} catch ( Trasloco_Not_Valid_Secret_Key_Exception $e ) {
 			exit;
 		}

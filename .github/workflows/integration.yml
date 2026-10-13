@@ -1,0 +1,49 @@
+name: WordPress integration
+on:
+  push:
+    branches: [main, "hardening/**"]
+  pull_request:
+
+jobs:
+  migrate:
+    name: migrate (${{ matrix.database.name }}, PHP ${{ matrix.php }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['7.4', '8.2', '8.4']
+        database:
+          - name: mysql-8.0
+            image: mysql:8.0
+            health: mysqladmin ping -h 127.0.0.1 -proot
+          - name: mariadb-11.4
+            image: mariadb:11.4
+            health: healthcheck.sh --connect --innodb_initialized
+    services:
+      mysql:
+        image: ${{ matrix.database.image }}
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MARIADB_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="${{ matrix.database.health }}"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mysqli, pdo_mysql, mbstring, zip
+          tools: none
+          coverage: none
+      - name: Download WP-CLI
+        run: |
+          curl -fLsS https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar -o /tmp/wp
+          chmod +x /tmp/wp
+          php /tmp/wp --info
+      - name: End-to-end backup and restore on WordPress
+        run: bash tests/integration.sh

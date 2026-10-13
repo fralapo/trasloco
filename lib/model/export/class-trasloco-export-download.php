@@ -48,8 +48,13 @@ class Trasloco_Export_Download {
 				}
 			}
 
+			// Publish a versioned SHA-256 + per-chunk sidecar for resumable
+			// verification; the underlying .wpress format is unchanged.
+			require_once TRASLOCO_LIB_PATH . '/vendor/core/archiver/class-trasloco-integrity.php';
+			Trasloco_Integrity::create_chunked( trasloco_backup_path( $params ) );
+
 			// Set archive details
-			$link = trasloco_backup_url( $params );
+			$link = esc_url( trasloco_backup_url( $params ) );
 			$size = trasloco_backup_size( $params );
 			$name = trasloco_site_name( $blog_id );
 

@@ -27,8 +27,85 @@
 <div class="tr-page">
 	<header class="tr-head">
 		<h1><span class="dashicons dashicons-backup" aria-hidden="true"></span> <?php esc_html_e( 'Backups', TRASLOCO_PLUGIN_NAME ); ?></h1>
-		<p class="tr-lead"><?php echo wp_kses( sprintf( __( 'Every export is saved on this server, in the %s folder. Here you can download, restore or delete each file.', TRASLOCO_PLUGIN_NAME ), '<code>' . esc_html( basename( WP_CONTENT_DIR ) . '/' . basename( TRASLOCO_BACKUPS_PATH ) ) . '</code>' ), array( 'code' => array() ) ); ?></p>
+		<p class="tr-lead"><?php echo wp_kses( sprintf( __( 'Every export is saved on this server, in the %s folder. Here you can download, restore or delete each file.', TRASLOCO_PLUGIN_NAME ), '<code>' . esc_html( TRASLOCO_BACKUPS_PATH ) . '</code>' ), array( 'code' => array() ) ); ?></p>
 	</header>
+
+	<section class="tr-card" aria-labelledby="tr-automatic-backups">
+		<h2 id="tr-automatic-backups"><?php esc_html_e( 'Automatic backups', TRASLOCO_PLUGIN_NAME ); ?></h2>
+		<p class="tr-hint"><?php esc_html_e( 'Create verified backups on a schedule and automatically retain the newest copies.', TRASLOCO_PLUGIN_NAME ); ?></p>
+		<?php if ( isset( $_GET['schedule_saved'] ) && $_GET['schedule_saved'] === '1' ) : ?>
+			<p role="status"><?php esc_html_e( 'Backup schedule saved.', TRASLOCO_PLUGIN_NAME ); ?></p>
+		<?php endif; ?>
+		<?php $tr_schedule = Trasloco_Scheduled_Backups::settings(); ?>
+		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+			<input type="hidden" name="action" value="trasloco_save_schedule" />
+			<?php wp_nonce_field( 'trasloco_save_schedule' ); ?>
+			<p><label for="tr-schedule-frequency"><strong><?php esc_html_e( 'Frequency', TRASLOCO_PLUGIN_NAME ); ?></strong></label></p>
+			<p><select id="tr-schedule-frequency" name="frequency">
+				<option value="off" <?php selected( $tr_schedule['frequency'], 'off' ); ?>><?php esc_html_e( 'Disabled', TRASLOCO_PLUGIN_NAME ); ?></option>
+				<option value="hourly" <?php selected( $tr_schedule['frequency'], 'hourly' ); ?>><?php esc_html_e( 'Hourly', TRASLOCO_PLUGIN_NAME ); ?></option>
+				<option value="daily" <?php selected( $tr_schedule['frequency'], 'daily' ); ?>><?php esc_html_e( 'Daily', TRASLOCO_PLUGIN_NAME ); ?></option>
+				<option value="weekly" <?php selected( $tr_schedule['frequency'], 'weekly' ); ?>><?php esc_html_e( 'Weekly', TRASLOCO_PLUGIN_NAME ); ?></option>
+				<option value="monthly" <?php selected( $tr_schedule['frequency'], 'monthly' ); ?>><?php esc_html_e( 'Monthly', TRASLOCO_PLUGIN_NAME ); ?></option>
+			</select></p>
+			<p><label for="tr-schedule-keep"><strong><?php esc_html_e( 'Keep latest backups', TRASLOCO_PLUGIN_NAME ); ?></strong></label></p>
+			<p><input id="tr-schedule-keep" type="number" name="keep" min="1" max="100" required value="<?php echo esc_attr( $tr_schedule['keep'] ); ?>" /></p>
+			<p><label><input type="checkbox" name="before_updates" value="1" <?php checked( $tr_schedule['before_updates'] ); ?> /> <?php esc_html_e( 'Create a verified recovery point before updating WordPress, plugins or themes', TRASLOCO_PLUGIN_NAME ); ?></label></p>
+			<p class="tr-hint"><?php esc_html_e( 'If a safety backup fails, Trasloco stops the update. A recovery point is not an automatic rollback.', TRASLOCO_PLUGIN_NAME ); ?></p>
+			<p class="tr-hint"><?php esc_html_e( 'WordPress scheduled tasks depend on site traffic. Configure system cron for reliable timing on low-traffic sites.', TRASLOCO_PLUGIN_NAME ); ?></p>
+			<p><button type="submit" class="button button-primary"><?php esc_html_e( 'Save schedule', TRASLOCO_PLUGIN_NAME ); ?></button></p>
+		</form>
+	</section>
+
+	<?php if ( isset( $_GET['trasloco_verify_status'] ) && $_GET['trasloco_verify_status'] === 'queued' ) : ?>
+		<p role="status" class="notice notice-success"><?php esc_html_e( 'Backup verification queued. View the recent jobs below for the result.', TRASLOCO_PLUGIN_NAME ); ?></p>
+	<?php elseif ( isset( $_GET['trasloco_verify_status'] ) && $_GET['trasloco_verify_status'] === 'error' ) : ?>
+		<p role="alert" class="notice notice-error"><?php esc_html_e( 'Backup verification could not be queued.', TRASLOCO_PLUGIN_NAME ); ?></p>
+	<?php endif; ?>
+
+	<?php
+    $tr_pending_recoveries = array();
+    $tr_recovery_error = false;
+    try {
+        if ( is_dir( TRASLOCO_BACKUPS_PATH ) ) {
+            foreach ( Trasloco_Recovery_Journal::entries( TRASLOCO_BACKUPS_PATH, 30 ) as $tr_receipt ) {
+                if ( $tr_receipt['status'] === 'pending' ) {
+                    $tr_pending_recoveries[] = $tr_receipt;
+                }
+            }
+        }
+    } catch ( Throwable $tr_error ) {
+        $tr_recovery_error = true;
+    }
+    ?>
+    <?php if ( $tr_pending_recoveries || $tr_recovery_error ) : ?>
+        <section class="tr-card" aria-labelledby="tr-recovery-attention">
+            <h2 id="tr-recovery-attention"><?php esc_html_e( 'Recovery points requiring attention', TRASLOCO_PLUGIN_NAME ); ?></h2>
+            <p class="tr-hint"><?php esc_html_e( 'A previous import did not confirm completion. Keep its recovery archive, check the site, and recover manually if needed.', TRASLOCO_PLUGIN_NAME ); ?></p>
+            <?php if ( $tr_recovery_error ) : ?>
+                <p role="alert"><?php esc_html_e( 'Recovery receipts could not be read.', TRASLOCO_PLUGIN_NAME ); ?></p>
+            <?php endif; ?>
+            <?php if ( $tr_pending_recoveries ) : ?>
+                <table class="widefat striped">
+                    <thead><tr>
+                        <th scope="col"><?php esc_html_e( 'Created', TRASLOCO_PLUGIN_NAME ); ?></th>
+                        <th scope="col"><?php esc_html_e( 'Imported archive', TRASLOCO_PLUGIN_NAME ); ?></th>
+                        <th scope="col"><?php esc_html_e( 'Recovery archive', TRASLOCO_PLUGIN_NAME ); ?></th>
+                    </tr></thead>
+                    <tbody>
+                    <?php foreach ( $tr_pending_recoveries as $tr_receipt ) : ?>
+                        <tr>
+                            <td><?php echo esc_html( $tr_receipt['created_at'] ); ?> UTC</td>
+                            <td><code><?php echo esc_html( $tr_receipt['source_archive'] ); ?></code></td>
+                            <td><code><?php echo esc_html( $tr_receipt['recovery_archive'] ); ?></code></td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            <?php endif; ?>
+            <p class="tr-hint"><?php esc_html_e( 'A recovery point is not an automatic rollback. Rehearse restoration on a separate site before replacing production data.', TRASLOCO_PLUGIN_NAME ); ?></p>
+        </section>
+    <?php endif; ?>
 
 	<?php include TRASLOCO_TEMPLATES_PATH . '/backups/legend.php'; ?>
 
@@ -42,6 +119,7 @@
 										<th class="trasloco-column-name"><?php _e( 'Name', TRASLOCO_PLUGIN_NAME ); ?></th>
 										<th class="trasloco-column-date"><?php _e( 'Date', TRASLOCO_PLUGIN_NAME ); ?></th>
 										<th class="trasloco-column-size"><?php _e( 'Size', TRASLOCO_PLUGIN_NAME ); ?></th>
+										<th><?php esc_html_e( 'Integrity', TRASLOCO_PLUGIN_NAME ); ?></th>
 										<th class="trasloco-column-actions"><span class="screen-reader-text"><?php esc_html_e( 'Actions', TRASLOCO_PLUGIN_NAME ); ?></span></th>
 									</tr>
 								</thead>
@@ -67,8 +145,22 @@
 												<?php echo size_format( $backup['size'], 2 ); ?>
 											<?php endif; ?>
 										</td>
+										<td><?php
+											require_once TRASLOCO_LIB_PATH . '/vendor/core/archiver/class-trasloco-integrity.php';
+											$manifest_file = Trasloco_Integrity::manifest_path( trasloco_backup_path( array( 'archive' => $backup['filename'] ) ) );
+											if ( ! is_file( $manifest_file ) ) {
+												esc_html_e( 'Not verified', TRASLOCO_PLUGIN_NAME );
+											} else {
+												// A manifest is not proof of integrity. Hashing each archive
+											// here made listing large backups extremely slow.
+											esc_html_e( 'Manifest available (not verified)', TRASLOCO_PLUGIN_NAME );
+											}
+										?></td>
 										<td class="trasloco-column-actions trasloco-backup-actions">
-											<a href="<?php echo trasloco_backup_url( array( 'archive' => esc_attr( $backup['filename'] ) ) ); ?>" class="tr-btn tr-btn-ghost trasloco-backup-download" aria-label="<?php echo esc_attr( sprintf( __( 'Download %s', TRASLOCO_PLUGIN_NAME ), basename( $backup['filename'] ) ) ); ?>">
+											<button type="submit" name="archive" value="<?php echo esc_attr( $backup['filename'] ); ?>" formaction="<?php echo esc_url( admin_url( 'admin-post.php?action=trasloco_verify_archive' ) ); ?>" formmethod="post" class="tr-btn tr-btn-ghost" aria-label="<?php echo esc_attr( sprintf( __( 'Verify %s', TRASLOCO_PLUGIN_NAME ), basename( $backup['filename'] ) ) ); ?>">
+											<span><?php esc_html_e( 'Verify', TRASLOCO_PLUGIN_NAME ); ?></span>
+										</button>
+										<a href="<?php echo esc_url( trasloco_backup_url( array( 'archive' => $backup['filename'] ) ) ); ?>" class="tr-btn tr-btn-ghost trasloco-backup-download" aria-label="<?php echo esc_attr( sprintf( __( 'Download %s', TRASLOCO_PLUGIN_NAME ), basename( $backup['filename'] ) ) ); ?>">
 												<i class="trasloco-icon-arrow-down" aria-hidden="true"></i>
 												<span><?php _e( 'Download', TRASLOCO_PLUGIN_NAME ); ?></span>
 											</a>
@@ -106,6 +198,7 @@
 
 					<?php do_action( 'trasloco_backups_left_end' ); ?>
 
+					<?php wp_nonce_field( 'trasloco_verify_archive', 'trasloco_verify_nonce' ); ?>
 					<input type="hidden" name="trasloco_manual_restore" value="1" />
 
 				</form>

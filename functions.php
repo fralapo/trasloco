@@ -221,7 +221,11 @@ function trasloco_archive_name( $params ) {
  * @return string
  */
 function trasloco_backup_url( $params ) {
-	return TRASLOCO_BACKUPS_URL . '/' . str_replace( DIRECTORY_SEPARATOR, '/', $params['archive'] );
+	$archive = $params['archive'];
+	trasloco_backup_path( array( 'archive' => $archive ) );
+	$url = admin_url( 'admin-post.php?action=trasloco_download&archive=' . rawurlencode( $archive ) );
+	// Background exports have no browser session; attach a login-bound nonce in the UI.
+	return current_user_can( 'manage_options' ) ? wp_nonce_url( $url, 'trasloco_download_file' ) : $url;
 }
 
 /**
@@ -1189,6 +1193,67 @@ function trasloco_fseek( $file_handle, Math_BigInteger $offset ) {
  * @return boolean
  * @throws Trasloco_Not_Valid_Secret_Key_Exception
  */
+
+/** Issue a short-lived action-scoped token. Background migration requests can
+ * outlive the destination WordPress admin session when users are replaced. */
+/**
+ * Encrypt staging HTTP Basic credentials in the options table with WP salts.
+ * Never fall back to persisting plaintext if OpenSSL is unavailable.
+ */
+function trasloco_encrypt_http_password( $password ) {
+	if ( ! function_exists( 'openssl_encrypt' ) || ! is_string( $password ) ) {
+		return false;
+	}
+	$iv = random_bytes( 12 );
+	$tag = '';
+	$key = hash( 'sha256', wp_salt( 'auth' ) . '|trasloco-http-basic', true );
+	$encrypted = openssl_encrypt( $password, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag );
+	if ( $encrypted === false ) {
+		return false;
+	}
+	return 'v1:' . base64_encode( $iv . $tag . $encrypted );
+}
+
+/** Read a credential encrypted for the current WordPress installation. */
+function trasloco_get_http_password() {
+	$stored = get_option( TRASLOCO_AUTH_PASSWORD );
+	if ( ! is_string( $stored ) || substr( $stored, 0, 3 ) !== 'v1:' || ! function_exists( 'openssl_decrypt' ) ) {
+		return '';
+	}
+	$payload = base64_decode( substr( $stored, 3 ), true );
+	if ( $payload === false || strlen( $payload ) < 28 ) {
+		return '';
+	}
+	$key = hash( 'sha256', wp_salt( 'auth' ) . '|trasloco-http-basic', true );
+	$decrypted = openssl_decrypt( substr( $payload, 28 ), 'aes-256-gcm', $key, OPENSSL_RAW_DATA, substr( $payload, 0, 12 ), substr( $payload, 12, 16 ) );
+	return is_string( $decrypted ) ? $decrypted : '';
+}
+
+function trasloco_issue_operation_token( $operation ) {
+	if ( ! current_user_can( 'manage_options' ) || ! in_array( $operation, array( 'export', 'import', 'backups' ), true ) ) {
+		return '';
+	}
+	$expires = time() + 4 * HOUR_IN_SECONDS;
+	$key = (string) get_option( TRASLOCO_SECRET_KEY );
+	return 'v1.' . $expires . '.' . hash_hmac( 'sha256', $operation . '|' . $expires, wp_salt( 'auth' ) . '|' . $key );
+}
+/** Authenticate one named migration operation without exposing the site secret. */
+function trasloco_verify_operation_token( $token, $operation ) {
+	if ( ! is_string( $token ) || ! in_array( $operation, array( 'export', 'import', 'backups' ), true ) ||
+		! preg_match( '/^v1\\.(\\d{10})\\.([a-f0-9]{64})$/D', $token, $parts ) ) {
+		throw new Trasloco_Not_Valid_Secret_Key_Exception( __( 'This page is out of date, so the request was refused for security. Refresh the page and try again.', TRASLOCO_PLUGIN_NAME ) );
+	}
+	$expires = (int) $parts[1];
+	if ( $expires < time() || $expires > time() + 4 * HOUR_IN_SECONDS ) {
+		throw new Trasloco_Not_Valid_Secret_Key_Exception( __( 'This page is out of date, so the request was refused for security. Refresh the page and try again.', TRASLOCO_PLUGIN_NAME ) );
+	}
+	$key = (string) get_option( TRASLOCO_SECRET_KEY );
+	if ( $key === '' || ! hash_equals( hash_hmac( 'sha256', $operation . '|' . $expires, wp_salt( 'auth' ) . '|' . $key ), $parts[2] ) ) {
+		throw new Trasloco_Not_Valid_Secret_Key_Exception( __( 'This page is out of date, so the request was refused for security. Refresh the page and try again.', TRASLOCO_PLUGIN_NAME ) );
+	}
+	return true;
+}
+
 function trasloco_verify_secret_key( $secret_key ) {
 	$expected = (string) get_option( TRASLOCO_SECRET_KEY );
 	if ( $expected === '' || ! is_string( $secret_key ) || ! hash_equals( $expected, $secret_key ) ) {

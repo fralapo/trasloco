@@ -35,10 +35,47 @@ class Trasloco_Backups_Controller {
 			'backups/index',
 			array(
 				'backups'  => $model->get_files(),
-				'username' => get_option( TRASLOCO_AUTH_USER ),
-				'password' => get_option( TRASLOCO_AUTH_PASSWORD ),
 			)
 		);
+	}
+
+
+	/** Stream backups only through an authenticated, nonce-protected endpoint. */
+	public static function download() {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( 'Not allowed', '', array( 'response' => 403 ) );
+		}
+		$archive = isset( $_GET['archive'] ) && is_string( $_GET['archive'] ) ? wp_unslash( $_GET['archive'] ) : '';
+		check_admin_referer( 'trasloco_download_file' );
+		try {
+			$path = trasloco_backup_path( array( 'archive' => $archive ) );
+		} catch ( Exception $e ) {
+			wp_die( 'Invalid backup', '', array( 'response' => 400 ) );
+		}
+		if ( ! is_file( $path ) || ! is_readable( $path ) ) {
+			wp_die( 'Backup not found', '', array( 'response' => 404 ) );
+		}
+		$handle = fopen( $path, 'rb' );
+		if ( ! $handle ) {
+			wp_die( 'Unable to read backup', '', array( 'response' => 500 ) );
+		}
+		while ( ob_get_level() ) {
+			ob_end_clean();
+		}
+		nocache_headers();
+		header( 'Content-Type: application/octet-stream' );
+		header( 'X-Content-Type-Options: nosniff' );
+		header( 'Content-Disposition: attachment; filename="' . basename( $path ) . '"' );
+		header( 'Content-Length: ' . filesize( $path ) );
+		while ( ! feof( $handle ) ) {
+			$chunk = fread( $handle, 1024 * 1024 );
+			if ( $chunk === false ) {
+				break;
+			}
+			echo $chunk;
+		}
+		fclose( $handle );
+		exit;
 	}
 
 	public static function delete( $params = array() ) {
@@ -63,7 +100,10 @@ class Trasloco_Backups_Controller {
 
 		try {
 			// Ensure that unauthorized people cannot access delete action
-			trasloco_verify_secret_key( $secret_key );
+			if ( ! current_user_can( 'manage_options' ) ) {
+				exit;
+			}
+			trasloco_verify_operation_token( $secret_key, 'backups' );
 		} catch ( Trasloco_Not_Valid_Secret_Key_Exception $e ) {
 			exit;
 		}

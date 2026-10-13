@@ -58,7 +58,9 @@ class Trasloco_Recursive_Directory_Iterator extends RecursiveDirectoryIterator {
 	 */
 	#[\ReturnTypeWillChange]
 	public function hasChildren( $allow_links = true ) {
-		return parent::hasChildren( $allow_links );
+		// Never recurse into symlinked directories. Even a link to an
+		// existing wp-content child can create cycles or leak external files.
+		return ! $this->isLink() && parent::hasChildren( false );
 	}
 
 	protected function skipdots() {

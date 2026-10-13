@@ -234,6 +234,10 @@ class Trasloco_Extractor extends Trasloco_Archiver {
 						// Escape Windows directory separator in file name
 						$file_name = $this->escape_windows_directory_separator( $location . DIRECTORY_SEPARATOR . $file_name );
 
+						// Existing symlink components must never redirect an extraction
+						// outside the trusted destination, even for safe archive names.
+						$this->assert_safe_destination( $location, $file_name );
+
 						// Check if location doesn't exist, then create it
 						if ( false === is_dir( $file_path ) ) {
 							@mkdir( $file_path, $this->get_permissions_for_directory(), true );
@@ -351,6 +355,10 @@ class Trasloco_Extractor extends Trasloco_Archiver {
 						// Escape Windows directory separator in file name
 						$file_name = $this->escape_windows_directory_separator( $location . DIRECTORY_SEPARATOR . $file_name );
 
+						// Existing symlink components must never redirect an extraction
+						// outside the trusted destination, even for safe archive names.
+						$this->assert_safe_destination( $location, $file_name );
+
 						// Check if location doesn't exist, then create it
 						if ( false === is_dir( $file_path ) ) {
 							@mkdir( $file_path, $this->get_permissions_for_directory(), true );
@@ -430,24 +438,25 @@ class Trasloco_Extractor extends Trasloco_Archiver {
 
 				// Read data chunk by chunk from archive file
 				if ( $chunk_size > 0 ) {
-					$file_content = null;
-
-					// Read the file in chunks of 512KB from archiver
-					if ( ( $file_content = @fread( $this->file_handle, $chunk_size ) ) === false ) {
-						throw new Trasloco_Not_Readable_Exception( sprintf( 'Unable to read content from file. File: %s', $this->file_name ) );
-					}
-
-					// Remove the amount of bytes we read
-					$file_size -= $chunk_size;
-
-					// Write file contents
-					if ( ( $file_bytes = @fwrite( $file_handle, $file_content ) ) !== false ) {
-						if ( strlen( $file_content ) !== $file_bytes ) {
-							throw new Trasloco_Quota_Exceeded_Exception( sprintf( 'Out of disk space. Unable to write content to file. File: %s', $file_name ) );
+					// Consume the entire declared chunk, even if fread returns short.
+					$file_content = '';
+					while ( strlen( $file_content ) < $chunk_size ) {
+						$part = @fread( $this->file_handle, $chunk_size - strlen( $file_content ) );
+						if ( ! is_string( $part ) || $part === '' ) {
+							throw new Trasloco_Not_Readable_Exception( 'Archive ended before the declared file size was read.' );
 						}
+						$file_content .= $part;
 					}
-
-					// Set file written
+					// A partial or failed write must not advance the resume offset.
+					$written = 0;
+					while ( $written < $chunk_size ) {
+						$count = @fwrite( $file_handle, substr( $file_content, $written ) );
+						if ( $count === false || $count === 0 ) {
+							throw new Trasloco_Quota_Exceeded_Exception( 'Unable to write a complete restored file.' );
+						}
+						$written += $count;
+					}
+					$file_size -= $chunk_size;
 					$file_written += $chunk_size;
 				}
 
@@ -519,7 +528,9 @@ class Trasloco_Extractor extends Trasloco_Archiver {
 
 			// Refuse entries that would be written outside the destination folder
 			if ( ! $this->is_safe_entry( $data['path'], $data['filename'] ) ) {
-				throw new Trasloco_Archive_Exception( sprintf( 'Unsafe file path in archive: %s/%s', $data['path'], $data['filename'] ) );
+				// Untrusted filenames may contain terminal escapes or secret-looking data.
+				// Never echo a raw malformed archive path to logs or WP-CLI output.
+				throw new Trasloco_Archive_Exception( 'Unsafe file path in archive.' );
 			}
 
 			// Set file name
@@ -585,6 +596,38 @@ class Trasloco_Extractor extends Trasloco_Archiver {
 	}
 
 	/**
+	 * Deny extraction through any existing symlink or non-directory parent.
+	 * The archive header may be safe while an on-disk directory redirects to
+	 * another location. Perform this check immediately before mkdir/fopen.
+	 */
+	protected function assert_safe_destination( $location, $filename ) {
+		$root = realpath( $location );
+		if ( $root === false ) {
+			throw new Trasloco_Archive_Exception( 'Invalid extraction root.' );
+		}
+		$location_normal = rtrim( str_replace( '\\', '/', $location ), '/' ) . '/';
+		$filename_normal = str_replace( '\\', '/', $filename );
+		if ( strpos( $filename_normal, $location_normal ) !== 0 ) {
+			throw new Trasloco_Archive_Exception( 'Archive entry escapes the extraction root.' );
+		}
+		$relative = substr( $filename_normal, strlen( $location_normal ) );
+		$parts = explode( '/', $relative );
+		$cursor = $root;
+		foreach ( $parts as $index => $part ) {
+			if ( $part === '' || $part === '.' || $part === '..' || strpos( $part, "\0" ) !== false ) {
+				throw new Trasloco_Archive_Exception( 'Invalid extraction path component.' );
+			}
+			$cursor .= DIRECTORY_SEPARATOR . $part;
+			if ( is_link( $cursor ) ) {
+				throw new Trasloco_Archive_Exception( 'Refusing to extract through a symbolic link.' );
+			}
+			if ( $index < count( $parts ) - 1 && file_exists( $cursor ) && ! is_dir( $cursor ) ) {
+				throw new Trasloco_Archive_Exception( 'Extraction path contains a file instead of a directory.' );
+			}
+		}
+	}
+
+	/**
 	 * Check that an archive entry stays inside the destination folder
 	 *
 	 * @param  string $path     Relative folder from the entry header
@@ -592,7 +635,9 @@ class Trasloco_Extractor extends Trasloco_Archiver {
 	 * @return bool
 	 */
 	protected function is_safe_entry( $path, $filename ) {
-		if ( $filename === '' || $filename === '..' || strpbrk( $filename, '/\\' ) !== false ) {
+		if ( $filename === '' || $filename === '.' || $filename === '..' ||
+			strpbrk( $filename, '/\\' ) !== false ||
+			preg_match( '/[\\x00-\\x1f\\x7f]/', $filename . $path ) ) {
 			return false;
 		}
 
@@ -600,6 +645,16 @@ class Trasloco_Extractor extends Trasloco_Archiver {
 			return false;
 		}
 
-		return ! in_array( '..', preg_split( '#[/\\\\]#', $path ), true );
+		// Historical archive root is '.', but subdirectories cannot use
+		// empty or dot segments (nor traversal).
+		if ( $path === '' || $path === '.' ) {
+			return true;
+		}
+		foreach ( preg_split( '#[/\\\\]#', $path ) as $part ) {
+			if ( $part === '' || $part === '.' || $part === '..' ) {
+				return false;
+			}
+		}
+		return true;
 	}
 }

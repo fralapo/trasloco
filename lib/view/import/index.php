@@ -55,6 +55,19 @@
 		</ul>
 	</section>
 
+	<section class="tr-card" aria-labelledby="tr-server-readiness">
+		<h2 id="tr-server-readiness"><?php esc_html_e( 'Server readiness', TRASLOCO_PLUGIN_NAME ); ?></h2>
+		<ul class="tr-list">
+			<li><?php esc_html_e( 'PHP version', TRASLOCO_PLUGIN_NAME ); ?>: <strong><?php echo esc_html( PHP_VERSION ); ?></strong></li>
+			<li><?php esc_html_e( 'Available disk space', TRASLOCO_PLUGIN_NAME ); ?>: <strong><?php
+				$free_space = @disk_free_space( WP_CONTENT_DIR );
+				echo $free_space === false ? esc_html__( 'Unknown', TRASLOCO_PLUGIN_NAME ) : esc_html( size_format( $free_space ) );
+			?></strong></li>
+			<li><?php esc_html_e( 'MySQLi extension', TRASLOCO_PLUGIN_NAME ); ?>: <strong><?php echo extension_loaded( 'mysqli' ) ? esc_html__( 'Available', TRASLOCO_PLUGIN_NAME ) : esc_html__( 'Unavailable', TRASLOCO_PLUGIN_NAME ); ?></strong></li>
+		</ul>
+		<p class="tr-hint"><?php esc_html_e( 'Trasloco checks the uploaded archive and destination storage again before asking to replace the site.', TRASLOCO_PLUGIN_NAME ); ?></p>
+	</section>
+
 	<form action="" method="post" id="trasloco-import-form" class="tr-form" enctype="multipart/form-data">
 
 		<?php do_action( 'trasloco_import_left_options' ); ?>

@@ -56,7 +56,7 @@ class Trasloco_Import_Controller {
 
 		try {
 			// Ensure that unauthorized people cannot access import action
-			trasloco_verify_secret_key( $secret_key );
+			trasloco_verify_operation_token( $secret_key, 'import' );
 		} catch ( Trasloco_Not_Valid_Secret_Key_Exception $e ) {
 			exit;
 		}
@@ -115,7 +115,7 @@ class Trasloco_Import_Controller {
 						wp_remote_post( apply_filters( 'trasloco_http_import_url', admin_url( 'admin-ajax.php?action=trasloco_import' ) ), array(
 							'timeout'   => apply_filters( 'trasloco_http_import_timeout', 5 ),
 							'blocking'  => apply_filters( 'trasloco_http_import_blocking', false ),
-							'sslverify' => apply_filters( 'trasloco_http_import_sslverify', false ),
+							'sslverify' => apply_filters( 'trasloco_http_import_sslverify', true ),
 							'headers'   => apply_filters( 'trasloco_http_import_headers', array() ),
 							'body'      => apply_filters( 'trasloco_http_import_body', $params ),
 						) );
@@ -130,7 +130,7 @@ class Trasloco_Import_Controller {
 
 
 	public static function http_import_headers( $headers = array() ) {
-		if ( ( $user = get_option( TRASLOCO_AUTH_USER ) ) && ( $password = get_option( TRASLOCO_AUTH_PASSWORD ) ) ) {
+		if ( ( $user = get_option( TRASLOCO_AUTH_USER ) ) && ( $password = trasloco_get_http_password() ) ) {
 			if ( ( $hash = base64_encode( sprintf( '%s:%s', $user, $password ) ) ) ) {
 				$headers['Authorization'] = sprintf( 'Basic %s', $hash );
 			}
