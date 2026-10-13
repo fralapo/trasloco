@@ -181,3 +181,6 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 
 - [x] Phase 2B-2B-1: filesystem recovery receipts survive database replacement, mark pending until import completes, and are testable without WordPress.
 - [ ] Phase 2B-2B-2: provoke real post-DDL SQL import failure and prove manual database rollback using recorded archive on both MySQL and MariaDB.
+
+- [x] Phase 2B-2B-2A: tested independent filesystem recovery journal and offline CLI receipt discovery, requiring no WordPress/MySQL process.
+- [ ] Phase 2B-2B-2B: post-DDL SQL failure and manual database rollback matrix validation (await six integration checks).

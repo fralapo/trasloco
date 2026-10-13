@@ -100,6 +100,16 @@ php -r '
       fwrite(STDERR, "Failed SQL import lost its recovery receipt\n"); exit(1);
   }
 ' "$PENDING_RECEIPT" "$FAILED_RECOVERY" "$FAILED_SQL"
+# Offline discovery works even if the imported WordPress database will not boot.
+OFFLINE_RECEIPTS=$(php "$GITHUB_WORKSPACE/tools/recovery-status.php"   "$ROOT/target/wp-content/trasloco-backups" --json)
+printf '%s' "$OFFLINE_RECEIPTS" | php -r '
+  $records = json_decode(stream_get_contents(STDIN), true);
+  if (!is_array($records) || count($records) < 1 ||
+      $records[0]["status"] !== "pending" ||
+      $records[0]["recovery_archive"] !== basename($argv[1])) {
+      fwrite(STDERR, "Offline rescue receipt discovery failed\n"); exit(1);
+  }
+' "$(basename "$FAILED_RECOVERY")"
 $WP trasloco verify "$(basename "$FAILED_RECOVERY")" --path="$ROOT/target"
 # Operator-driven rollback: do NOT silently restore in the failed import
 # process, whose database and active plugin set may already be inconsistent.

@@ -97,3 +97,17 @@ order consistency, Multisite or automated rollback after a partial SQL import.
 A restored database cannot be treated as an atomic transaction with filesystem
 changes. The private offline extractor remains available when WordPress cannot
 bootstrap at all.
+
+## Find the pre-import recovery point after a SQL failure
+
+Starting with this version, **before any destructive import**, Trasloco writes an independent, private filesystem receipt called `.trasloco-recovery-<id>.json` alongside the verified recovery archive. An import that encounters an SQL error or process crash leaves the receipt in `pending` state. A completed import changes it to `completed`. These receipts are **not** included in `.wpress` archives and must remain outside direct HTTP access.
+
+Even when WordPress and MySQL are offline, an operator can locate the relevant backup with system PHP alone:
+
+```bash
+php tools/recovery-status.php /absolute/private/trasloco-backups --json
+```
+
+Only filenames and timestamps are displayed; no credentials or data are extracted. Keep the source backup and the `recovery-*.wpress` backup (with its manifest) unchanged. On a newly provisioned staging site, first verify that exact recovery archive. If the damaged target's WordPress can still boot, the operator can restore it explicitly with `wp trasloco restore recovery-....wpress`. The original `pending` receipt remains as a forensic record even after a separate manual recovery succeeds.
+
+**Important:** restoring an earlier database does not necessarily remove additional files created during a failed migration. Review and reconcile files separately. This is not atomic full-site rollback, and no automatic rollback is attempted.

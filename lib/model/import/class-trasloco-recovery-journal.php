@@ -118,8 +118,10 @@ class Trasloco_Recovery_Journal {
                 continue;
             }
             $data = json_decode( (string) file_get_contents( $item->getPathname() ), true );
-            if ( ! is_array( $data ) || ! isset( $data['id'], $data['status'],
-                      $data['source_archive'], $data['recovery_archive'] ) ||
+            if ( ! is_array( $data ) || ! isset( $data['version'], $data['id'], $data['status'],
+                      $data['source_archive'], $data['recovery_archive'], $data['created_at'] ) ||
+                 $data['version'] !== self::VERSION ||
+                 ! is_string( $data['created_at'] ) ||
                  $data['id'] !== $matches[1] ||
                  ! in_array( $data['status'], array( 'pending', 'completed' ), true ) ) {
                 continue;
@@ -130,7 +132,14 @@ class Trasloco_Recovery_Journal {
             } catch ( InvalidArgumentException $e ) {
                 continue;
             }
-            $entries[] = $data;
+            // Whitelist known fields: never echo arbitrary JSON keys.
+            $entries[] = array(
+                'id' => $data['id'],
+                'status' => $data['status'],
+                'source_archive' => $data['source_archive'],
+                'recovery_archive' => $data['recovery_archive'],
+                'created_at' => $data['created_at'],
+            );
         }
         usort( $entries, function ( $a, $b ) {
             return strcmp( $b['created_at'], $a['created_at'] );
