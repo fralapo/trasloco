@@ -69,6 +69,56 @@ test ! -e "$ROOT/target/wp-content/uploads/test-fixtures/fixture.txt"
 # Do not let the deliberately malformed negative fixture enter recovery
 # inventory: filesystem iteration order varies across MySQL/PHP CI workers.
 rm -f "$ROOT/target/wp-content/trasloco-backups/$(basename "$MISSING_SQL")" "$MISSING_SQL"
+
+# Force a REAL database execution error AFTER the source SQL DDL/DML has run.
+# MySQL DDL cannot be rolled back as a single transaction. The independent
+# recovery receipt must remain pending and the original destination database
+# must be manually restorable from its snapshot on MySQL AND MariaDB.
+FAILED_SQL="$ROOT/fixture-failing-sql.wpress"
+php "$GITHUB_WORKSPACE/tests/inject-sql-failure.php" "$ARCHIVE" "$FAILED_SQL"
+cp "$FAILED_SQL" "$ROOT/target/wp-content/trasloco-backups/"
+if FAILURE_LOG=$($WP trasloco restore "$(basename "$FAILED_SQL")" --path="$ROOT/target" 2>&1); then
+  echo "ERROR: a real invalid SQL statement did not fail the import" >&2
+  exit 1
+fi
+printf '%s\n' "$FAILURE_LOG" | grep -F 'trasloco_ci_forced_sql_failure_2026'
+# A real partial restore happened: database.sql was executed before its final
+# invalid statement. Confirm the preexisting destination user was replaced.
+$WP user get oldadmin --path="$ROOT/target" --field=user_login | grep -Fx oldadmin
+FAILED_RECOVERY=$(find "$ROOT/target/wp-content/trasloco-backups" -maxdepth 1 \
+  -type f -name 'recovery-*.wpress' -print -quit)
+test -s "$FAILED_RECOVERY"
+test -s "$FAILED_RECOVERY.manifest.json"
+PENDING_RECEIPT=$(find "$ROOT/target/wp-content/trasloco-backups" -maxdepth 1 \
+  -type f -name '.trasloco-recovery-*.json' -print -quit)
+test -s "$PENDING_RECEIPT"
+php -r '
+  $receipt = json_decode(file_get_contents($argv[1]), true);
+  if (!is_array($receipt) || $receipt["status"] !== "pending" ||
+      $receipt["recovery_archive"] !== basename($argv[2]) ||
+      $receipt["source_archive"] !== basename($argv[3])) {
+      fwrite(STDERR, "Failed SQL import lost its recovery receipt\n"); exit(1);
+  }
+' "$PENDING_RECEIPT" "$FAILED_RECOVERY" "$FAILED_SQL"
+$WP trasloco verify "$(basename "$FAILED_RECOVERY")" --path="$ROOT/target"
+# Operator-driven rollback: do NOT silently restore in the failed import
+# process, whose database and active plugin set may already be inconsistent.
+$WP trasloco restore "$(basename "$FAILED_RECOVERY")" --path="$ROOT/target"
+$WP user get newadmin --path="$ROOT/target" --field=user_login | grep -Fx newadmin
+if $WP user get oldadmin --path="$ROOT/target" --field=user_login >/dev/null 2>&1; then
+  echo "ERROR: restored destination still has the migrated user" >&2
+  exit 1
+fi
+test "$($WP option get home --path="$ROOT/target")" = "$EXPECTED_HOME"
+php -r '
+  $receipt = json_decode(file_get_contents($argv[1]), true);
+  if ($receipt["status"] !== "pending") {
+      fwrite(STDERR, "Failed operation was incorrectly marked completed\n"); exit(1);
+  }
+' "$PENDING_RECEIPT"
+rm "$ROOT/target/wp-content/trasloco-backups/$(basename "$FAILED_SQL")"
+echo "PASS: real SQL fault preserved receipt and verified recovery restored destination database."
+
 # Recover an actual WordPress backup using only system PHP (no WP bootstrap).
 # The rescue command supports a deterministic private directory so operators can
 # plan storage and rehearse recovery instead of relying on transient /tmp paths.
