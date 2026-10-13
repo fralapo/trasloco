@@ -237,7 +237,7 @@ class Trasloco_Offline_Recovery_Diff {
     private static function safe_display_path( $relative ) {
         $pattern = preg_match( '//u', $relative ) ? '/[\\x00-\\x1f\\x7f]/' : '/[^\\x20-\\x7e]/';
         return preg_replace_callback( $pattern, function ( $match ) {
-            return sprintf( '\\\\x%02X', ord( $match[0] ) );
+            return sprintf( '\\x%02X', ord( $match[0] ) );
         }, $relative );
     }
 }
