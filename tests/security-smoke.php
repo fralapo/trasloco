@@ -509,3 +509,51 @@ unlink( $journal_dir . '/recovery-safe.wpress.manifest.json' );
 unlink( $journal_dir . '/.trasloco-recovery-' . $id . '.json' );
 unlink( $journal_dir . '/.trasloco-recovery-' . $pending . '.json' );
 rmdir( $journal_dir );
+
+
+// Offline recovery comparison: verified bytes, altered content, missing files,
+// symlink defenses and bounded work, without WordPress or MySQL.
+require dirname( __DIR__ ) . '/lib/vendor/core/archiver/class-trasloco-offline-recovery-diff.php';
+$diff_dir = sys_get_temp_dir() . '/tr-recovery-diff-' . bin2hex( random_bytes( 8 ) );
+mkdir( $diff_dir, 0700 );
+mkdir( $diff_dir . '/uploads', 0700 );
+mkdir( $diff_dir . '/uploads/docs', 0700 );
+$diff_file = $diff_dir . '/uploads/docs/fixture.txt';
+file_put_contents( $diff_file, 'SAFE' );
+$diff_archive = sys_get_temp_dir() . '/tr-recovery-diff-' . bin2hex( random_bytes( 8 ) ) . '.wpress';
+$diff_packet = pack( 'a255a14a12a4096', 'package.json', '2', '0', '.' ) . '{}';
+$diff_packet .= pack( 'a255a14a12a4096', 'fixture.txt', '4', '0', 'uploads/docs' ) . 'SAFE';
+$diff_packet .= str_repeat( chr( 0 ), 4377 );
+file_put_contents( $diff_archive, $diff_packet );
+$baseline = $diff_archive . '.manifest.json';
+file_put_contents( $baseline, json_encode( array(
+    'manifest_version' => 1, 'algorithm' => 'sha256',
+    'size_bytes' => filesize( $diff_archive ),
+    'sha256' => hash_file( 'sha256', $diff_archive ),
+) ) );
+$identical = Trasloco_Offline_Recovery_Diff::compare( $diff_archive, $diff_dir );
+ensure( $identical['identical'] === 1 && $identical['modified'] === 0, 'offline diff identical fixture' );
+file_put_contents( $diff_file, 'NOPE' );
+$changed = Trasloco_Offline_Recovery_Diff::compare( $diff_archive, $diff_dir );
+ensure( $changed['modified'] === 1 && $changed['sample'][0]['relative_path'] === 'uploads/docs/fixture.txt',
+    'offline diff detects equal-length changed content' );
+unlink( $diff_file );
+$missing = Trasloco_Offline_Recovery_Diff::compare( $diff_archive, $diff_dir );
+ensure( $missing['missing'] === 1, 'offline diff detects missing recovery content' );
+symlink( '/etc/passwd', $diff_file );
+$unsafe = Trasloco_Offline_Recovery_Diff::compare( $diff_archive, $diff_dir );
+ensure( $unsafe['unsafe_target'] === 1, 'offline diff never follows a symlink' );
+unlink( $diff_file );
+try {
+    Trasloco_Offline_Recovery_Diff::compare( $diff_archive, $diff_dir, 1 );
+    ensure( false, 'offline diff ignored byte limit' );
+} catch ( RuntimeException $expected ) {}
+unlink( $baseline );
+try {
+    Trasloco_Offline_Recovery_Diff::compare( $diff_archive, $diff_dir );
+    ensure( false, 'offline diff trusted a missing checksum manifest' );
+} catch ( RuntimeException $expected ) {}
+unlink( $diff_archive );
+rmdir( $diff_dir . '/uploads/docs' );
+rmdir( $diff_dir . '/uploads' );
+rmdir( $diff_dir );

@@ -189,3 +189,6 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 - [x] Recovery audit: a failed SQL import can deactivate the Trasloco plugin before import finalization; documented safe WP-CLI reactivation, plus a real recovery rehearsal after failure.
 - [ ] **P0: Atomic full-site rollback is not implemented.** Restoring the previous database does not automatically remove newly created filesystem contents; unbootable WordPress and other hosting configurations still require independently rehearsed recovery and operator intervention.
 - [ ] P0: cross-host HTTP denial tests, truly interrupted PHP crash/replay, WooCommerce order consistency and multisite fidelity before production certification.
+
+- [x] P0 manual recovery aid: standalone, SHA-256-gated, bounded offline comparison of a recovery archive's uploads/themes/plugins/mu-plugins against actual destination bytes. Reports changed/missing/unsafe files without loading WordPress/MySQL or touching content; includes induced-SQL-failure integration.
+- [ ] Recovery diff is **read-only and incomplete for automatic rollback**: it deliberately excludes extra imported-only files and database changes. A staged, reviewed full filesystem rollback remains a release blocker.

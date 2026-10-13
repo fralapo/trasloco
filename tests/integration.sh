@@ -131,9 +131,29 @@ if ( strpos( wp_json_encode( $data ), ABSPATH ) !== false ) {
 }
 ' --path="$ROOT/target"
 $WP trasloco verify "$(basename "$FAILED_RECOVERY")" --path="$ROOT/target"
+# A recovery point must expose changed and missing files independently
+# of the potentially damaged WordPress/MySQL installation.
+printf 'CHANGED BY FAILED IMPORT\n' > "$ROOT/target/wp-content/uploads/target-before-import/safety-marker.txt"
+RECOVERY_DIFF=$(php "$GITHUB_WORKSPACE/tools/recovery-diff.php" "$FAILED_RECOVERY" "$ROOT/target/wp-content" --json)
+printf '%s' "$RECOVERY_DIFF" | php -r '
+  $data = json_decode(stream_get_contents(STDIN), true);
+  if (!is_array($data) || $data["modified"] < 1 || $data["integrity"] !== "sha256_verified") {
+      fwrite(STDERR, "Offline recovery diff failed to detect altered media\n"); exit(1);
+  }
+  $found = false;
+  foreach ($data["sample"] as $entry) {
+      if ($entry["relative_path"] === "uploads/target-before-import/safety-marker.txt" &&
+          $entry["state"] === "modified") { $found = true; }
+  }
+  if (!$found) { fwrite(STDERR, "Expected recovery media was not reported\n"); exit(1); }
+'
+
 # Operator-driven rollback: do NOT silently restore in the failed import
 # process, whose database and active plugin set may already be inconsistent.
 $WP trasloco restore "$(basename "$FAILED_RECOVERY")" --path="$ROOT/target"
+cmp -s "$ROOT/target-safety-marker.expected" "$ROOT/target/wp-content/uploads/target-before-import/safety-marker.txt"
+# This file-level recovery check does not assert that imported-only files were
+# removed. The diff deliberately never deletes or overwrites site contents.
 $WP user get newadmin --path="$ROOT/target" --field=user_login | grep -Fx newadmin
 if $WP user get oldadmin --path="$ROOT/target" --field=user_login >/dev/null 2>&1; then
   echo "ERROR: restored destination still has the migrated user" >&2
