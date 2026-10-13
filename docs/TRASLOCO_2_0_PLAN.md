@@ -194,3 +194,6 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 - [ ] Recovery diff is **read-only and incomplete for automatic rollback**: it deliberately excludes extra imported-only files and database changes. A staged, reviewed full filesystem rollback remains a release blocker.
 
 - [x] P0 recovery audit: after induced post-DDL SQL failure and database recovery, a target-only file may still be absent from the live site. End-to-end test detects this, independently stages the original bytes from the verified recovery archive and confirms offline diff still flags unrecovered content; no false claim of atomic rollback.
+
+- [x] P0 read-only extension: optional bounded offline scan of destination files absent from a verified recovery archive, with separate symlink warnings, independent relative-path samples and post-SQL-failure integration. Untracked files are not proven imported-only and are never automatically deleted.
+- [ ] Safe staged filesystem rollback and full-site atomic restore remain open; the untracked report is an input for operator review, not a deletion policy.

@@ -176,6 +176,26 @@ printf '%s' "$RECOVERY_DIFF" | php -r '
   if (!$found) { fwrite(STDERR, "Expected recovery media was not reported\n"); exit(1); }
 '
 
+# An interrupted restore can also leave files ABSENT FROM the original
+# snapshot. They may be imported files or legitimate later writes: report,
+# never delete them automatically.
+printf 'LATE FILE AFTER FAILED IMPORT\n' > "$ROOT/target/wp-content/uploads/target-before-import/untracked-after-failure.txt"
+UNTRACKED_REPORT=$(php "$GITHUB_WORKSPACE/tools/recovery-diff.php" "$FAILED_RECOVERY" "$ROOT/target/wp-content" --scan-untracked --json)
+printf '%s' "$UNTRACKED_REPORT" | php -r '
+  $data = json_decode(stream_get_contents(STDIN), true);
+  if (!is_array($data) || $data["untracked_scan"] !== "completed" ||
+      $data["not_in_snapshot"] < 1 || $data["destination_entries_scanned"] < 1) {
+      fwrite(STDERR, "Untracked recovery inventory failed\n"); exit(1);
+  }
+  $found = false;
+  foreach ($data["untracked_sample"] as $entry) {
+      if ($entry["relative_path"] === "uploads/target-before-import/untracked-after-failure.txt" &&
+          $entry["state"] === "not_in_snapshot") { $found = true; }
+  }
+  if (!$found) { fwrite(STDERR, "Post-failure untracked file not reported\n"); exit(1); }
+'
+test -f "$ROOT/target/wp-content/uploads/target-before-import/untracked-after-failure.txt"
+
 # Operator-driven rollback: do NOT silently restore in the failed import
 # process, whose database and active plugin set may already be inconsistent.
 $WP trasloco restore "$(basename "$FAILED_RECOVERY")" --path="$ROOT/target"

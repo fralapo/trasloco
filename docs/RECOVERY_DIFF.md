@@ -11,7 +11,7 @@ php tools/recovery-diff.php /private/trasloco-backups/recovery-example.wpress /s
 
 The comparison is **read only** and **does not bootstrap WordPress or MySQL**. It validates the backup's versioned SHA-256 manifest, validates archive structure and paths, checks contents in fixed-size chunks, and reports counts plus at most 25 relative file names in states `identical`, `modified`, `missing`, or `unsafe_target`. A symlink or non-file target is never traversed. Archive work is limited to 100,000 content files and 2 GiB by default; larger sites require an explicitly reviewed implementation change.
 
-Limitations: this does not detect imported-only extra files that are not in the recovery archive, database mutations, or concurrent live writes. It **does not delete or replace anything** and is not an automated, atomic rollback. Do not use `rsync --delete` against production based only on this report. For a full rollback, stop writes and rehearse disaster recovery on an isolated site; follow the recovery runbook.
+Limitations: the default mode does not detect files absent from the archive; an explicit optional inventory identifies *untracked* files but cannot prove whether they came from the failed import or legitimate new site activity. It does not inspect database mutations or concurrent live writes. It **does not delete or replace anything** and is not an automated, atomic rollback. Do not use `rsync --delete` against production based only on this report. For a full rollback, stop writes and rehearse disaster recovery on an isolated site; follow the recovery runbook.
 
 Only a backup with a valid local SHA-256 sidecar is eligible; legacy backups without sidecars are rejected. The manifest is a corruption check, not proof of who created the backup.
 
@@ -24,3 +24,14 @@ php tools/rescue-extract.php /private/trasloco-backups/recovery-example.wpress -
 ```
 
 The command does not write into the live site. Take the site offline before any manual copy, check permissions and unexpected files, and avoid deleting live files not present in the archive. Database recovery alone is not a full site rollback.
+
+
+## Opt-in inventory of untracked destination files
+
+```bash
+php tools/recovery-diff.php /private/recovery-example.wpress /srv/site/wp-content --scan-untracked --json
+```
+
+This independently inventories the `uploads/`, `plugins/`, `themes/` and `mu-plugins/` directories without following symlinks. The report includes `not_in_snapshot`, `unsafe_untracked`, `destination_entries_scanned` and up to 25 `untracked_sample` entries, all with **relative paths only**. Scanning is optional because large production directories can be expensive. An additional limit of 200,000 destination entries fails closed rather than silently reporting a partial result. The archived-content safety bounds remain 100,000 files and 2 GiB.
+
+**Important:** `not_in_snapshot` means only that the file is not represented in the recovery archive. It is **not** proof that the failed import created it; cache files, excluded plugin files and subsequent uploads may also appear. Do not automatically delete these files. Complete rollback still requires an operator-reviewed, isolated restore rehearsal and database consistency checks.

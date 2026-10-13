@@ -2,20 +2,21 @@
 /**
  * Offline, read-only comparison of a verified recovery snapshot against the
  * site's current wp-content files. Does not load WordPress, query MySQL,
- * modify files, or infer which untracked files should be deleted.
+ * modify files, or infer whether untracked files should be deleted.
  */
 class Trasloco_Offline_Recovery_Diff {
     const HEADER = 4377;
     const CHUNK = 1048576;
     const DEFAULT_MAX_BYTES = 2147483648;
     const MAX_FILES = 100000;
+    const MAX_DESTINATION_ENTRIES = 200000;
     const CONTENT_GROUPS = array( 'uploads', 'themes', 'plugins', 'mu-plugins' );
 
     /**
      * @return array Bounded, portable report with relative paths only.
      */
-    public static function compare( $archive, $content_root, $max_bytes = self::DEFAULT_MAX_BYTES ) {
-        if ( ! is_int( $max_bytes ) || $max_bytes < 1 ||
+    public static function compare( $archive, $content_root, $max_bytes = self::DEFAULT_MAX_BYTES, $scan_untracked = false ) {
+        if ( ! is_bool( $scan_untracked ) || ! is_int( $max_bytes ) || $max_bytes < 1 ||
              ! is_string( $content_root ) || is_link( $content_root ) ||
              ! is_dir( $content_root ) || ! is_readable( $content_root ) ) {
             throw new InvalidArgumentException( 'A readable, non-symlink wp-content root and a positive byte limit are required.' );
@@ -36,6 +37,7 @@ class Trasloco_Offline_Recovery_Diff {
         if ( $handle === false ) {
             throw new RuntimeException( 'Cannot open the recovery archive.' );
         }
+        $tracked = array();
         $report = array(
             'integrity' => 'sha256_verified',
             'files_compared' => 0,
@@ -45,7 +47,12 @@ class Trasloco_Offline_Recovery_Diff {
             'missing' => 0,
             'unsafe_target' => 0,
             'sample' => array(),
-            'warning' => 'Read-only snapshot comparison of archived content. Extra files, database state, concurrent writes and safe deletions are NOT evaluated. This is not automatic rollback.',
+            'untracked_scan' => $scan_untracked ? 'completed' : 'not_requested',
+            'not_in_snapshot' => 0,
+            'unsafe_untracked' => 0,
+            'destination_entries_scanned' => 0,
+            'untracked_sample' => array(),
+            'warning' => 'Read-only snapshot comparison. Untracked files, when scanned, are NOT proof of an imported-only file or safe deletion. Database changes and concurrent writes are not evaluated. NOT automatic rollback.',
         );
         $offset = 0;
         try {
@@ -92,6 +99,10 @@ class Trasloco_Offline_Recovery_Diff {
                     $report['files_compared']++;
                     $report['content_bytes_checked'] += $length;
                     $relative = $folder . '/' . $name;
+                    if ( isset( $tracked[ $relative ] ) ) {
+                        throw new RuntimeException( 'Duplicate file path in recovery archive.' );
+                    }
+                    $tracked[ $relative ] = true;
                     $cursor = $root;
                     $unsafe = false;
                     foreach ( $parts as $part ) {
@@ -152,6 +163,73 @@ class Trasloco_Offline_Recovery_Diff {
              filesize( $archive ) !== $archive_bytes || filemtime( $archive ) !== $archive_modified ) {
             throw new RuntimeException( 'Recovery archive changed while comparing.' );
         }
+        if ( $scan_untracked ) {
+            self::scan_untracked( $root, $tracked, $report );
+        }
         return $report;
+    }
+
+    /**
+     * Optional read-only inventory of files that have no matching archive
+     * entry. This does NOT infer their origin: WordPress and other plugins
+     * may have created them legitimately after the recovery snapshot.
+     */
+    private static function scan_untracked( $root, $tracked, &$report ) {
+        foreach ( self::CONTENT_GROUPS as $group ) {
+            $group_root = $root . DIRECTORY_SEPARATOR . $group;
+            if ( is_link( $group_root ) ) {
+                self::add_untracked( $report, $group, 'unsafe_untracked' );
+                continue;
+            }
+            if ( ! file_exists( $group_root ) ) {
+                continue;
+            }
+            if ( ! is_dir( $group_root ) ) {
+                self::add_untracked( $report, $group, 'unsafe_untracked' );
+                continue;
+            }
+            try {
+                $walk = new RecursiveIteratorIterator(
+                    new RecursiveDirectoryIterator( $group_root, FilesystemIterator::SKIP_DOTS ),
+                    RecursiveIteratorIterator::SELF_FIRST
+                );
+                foreach ( $walk as $entry ) {
+                    $report['destination_entries_scanned']++;
+                    if ( $report['destination_entries_scanned'] > self::MAX_DESTINATION_ENTRIES ) {
+                        throw new RuntimeException( 'Destination inventory exceeds its safety limit.' );
+                    }
+                    $path = $entry->getPathname();
+                    $relative = $group . '/' . str_replace( DIRECTORY_SEPARATOR, '/',
+                        substr( $path, strlen( $group_root ) + 1 ) );
+                    // Archive collisions were checked while building $tracked.
+                    if ( isset( $tracked[ $relative ] ) ) {
+                        continue;
+                    }
+                    if ( $entry->isLink() ) {
+                        self::add_untracked( $report, $relative, 'unsafe_untracked' );
+                    } elseif ( $entry->isDir() ) {
+                        continue;
+                    } elseif ( $entry->isFile() ) {
+                        self::add_untracked( $report, $relative, 'not_in_snapshot' );
+                    } else {
+                        self::add_untracked( $report, $relative, 'unsafe_untracked' );
+                    }
+                }
+            } catch ( UnexpectedValueException $e ) {
+                // Inaccessible directories cannot be treated as a complete
+                // inventory; fail closed instead of returning zero extras.
+                throw new RuntimeException( 'Destination inventory could not be completed.' );
+            }
+        }
+    }
+
+    private static function add_untracked( &$report, $relative, $state ) {
+        $report[ $state ]++;
+        if ( count( $report['untracked_sample'] ) < 25 ) {
+            $report['untracked_sample'][] = array(
+                'relative_path' => $relative,
+                'state' => $state,
+            );
+        }
     }
 }

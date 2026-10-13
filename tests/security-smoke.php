@@ -557,3 +557,52 @@ unlink( $diff_archive );
 rmdir( $diff_dir . '/uploads/docs' );
 rmdir( $diff_dir . '/uploads' );
 rmdir( $diff_dir );
+
+// Offline disaster-diff: opt-in untracked inventory must identify
+// newly present files without traversing outside symlink targets or writes.
+require_once dirname( __DIR__ ) . '/lib/vendor/core/archiver/class-trasloco-offline-recovery-diff.php';
+$scan_root = sys_get_temp_dir() . '/tr-untracked-' . bin2hex( random_bytes( 8 ) );
+$scan_archive = sys_get_temp_dir() . '/tr-untracked-archive-' . bin2hex( random_bytes( 8 ) ) . '.wpress';
+mkdir( $scan_root, 0700 );
+mkdir( $scan_root . '/uploads', 0700 );
+mkdir( $scan_root . '/uploads/docs', 0700 );
+mkdir( $scan_root . '/languages', 0700 );
+file_put_contents( $scan_root . '/uploads/docs/original.txt', 'SAFE' );
+file_put_contents( $scan_root . '/uploads/docs/later.txt', 'LATER' );
+file_put_contents( $scan_root . '/languages/not-content.txt', 'OUT OF SCOPE' );
+$scan_body = pack( 'a255a14a12a4096', 'package.json', '2', '0', '.' ) . '{}';
+$scan_body .= pack( 'a255a14a12a4096', 'original.txt', '4', '0', 'uploads/docs' ) . 'SAFE';
+$scan_body .= str_repeat( chr( 0 ), 4377 );
+file_put_contents( $scan_archive, $scan_body );
+file_put_contents( $scan_archive . '.manifest.json', json_encode( array(
+    'manifest_version' => 1, 'algorithm' => 'sha256',
+    'size_bytes' => strlen( $scan_body ), 'sha256' => hash( 'sha256', $scan_body ),
+) ) );
+$default = Trasloco_Offline_Recovery_Diff::compare( $scan_archive, $scan_root );
+ensure( $default['untracked_scan'] === 'not_requested' && $default['not_in_snapshot'] === 0,
+    'untracked scan must be strictly opt-in' );
+$extra = Trasloco_Offline_Recovery_Diff::compare( $scan_archive, $scan_root,
+    Trasloco_Offline_Recovery_Diff::DEFAULT_MAX_BYTES, true );
+ensure( $extra['identical'] === 1 && $extra['not_in_snapshot'] === 1 &&
+    $extra['untracked_sample'][0]['relative_path'] === 'uploads/docs/later.txt',
+    'untracked inventory missed extra in-scope file' );
+$scan_outside = tempnam( sys_get_temp_dir(), 'tr-outside-' );
+file_put_contents( $scan_outside, 'SECRET' );
+if ( function_exists( 'symlink' ) && symlink( $scan_outside, $scan_root . '/uploads/docs/linked.txt' ) ) {
+    $linked = Trasloco_Offline_Recovery_Diff::compare( $scan_archive, $scan_root,
+        Trasloco_Offline_Recovery_Diff::DEFAULT_MAX_BYTES, true );
+    ensure( $linked['unsafe_untracked'] === 1 && $linked['not_in_snapshot'] === 1,
+        'symlink must be flagged but never followed during untracked scan' );
+    unlink( $scan_root . '/uploads/docs/linked.txt' );
+}
+ensure( file_get_contents( $scan_outside ) === 'SECRET', 'untracked scan altered external file' );
+unlink( $scan_outside );
+unlink( $scan_root . '/uploads/docs/later.txt' );
+unlink( $scan_root . '/uploads/docs/original.txt' );
+unlink( $scan_root . '/languages/not-content.txt' );
+rmdir( $scan_root . '/uploads/docs' );
+rmdir( $scan_root . '/uploads' );
+rmdir( $scan_root . '/languages' );
+rmdir( $scan_root );
+unlink( $scan_archive . '.manifest.json' );
+unlink( $scan_archive );
