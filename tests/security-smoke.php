@@ -651,6 +651,16 @@ try {
 } catch ( RuntimeException $expected ) {}
 ensure( file_get_contents( $repair_root . '/wp-content/uploads/docs/modified.txt' ) === 'CURRENT', 'unsafe destination rejected before changes' );
 unlink( $repair_root . '/wp-content/uploads/docs/missing.txt' );
+// Private source directories also need parent validation during apply.
+$old_parent = $repair_work . '/originals/uploads/docs';
+rename( $old_parent, $old_parent . '.backup' );
+symlink( $repair_root . '/wp-content/uploads/docs', $old_parent );
+try {
+    Trasloco_Offline_File_Recovery::apply( $repair_work, $repair_root . '/wp-content' );
+    ensure( false, 'unexpected private directory redirection permitted' );
+} catch ( RuntimeException $expected ) {}
+unlink( $old_parent );
+rename( $old_parent . '.backup', $old_parent );
 $applied = Trasloco_Offline_File_Recovery::apply( $repair_work, $repair_root . '/wp-content' );
 ensure( $applied['files_restored'] === 2 && $applied['untracked_deleted'] === 0, 'file overlay applied only to tracked paths' );
 ensure( file_get_contents( $repair_root . '/wp-content/uploads/docs/modified.txt' ) === 'ORIGINAL', 'modified destination restored' );
