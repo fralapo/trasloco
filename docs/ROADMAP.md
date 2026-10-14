@@ -1,6 +1,6 @@
 # Production readiness roadmap
 
-Updated 2026-10-14. Version 1.2.0 ships the reviewed hardening work on `main`; it is a maintenance release, not production certification. [The 2.0 execution plan](TRASLOCO_2_0_PLAN.md) contains the next feature increments; [branch reconciliation](BRANCH_RECONCILIATION.md) records how the separate draft implementation will be ported.
+Updated 2026-10-14. Version 1.3.0 is prepared and validated as a local release candidate on `codex/full-site-recovery`; it has not been pushed or published. It adds bounded continuation of interrupted exports and local accessibility improvements. This is a maintenance release, not production certification. [The 2.0 execution plan](TRASLOCO_2_0_PLAN.md) contains the next feature increments; [branch reconciliation](BRANCH_RECONCILIATION.md) records how the separate draft implementation will be ported.
 
 ## Verified baseline
 
@@ -35,6 +35,7 @@ Run the optional previous-major WordPress fixture with `TRASLOCO_TEST_WORDPRESS_
 ## Remaining production certification work
 
 - [x] Local operator-driven full-site rollback rehearsal, including reviewed archive-absent paths. Production portability remains open and overlay recovery is not globally atomic.
+- [x] Operator-guided recovery for a failed import: `wp trasloco restore-recovery` verifies and previews the exact pending receipt, then applies only with explicit confirmation; `wp trasloco prepare-recovery-files` stages and reviews the same receipt's files. Quarantine still requires reviewing the report and explicitly approving its fingerprint. This workflow is implemented and rehearsed locally; automatic or globally atomic rollback remains open.
 - [x] Local process-lock contention regressions for browser-style export leases, WP-CLI/server backup jobs and offline file recovery; integration covers yielding and resuming one export owner while rejecting another, unsafe symbolic/hard-linked lock paths, and SIGKILL replay during SQL import.
 - [ ] Cross-host/NFS fencing and storage-device power-failure injection. Local `flock` and `fsync()` tests do not prove remote filesystem or storage-controller durability.
 - [ ] Real-host Apache/Nginx/IIS HTTP denial and authenticated restore tests; sessions replaced mid-import, WAF, disconnected uploads and large-host stress. Local Apache and Nginx fixture checks pass as recorded above.
@@ -44,4 +45,4 @@ Run the optional previous-major WordPress fixture with `TRASLOCO_TEST_WORDPRESS_
 - [ ] Complete keyboard, screen-reader, contrast and responsive accessibility audits, plus independent security review. Local fixes now trap Tab focus inside body-level dialogs, fit progress windows on narrow screens, show focus clearly and honor reduced-motion preferences. Manual browser and assistive-technology verification remains open.
 - [x] Module-by-module reconciliation of draft PR #2 against all 30 exclusive commits and changed source files. Each feature module now has an explicit port, compatibility, retain or defer decision in [branch reconciliation](BRANCH_RECONCILIATION.md); the preserved branch is not merged wholesale.
 
-Green CLI CI is necessary but does not prove complete disaster recovery or host compatibility. Version 1.2.0 does not claim those remaining certification results.
+Green CLI CI is necessary but does not prove complete disaster recovery or host compatibility. The local 1.3.0 release candidate does not claim those remaining certification results.
