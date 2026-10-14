@@ -42,6 +42,28 @@ try {
     $report = Trasloco_Offline_File_Recovery::prepare( $base . '/snapshot.wpress', $base . '/wp-content', $base . '/work', 6 );
     recovery_assert( $report['payload_bytes'] === 6, 'Payload report does not count both copies.' );
     recovery_assert( file_get_contents( $base . '/work/originals/uploads/file.txt' ) === 'OLD', 'Original bytes were not retained.' );
+    $base = recovery_fixture( $root, 'fsync-required', 'OLD', 'NEW' );
+    $strict_supported = true;
+    try {
+        $report = Trasloco_Offline_File_Recovery::prepare( $base . '/snapshot.wpress',
+            $base . '/wp-content', $base . '/work', Trasloco_Offline_File_Recovery::MAX_BYTES, false, true );
+    } catch ( RuntimeException $e ) {
+        $strict_supported = false;
+    }
+    recovery_assert( $strict_supported === function_exists( 'fsync' ),
+        'Strict fsync support did not match the PHP runtime capability.' );
+    if ( $strict_supported ) {
+        recovery_assert( $report['durability'] === 'fsync_required' &&
+            json_decode( file_get_contents( $base . '/work/plan.json' ), true )['durability'] === 'fsync_required',
+            'Strict fsync durability was not recorded in the recovery plan.' );
+        Trasloco_Offline_File_Recovery::apply( $base . '/work', $base . '/wp-content' );
+        recovery_assert( file_get_contents( $base . '/wp-content/uploads/file.txt' ) === 'NEW',
+            'Strict fsync recovery did not publish the restored file.' );
+    } else {
+        recovery_assert( ! file_exists( $base . '/work/plan.json' ) &&
+            file_get_contents( $base . '/wp-content/uploads/file.txt' ) === 'OLD',
+            'Unsupported strict fsync published a plan or changed the live destination.' );
+    }
     $base = recovery_fixture( $root, 'empty-original', '', 'NEW' );
     Trasloco_Offline_File_Recovery::prepare( $base . '/snapshot.wpress', $base . '/wp-content', $base . '/work', 3 );
     recovery_assert( filesize( $base . '/work/originals/uploads/file.txt' ) === 0, 'Zero-byte original rejected at exact budget.' );

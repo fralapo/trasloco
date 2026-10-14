@@ -130,15 +130,23 @@ class Trasloco_Offline_Recovery {
      * Files are capped to avoid exhausting disk space with untrusted archives.
      * This never executes PHP/SQL or modifies WordPress.
      */
-    public static function stage_content( $archive, $destination, $max_bytes = 1073741824 ) {
+    public static function stage_content( $archive, $destination, $max_bytes = 1073741824,
+        $require_fsync = false ) {
         // Full entry preflight (including paths and archive terminator) before writes.
         self::inspect( $archive );
-        if ( ! is_int( $max_bytes ) || $max_bytes < 1 ||
+        if ( ! is_int( $max_bytes ) || $max_bytes < 1 || ! is_bool( $require_fsync ) ||
             ! is_string( $destination ) || file_exists( $destination ) || is_link( $destination ) ||
             ! is_dir( dirname( $destination ) ) || ! mkdir( $destination, 0700 ) ) {
             throw new RuntimeException( 'Cannot allocate private staging storage.' );
         }
         @chmod( $destination, 0700 );
+        if ( $require_fsync ) {
+            if ( ! function_exists( 'fsync' ) ) {
+                @rmdir( $destination );
+                throw new RuntimeException( 'Strict fsync recovery requires PHP fsync support.' );
+            }
+            self::sync_directory( dirname( $destination ), true );
+        }
         $length = filesize( $archive );
         $input = @fopen( $archive, 'rb' );
         if ( $input === false ) {
@@ -203,6 +211,7 @@ class Trasloco_Offline_Recovery {
                                 throw new RuntimeException( 'Cannot create private staging directory.' );
                             }
                             $created_directories[] = $cursor;
+                            self::sync_directory( dirname( $cursor ), $require_fsync );
                         }
                     }
                     $target = $cursor . DIRECTORY_SEPARATOR . $name;
@@ -232,12 +241,11 @@ class Trasloco_Offline_Recovery {
                             }
                             $left -= strlen( $part );
                         }
-                        if ( ! fflush( $out ) ) {
-                            throw new RuntimeException( 'Cannot flush staged content.' );
-                        }
+                        self::sync_stream( $out, $require_fsync );
                     } finally {
                         fclose( $out );
                     }
+                    self::sync_directory( dirname( $target ), $require_fsync );
                     $bytes += $size;
                     $count++;
                 }
@@ -260,7 +268,34 @@ class Trasloco_Offline_Recovery {
         } finally {
             fclose( $input );
         }
+        self::sync_directory( $destination, $require_fsync );
         return array( 'files_staged' => $count, 'bytes_staged' => $bytes );
+    }
+
+    /** Flush file bytes and metadata before reporting a private stage as ready. */
+    private static function sync_stream( $stream, $required ) {
+        if ( ! fflush( $stream ) ||
+            ( $required && ( ! function_exists( 'fsync' ) || ! @fsync( $stream ) ) ) ) {
+            throw new RuntimeException( 'Staged recovery data could not be synchronized.' );
+        }
+    }
+
+    /** Flush a directory entry after publishing files or directories inside it. */
+    private static function sync_directory( $directory, $required ) {
+        if ( ! $required ) {
+            return;
+        }
+        $handle = @fopen( $directory, 'r' );
+        if ( $handle === false ) {
+            throw new RuntimeException( 'Staging directory cannot be synchronized.' );
+        }
+        try {
+            if ( ! function_exists( 'fsync' ) || ! @fsync( $handle ) ) {
+                throw new RuntimeException( 'Staging directory cannot be synchronized.' );
+            }
+        } finally {
+            fclose( $handle );
+        }
     }
 
     /** The destination must not exist: never overwrite an operator's files. */

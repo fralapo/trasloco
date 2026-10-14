@@ -17,7 +17,7 @@ An archive-absent file is only a candidate: it may have been created legitimatel
     php tools/recovery-files.php prepare /private/recovery.wpress /site/wp-content /private/workspace --include-untracked
     php tools/recovery-files.php review /private/workspace
 
-Review the complete `quarantine_files` list printed by `review`. The `approval_sha256` value binds approval to the exact destination root, recovery archive checksum, and every candidate relative path, file checksum, size and ordinary permission mode. It is an operator-confirmation token, not a cryptographic signature. Preparation copies candidates into the private workspace and verifies those copies without changing the live site.
+Review the complete `quarantine_files` list printed by `review`. The `approval_sha256` value binds approval to the exact destination root, recovery archive checksum, and every candidate relative path, file checksum, size and ordinary permission mode. It is an operator-confirmation token, not a cryptographic signature. Preparation copies candidates into the private workspace and verifies those copies without changing the live site. On PHP runtimes that provide `fsync()`, add `--require-fsync` to `prepare` to require synchronization of staged and preserved file data, plan publication and affected directory entries. Strict mode fails before site mutation when local file or directory synchronization is unavailable, and the plan records whether it was used. Successful `fsync()` calls request synchronization from the operating system and filesystem; they do not prove that a storage controller, remote filesystem or hosting platform honors power-loss durability.
 
 Stop every site writer and inspect the complete list before passing that exact fingerprint to apply:
 

@@ -2,7 +2,7 @@
 /**
  * Independent, operator-controlled wp-content file recovery.
  *
- * php tools/recovery-files.php prepare /private/recovery.wpress /site/wp-content /private/new-workspace [--include-untracked]
+ * php tools/recovery-files.php prepare /private/recovery.wpress /site/wp-content /private/new-workspace [--include-untracked] [--require-fsync]
  * php tools/recovery-files.php review /private/workspace
  * php tools/recovery-files.php apply /private/workspace /site/wp-content --site-offline-confirmed [--approve-untracked=<sha256>]
  * php tools/recovery-files.php restore-quarantine /private/workspace /site/wp-content --approve-untracked=<sha256>
@@ -17,11 +17,20 @@ if ( PHP_SAPI !== 'cli' ) {
 }
 require_once dirname( __DIR__ ) . '/lib/vendor/core/archiver/class-trasloco-offline-file-recovery.php';
 try {
-    if ( $argc === 5 && $argv[1] === 'prepare' ) {
-        $report = Trasloco_Offline_File_Recovery::prepare( $argv[2], $argv[3], $argv[4] );
-    } elseif ( $argc === 6 && $argv[1] === 'prepare' && $argv[5] === '--include-untracked' ) {
+    if ( $argc >= 5 && $argc <= 7 && $argv[1] === 'prepare' ) {
+        $include_untracked = false;
+        $require_fsync = false;
+        foreach ( array_slice( $argv, 5 ) as $option ) {
+            if ( $option === '--include-untracked' && ! $include_untracked ) {
+                $include_untracked = true;
+            } elseif ( $option === '--require-fsync' && ! $require_fsync ) {
+                $require_fsync = true;
+            } else {
+                throw new InvalidArgumentException( 'Unknown or duplicate prepare option.' );
+            }
+        }
         $report = Trasloco_Offline_File_Recovery::prepare( $argv[2], $argv[3], $argv[4],
-            Trasloco_Offline_File_Recovery::MAX_BYTES, true );
+            Trasloco_Offline_File_Recovery::MAX_BYTES, $include_untracked, $require_fsync );
     } elseif ( $argc === 3 && $argv[1] === 'review' ) {
         $report = Trasloco_Offline_File_Recovery::review( $argv[2] );
     } elseif ( $argc === 5 && $argv[1] === 'apply' &&
@@ -35,7 +44,7 @@ try {
                preg_match( '/^--approve-untracked=([a-f0-9]{64})$/D', $argv[4], $match ) ) {
         $report = Trasloco_Offline_File_Recovery::restore_quarantine( $argv[2], $argv[3], $match[1] );
     } else {
-        fwrite( STDERR, "Usage:\n  php tools/recovery-files.php prepare /private/recovery.wpress /site/wp-content /private/new-workspace [--include-untracked]\n  php tools/recovery-files.php review /private/workspace\n  php tools/recovery-files.php apply /private/workspace /site/wp-content --site-offline-confirmed [--approve-untracked=<sha256>]\n  php tools/recovery-files.php restore-quarantine /private/workspace /site/wp-content --approve-untracked=<sha256>\n" );
+        fwrite( STDERR, "Usage:\n  php tools/recovery-files.php prepare /private/recovery.wpress /site/wp-content /private/new-workspace [--include-untracked] [--require-fsync]\n  php tools/recovery-files.php review /private/workspace\n  php tools/recovery-files.php apply /private/workspace /site/wp-content --site-offline-confirmed [--approve-untracked=<sha256>]\n  php tools/recovery-files.php restore-quarantine /private/workspace /site/wp-content --approve-untracked=<sha256>\n" );
         exit( 2 );
     }
     echo json_encode( $report, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) . "\n";

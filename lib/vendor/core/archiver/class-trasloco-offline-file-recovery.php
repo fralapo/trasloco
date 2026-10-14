@@ -95,7 +95,72 @@ class Trasloco_Offline_File_Recovery {
     }
 
     /** Private exclusive-copy, for retained original contents and staging. */
-    private static function copy_new( $from, $to, $max_bytes ) {
+    private static function sync_stream( $stream, $required ) {
+        if ( ! fflush( $stream ) ||
+            ( $required && ( ! function_exists( 'fsync' ) || ! @fsync( $stream ) ) ) ) {
+            throw new RuntimeException( 'Recovery data could not be durably synchronized.' );
+        }
+    }
+
+    private static function sync_directory( $directory, $required ) {
+        if ( ! $required ) {
+            return;
+        }
+        $handle = @fopen( $directory, 'r' );
+        if ( $handle === false ) {
+            throw new RuntimeException( 'Recovery directory cannot be synchronized.' );
+        }
+        try {
+            if ( ! function_exists( 'fsync' ) || ! @fsync( $handle ) ) {
+                throw new RuntimeException( 'Recovery directory cannot be synchronized.' );
+            }
+        } finally {
+            fclose( $handle );
+        }
+    }
+
+    private static function sync_file_path( $path, $required ) {
+        if ( ! $required ) {
+            return;
+        }
+        $handle = @fopen( $path, 'rb' );
+        if ( $handle === false ) {
+            throw new RuntimeException( 'Recovery file cannot be synchronized.' );
+        }
+        try {
+            if ( ! function_exists( 'fsync' ) || ! @fsync( $handle ) ) {
+                throw new RuntimeException( 'Recovery file cannot be synchronized.' );
+            }
+        } finally {
+            fclose( $handle );
+        }
+    }
+
+    /** Fail before touching a destination when strict file/directory sync is unavailable. */
+    private static function require_fsync_support( $directory ) {
+        if ( ! function_exists( 'fsync' ) || ! function_exists( 'stream_is_local' ) ||
+            ! stream_is_local( $directory ) ) {
+            throw new RuntimeException( 'Strict fsync recovery requires local streams and PHP fsync support.' );
+        }
+        self::sync_directory( $directory, true );
+        $probe = @tempnam( $directory, '.trasloco-fsync-probe-' );
+        if ( $probe === false ) {
+            throw new RuntimeException( 'Cannot probe strict recovery durability.' );
+        }
+        $handle = @fopen( $probe, 'wb' );
+        try {
+            if ( $handle === false ) {
+                throw new RuntimeException( 'Cannot probe strict recovery durability.' );
+            }
+            self::sync_stream( $handle, true );
+        } finally {
+            if ( is_resource( $handle ) ) { fclose( $handle ); }
+            @unlink( $probe );
+            self::sync_directory( $directory, true );
+        }
+    }
+
+    private static function copy_new( $from, $to, $max_bytes, $require_fsync = false ) {
         $in = @fopen( $from, 'rb' );
         $out = @fopen( $to, 'xb' );
         if ( $in === false || $out === false ) {
@@ -109,9 +174,10 @@ class Trasloco_Offline_File_Recovery {
             }
             $copied = stream_copy_to_stream( $in, $out, $max_bytes );
             // Read one byte without writing it: a growing source cannot exceed the budget.
-            if ( $copied === false || fread( $in, 1 ) !== '' || ! feof( $in ) || ! fflush( $out ) ) {
+            if ( $copied === false || fread( $in, 1 ) !== '' || ! feof( $in ) ) {
                 throw new RuntimeException( 'Private recovery file could not be copied.' );
             }
+            self::sync_stream( $out, $require_fsync );
         } catch ( Throwable $e ) {
             fclose( $out );
             fclose( $in );
@@ -120,6 +186,7 @@ class Trasloco_Offline_File_Recovery {
         }
         fclose( $out );
         fclose( $in );
+        self::sync_directory( dirname( $to ), $require_fsync );
         return $copied;
     }
 
@@ -208,7 +275,7 @@ class Trasloco_Offline_File_Recovery {
         return array_values( array_unique( $preserved_paths ) );
     }
 
-    private static function mkdir_parents( $root, $relative, $mode ) {
+    private static function mkdir_parents( $root, $relative, $mode, $require_fsync = false ) {
         $parts = self::relative( $relative );
         array_pop( $parts );
         $cursor = $root;
@@ -217,9 +284,12 @@ class Trasloco_Offline_File_Recovery {
             if ( is_link( $cursor ) || ( file_exists( $cursor ) && ! is_dir( $cursor ) ) ) {
                 throw new RuntimeException( 'Recovery path parent changed unexpectedly.' );
             }
-            if ( ! is_dir( $cursor ) && ! @mkdir( $cursor, $mode ) ) {
-                throw new RuntimeException( 'Cannot create recovery parent directory.' );
+            if ( ! is_dir( $cursor ) ) {
+                if ( ! @mkdir( $cursor, $mode ) ) {
+                    throw new RuntimeException( 'Cannot create recovery parent directory.' );
+                }
             }
+            self::sync_directory( dirname( $cursor ), $require_fsync );
         }
     }
 
@@ -237,11 +307,33 @@ class Trasloco_Offline_File_Recovery {
             throw new RuntimeException( 'Cannot create recovery plan.' );
         }
         @chmod( $temp, 0600 );
-        if ( file_put_contents( $temp, $data, LOCK_EX ) !== strlen( $data ) ||
-            is_link( $path ) || ! @rename( $temp, $path ) ) {
+        $required = ( $plan['durability'] ?? 'best_effort' ) === 'fsync_required';
+        $handle = @fopen( $temp, 'wb' );
+        if ( $handle === false ) {
+            @unlink( $temp );
+            throw new RuntimeException( 'Cannot write recovery plan.' );
+        }
+        try {
+            $offset = 0;
+            while ( $offset < strlen( $data ) ) {
+                $written = fwrite( $handle, substr( $data, $offset ) );
+                if ( $written === false || $written === 0 ) {
+                    throw new RuntimeException( 'Cannot write recovery plan.' );
+                }
+                $offset += $written;
+            }
+            self::sync_stream( $handle, $required );
+        } catch ( Throwable $e ) {
+            fclose( $handle );
+            @unlink( $temp );
+            throw $e;
+        }
+        fclose( $handle );
+        if ( is_link( $path ) || ! @rename( $temp, $path ) ) {
             @unlink( $temp );
             throw new RuntimeException( 'Cannot publish recovery plan.' );
         }
+        self::sync_directory( $work, $required );
     }
 
     private static function read_plan( $work ) {
@@ -258,6 +350,8 @@ class Trasloco_Offline_File_Recovery {
             ! is_string( $plan['content_root'] ) || $plan['content_root'] === '' ||
             $plan['content_root'][0] !== DIRECTORY_SEPARATOR ||
             ! is_string( $plan['archive_sha256'] ) ||
+            ( isset( $plan['durability'] ) && ! in_array( $plan['durability'],
+                array( 'best_effort', 'fsync_required' ), true ) ) ||
             ! preg_match( '/^[a-f0-9]{64}$/D', $plan['archive_sha256'] ) ) {
             throw new RuntimeException( 'Invalid private recovery plan.' );
         }
@@ -298,9 +392,10 @@ class Trasloco_Offline_File_Recovery {
      * No write to the destination happens in this step.
      */
     public static function prepare( $archive, $content_root, $workspace,
-        $max_bytes = self::MAX_BYTES, $include_untracked = false ) {
+        $max_bytes = self::MAX_BYTES, $include_untracked = false, $require_fsync = false ) {
         $root = self::root( $content_root );
         if ( ! is_int( $max_bytes ) || $max_bytes < 1 || ! is_bool( $include_untracked ) ||
+            ! is_bool( $require_fsync ) ||
             ! is_string( $workspace ) || file_exists( $workspace ) || is_link( $workspace ) ||
             ! is_dir( dirname( $workspace ) ) || is_link( dirname( $workspace ) ) ) {
             throw new RuntimeException( 'A new private recovery workspace is required.' );
@@ -309,6 +404,9 @@ class Trasloco_Offline_File_Recovery {
         if ( $parent === false || $parent === $root ||
             strpos( $parent . DIRECTORY_SEPARATOR, $root . DIRECTORY_SEPARATOR ) === 0 ) {
             throw new RuntimeException( 'Recovery workspace must be outside wp-content.' );
+        }
+        if ( $require_fsync ) {
+            self::require_fsync_support( $parent );
         }
         require_once __DIR__ . '/class-trasloco-offline-recovery.php';
         $archive_sha256 = self::file_digest( $archive );
@@ -327,18 +425,21 @@ class Trasloco_Offline_File_Recovery {
             throw new RuntimeException( 'Cannot create private recovery workspace.' );
         }
         @chmod( $workspace, 0700 );
+        self::sync_directory( $parent, $require_fsync );
         $staged = $workspace . DIRECTORY_SEPARATOR . 'snapshot';
         $originals = $workspace . DIRECTORY_SEPARATOR . 'originals';
         $quarantine = $workspace . DIRECTORY_SEPARATOR . 'quarantine';
         try {
-            $staging = Trasloco_Offline_Recovery::stage_content( $archive, $staged, $max_bytes );
+            $staging = Trasloco_Offline_Recovery::stage_content( $archive, $staged, $max_bytes, $require_fsync );
             $payload_bytes = $staging['bytes_staged'];
             if ( ! @mkdir( $originals, 0700 ) ) {
                 throw new RuntimeException( 'Cannot create private originals directory.' );
             }
+            self::sync_directory( $workspace, $require_fsync );
             if ( ! @mkdir( $quarantine, 0700 ) ) {
                 throw new RuntimeException( 'Cannot create private quarantine directory.' );
             }
+            self::sync_directory( $workspace, $require_fsync );
             $records = array();
             $tracked = array();
             $total = 0;
@@ -372,9 +473,10 @@ class Trasloco_Offline_File_Recovery {
                     if ( $old_size === false || $old_size > $max_bytes - $payload_bytes ) {
                         throw new RuntimeException( 'Recovery payload exceeds safety limits.' );
                     }
-                    self::mkdir_parents( $originals, $relative, 0700 );
+                    self::mkdir_parents( $originals, $relative, 0700, $require_fsync );
                     $original = $originals . DIRECTORY_SEPARATOR . str_replace( '/', DIRECTORY_SEPARATOR, $relative );
-                    $payload_bytes += self::copy_new( $target, $original, $max_bytes - $payload_bytes );
+                    $payload_bytes += self::copy_new( $target, $original,
+                        $max_bytes - $payload_bytes, $require_fsync );
                     if ( self::file_digest( $original ) !== $old_sha ||
                         self::file_digest( $target ) !== $old_sha ) {
                         throw new RuntimeException( 'Destination changed while preserving its original files.' );
@@ -388,7 +490,7 @@ class Trasloco_Offline_File_Recovery {
             $quarantine_records = array();
             if ( $include_untracked ) {
                 $quarantine_result = self::stage_untracked( $root, $tracked, $quarantine,
-                    $payload_bytes, $max_bytes, $preserved_paths );
+                    $payload_bytes, $max_bytes, $preserved_paths, $require_fsync );
                 $quarantine_records = $quarantine_result['files'];
                 $payload_bytes += $quarantine_result['bytes'];
             }
@@ -402,6 +504,7 @@ class Trasloco_Offline_File_Recovery {
             ) : null;
             $plan = array( 'version' => self::VERSION, 'state' => 'prepared',
                 'content_root' => $root, 'archive_sha256' => $archive_sha256,
+                'durability' => $require_fsync ? 'fsync_required' : 'best_effort',
                 'files' => $records, 'quarantine_files' => $quarantine_records,
                 'quarantine_approval_sha256' => $approval_sha256,
                 'change_bytes' => $total, 'payload_bytes' => $payload_bytes );
@@ -409,7 +512,8 @@ class Trasloco_Offline_File_Recovery {
             return array( 'state' => 'prepared', 'files_to_restore' => count( $records ),
                 'change_bytes' => $total, 'payload_bytes' => $payload_bytes,
                 'quarantine_candidates' => count( $quarantine_records ),
-                'approval_sha256' => $approval_sha256 );
+                'approval_sha256' => $approval_sha256,
+                'durability' => $require_fsync ? 'fsync_required' : 'best_effort' );
         } catch ( Throwable $e ) {
             // Work is private and intentionally retained for inspection.
             // No destination file was modified.
@@ -419,7 +523,7 @@ class Trasloco_Offline_File_Recovery {
 
     /** Copy every archive-absent regular content file into a private quarantine. */
     private static function stage_untracked( $root, $tracked, $quarantine, $payload_bytes, $max_bytes,
-        $preserved_paths ) {
+        $preserved_paths, $require_fsync ) {
         $records = array();
         $bytes = 0;
         $entries = 0;
@@ -481,8 +585,9 @@ class Trasloco_Offline_File_Recovery {
                         throw new RuntimeException( 'Recovery payload including quarantine exceeds its safety limit.' );
                     }
                     $destination = $quarantine . DIRECTORY_SEPARATOR . str_replace( '/', DIRECTORY_SEPARATOR, $relative );
-                    self::mkdir_parents( $quarantine, $relative, 0700 );
-                    $copied = self::copy_new( $target, $destination, $max_bytes - $payload_bytes - $bytes );
+                    self::mkdir_parents( $quarantine, $relative, 0700, $require_fsync );
+                    $copied = self::copy_new( $target, $destination,
+                        $max_bytes - $payload_bytes - $bytes, $require_fsync );
                     if ( $copied !== $size || self::file_digest( $destination ) !== $digest ||
                         self::file_digest( $target ) !== $digest ) {
                         throw new RuntimeException( 'Archive-absent destination changed while preserving quarantine.' );
@@ -633,6 +738,11 @@ class Trasloco_Offline_File_Recovery {
             ! is_string( $approval_token ) || ! hash_equals( $approval, $approval_token ) ) {
             throw new RuntimeException( 'Exact quarantine review approval is required to restore files.' );
         }
+        $require_fsync = ( $plan['durability'] ?? 'best_effort' ) === 'fsync_required';
+        if ( $require_fsync ) {
+            self::require_fsync_support( $work );
+            self::sync_directory( $root, true );
+        }
         $quarantine = $work . DIRECTORY_SEPARATOR . 'quarantine';
         $changes = array();
         foreach ( $records as $record ) {
@@ -652,10 +762,11 @@ class Trasloco_Offline_File_Recovery {
         $restored = 0;
         foreach ( $changes as $change ) {
             list( $relative, $source, $expected, $mode ) = $change;
-            self::mkdir_parents( $root, $relative, 0755 );
+            self::mkdir_parents( $root, $relative, 0755, $require_fsync );
             $target = self::target( $root, $relative );
             if ( file_exists( $target ) ) {
                 if ( self::file_digest( $target ) === $expected ) {
+                    self::sync_directory( dirname( $target ), $require_fsync );
                     continue;
                 }
                 throw new RuntimeException( 'Quarantine restore refuses to overwrite newer destination data.' );
@@ -676,18 +787,24 @@ class Trasloco_Offline_File_Recovery {
                     throw new RuntimeException( 'Cannot create quarantine restore file.' );
                 }
                 try {
-                    if ( stream_copy_to_stream( $from, $to ) === false || ! fflush( $to ) ) {
+                    if ( stream_copy_to_stream( $from, $to ) === false ) {
                         throw new RuntimeException( 'Cannot copy quarantined file back to the site.' );
                     }
+                    self::sync_stream( $to, $require_fsync );
                 } finally {
                     fclose( $from );
                     fclose( $to );
                 }
                 if ( self::file_digest( $temp ) !== $expected ||
                     self::target( $root, $relative ) !== $target || file_exists( $target ) ||
-                    is_link( $target ) || ! @chmod( $temp, $mode ) || ! @rename( $temp, $target ) ) {
+                    is_link( $target ) || ! @chmod( $temp, $mode ) ) {
                     throw new RuntimeException( 'Quarantine restore target changed or atomic rename failed.' );
                 }
+                self::sync_file_path( $temp, $require_fsync );
+                if ( ! @rename( $temp, $target ) ) {
+                    throw new RuntimeException( 'Quarantine restore target changed or atomic rename failed.' );
+                }
+                self::sync_directory( dirname( $target ), $require_fsync );
             } finally {
                 @unlink( $temp );
             }
@@ -705,6 +822,11 @@ class Trasloco_Offline_File_Recovery {
         }
         $work = realpath( $workspace );
         $plan = self::read_plan( $work );
+        $require_fsync = ( $plan['durability'] ?? 'best_effort' ) === 'fsync_required';
+        if ( $require_fsync ) {
+            self::require_fsync_support( $work );
+            self::sync_directory( $root, true );
+        }
         if ( $plan['content_root'] !== $root ) {
             throw new RuntimeException( 'Recovery plan is bound to a different destination.' );
         }
@@ -796,10 +918,11 @@ class Trasloco_Offline_File_Recovery {
         $restored = 0;
         foreach ( $changes as $change ) {
             list( $relative, $source, $expected, $previous, $mode ) = $change;
-            self::mkdir_parents( $root, $relative, 0755 );
+            self::mkdir_parents( $root, $relative, 0755, $require_fsync );
             $target = self::target( $root, $relative );
             $current = file_exists( $target ) ? self::file_digest( $target ) : null;
             if ( $current === $expected ) {
+                self::sync_directory( dirname( $target ), $require_fsync );
                 continue; // Replayed after an interrupted successful rename.
             }
             if ( $current !== $previous ) {
@@ -821,9 +944,10 @@ class Trasloco_Offline_File_Recovery {
                     throw new RuntimeException( 'Cannot write destination recovery temp file.' );
                 }
                 try {
-                    if ( stream_copy_to_stream( $from, $to ) === false || ! fflush( $to ) ) {
+                    if ( stream_copy_to_stream( $from, $to ) === false ) {
                         throw new RuntimeException( 'Recovery copy failed.' );
                     }
+                    self::sync_stream( $to, $require_fsync );
                 } finally {
                     fclose( $from );
                     fclose( $to );
@@ -832,10 +956,14 @@ class Trasloco_Offline_File_Recovery {
                     self::target( $root, $relative ) !== $target ||
                     ( file_exists( $target ) ? self::file_digest( $target ) : null ) !== $previous ||
                     // Respect permissions tightened after preparation, too.
-                    ! @chmod( $temp, $previous !== null ? $mode & self::file_mode( $target ) : $mode ) ||
-                    ! rename( $temp, $target ) ) {
+                    ! @chmod( $temp, $previous !== null ? $mode & self::file_mode( $target ) : $mode ) ) {
                     throw new RuntimeException( 'Recovery destination changed or atomic rename failed.' );
                 }
+                self::sync_file_path( $temp, $require_fsync );
+                if ( ! rename( $temp, $target ) ) {
+                    throw new RuntimeException( 'Recovery destination changed or atomic rename failed.' );
+                }
+                self::sync_directory( dirname( $target ), $require_fsync );
             } finally {
                 @unlink( $temp );
             }
@@ -846,6 +974,7 @@ class Trasloco_Offline_File_Recovery {
             list( $relative, $target, $expected ) = $change;
             $target = self::target( $root, $relative );
             if ( ! file_exists( $target ) ) {
+                self::sync_directory( dirname( $target ), $require_fsync );
                 continue; // Replay after the file was removed but before the plan was saved.
             }
             if ( self::file_digest( $target ) !== $expected ) {
@@ -856,6 +985,7 @@ class Trasloco_Offline_File_Recovery {
                 filesize( $preserved ) !== filesize( $target ) || ! @unlink( $target ) ) {
                 throw new RuntimeException( 'Could not move the approved file into private quarantine.' );
             }
+            self::sync_directory( dirname( $target ), $require_fsync );
             $quarantined++;
         }
         $plan['state'] = 'completed';
