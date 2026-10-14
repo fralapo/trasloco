@@ -16,6 +16,25 @@ class Trasloco_Integrity {
         return $archive . '.manifest.json';
     }
 
+    /**
+     * Normalize the schema-1 sidecar emitted by the preserved 2.0 branch.
+     * New writes continue using this branch's manifest_version formats.
+     */
+    private static function normalize_feature_v1_manifest( $data, $archive ) {
+        if ( ! is_array( $data ) || ! isset( $data['schema'], $data['format'], $data['archive'], $data['bytes'], $data['sha256'] ) ||
+            $data['schema'] !== 1 || $data['format'] !== 'wpress' ||
+            $data['archive'] !== basename( $archive ) || ! is_int( $data['bytes'] ) || $data['bytes'] < 0 ||
+            ! is_string( $data['sha256'] ) || ! preg_match( '/^[a-f0-9]{64}$/D', $data['sha256'] ) ) {
+            return null;
+        }
+        return array(
+            'manifest_version' => self::VERSION,
+            'algorithm' => 'sha256',
+            'size_bytes' => $data['bytes'],
+            'sha256' => $data['sha256'],
+        );
+    }
+
     /** Publish manifest atomically only after an archive is fully written. */
     public static function create( $archive ) {
         if ( ! is_file( $archive ) || ! is_readable( $archive ) ) {
@@ -131,7 +150,13 @@ class Trasloco_Integrity {
         }
         $body = @file_get_contents( $filename );
         $data = is_string( $body ) ? json_decode( $body, true ) : null;
-        if ( ! is_array( $data ) || ! isset( $data['manifest_version'] ) ) {
+        if ( ! is_array( $data ) ) {
+            throw new Trasloco_Archive_Exception( 'Malformed integrity manifest.' );
+        }
+        if ( ! isset( $data['manifest_version'] ) ) {
+            if ( self::normalize_feature_v1_manifest( $data, $archive ) !== null ) {
+                return null;
+            }
             throw new Trasloco_Archive_Exception( 'Malformed integrity manifest.' );
         }
         if ( $data['manifest_version'] !== self::CHUNKED_VERSION ) {
@@ -207,6 +232,12 @@ class Trasloco_Integrity {
         }
         $body = @file_get_contents( $manifest );
         $data = is_string( $body ) ? json_decode( $body, true ) : null;
+        if ( is_array( $data ) && ! isset( $data['manifest_version'] ) ) {
+            $feature_v1 = self::normalize_feature_v1_manifest( $data, $archive );
+            if ( $feature_v1 !== null ) {
+                $data = $feature_v1;
+            }
+        }
         if ( ! is_array( $data ) || ! isset( $data['manifest_version'], $data['algorithm'], $data['size_bytes'], $data['sha256'] ) ||
             ! in_array( $data['manifest_version'], array( self::VERSION, self::CHUNKED_VERSION ), true ) ||
             $data['algorithm'] !== 'sha256' ||

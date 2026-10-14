@@ -15,6 +15,7 @@ Run the optional previous-major WordPress fixture with `TRASLOCO_TEST_WORDPRESS_
 - [x] Encrypted HTTP Basic credentials using installation key material.
 - [x] Serialized retried uploads, archive structural/path preflight, fail-closed SQL imports and symlink exports.
 - [x] SHA-256 v1/v2 sidecars and resumable chunk-verification jobs.
+- [x] Verification and offline-rescue compatibility for schema-1 SHA-256 sidecars from the preserved 2.0 feature branch; new archives continue to use the hardening v2 chunk format.
 - [x] Persistent job ledger and leases, automatic backup settings, calendar-month scheduling, verified retention and failure notification hook.
 - [x] CLI streaming encryption/decryption and independent encrypted rescue.
 - [x] Verified pre-import recovery snapshots, independent receipts, clean-WordPress disaster rehearsal and manual database rollback after a real post-DDL SQL failure.

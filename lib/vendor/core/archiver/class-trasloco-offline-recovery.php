@@ -29,6 +29,22 @@ class Trasloco_Offline_Recovery {
             }
             $body = @file_get_contents( $sidecar );
             $manifest = is_string( $body ) ? json_decode( $body, true ) : null;
+            // The preserved 2.0 branch wrote a distinct schema-1 sidecar.
+            // Normalize only its exact whole-file SHA-256 contract.
+            if ( is_array( $manifest ) && ! isset( $manifest['manifest_version'] ) &&
+                isset( $manifest['schema'], $manifest['format'], $manifest['archive'],
+                       $manifest['bytes'], $manifest['sha256'] ) &&
+                $manifest['schema'] === 1 && $manifest['format'] === 'wpress' &&
+                $manifest['archive'] === basename( $archive ) &&
+                is_int( $manifest['bytes'] ) && $manifest['bytes'] >= 0 &&
+                is_string( $manifest['sha256'] ) && preg_match( '/^[a-f0-9]{64}$/D', $manifest['sha256'] ) ) {
+                $manifest = array(
+                    'manifest_version' => 1,
+                    'algorithm' => 'sha256',
+                    'size_bytes' => $manifest['bytes'],
+                    'sha256' => $manifest['sha256'],
+                );
+            }
             if ( ! is_array( $manifest ) ||
                 ! isset( $manifest['manifest_version'], $manifest['algorithm'],
                           $manifest['size_bytes'], $manifest['sha256'] ) ||

@@ -349,6 +349,21 @@ test -s "$RESCUE_DIR/database.sql"
 test -s "$RESCUE_DIR/package.json"
 test -f "$RESCUE_DIR/content/uploads/test-fixtures/fixture.txt"
 cmp -s "$ROOT/source/wp-content/uploads/test-fixtures/fixture.txt" "$RESCUE_DIR/content/uploads/test-fixtures/fixture.txt"
+# Also verify an archive+sidecar produced by the preserved 2.0 feature branch.
+FEATURE_V1_ARCHIVE="$ROOT/feature-v1-compat.wpress"
+cp "$ARCHIVE" "$FEATURE_V1_ARCHIVE"
+php -r '
+  $archive = $argv[1];
+  $bytes = filesize($archive);
+  $manifest = array(
+    "schema" => 1, "format" => "wpress", "archive" => basename($archive),
+    "bytes" => $bytes, "sha256" => hash_file("sha256", $archive), "created_at" => gmdate("c")
+  );
+  file_put_contents($archive . ".manifest.json", json_encode($manifest));
+' "$FEATURE_V1_ARCHIVE"
+FEATURE_V1_REPORT=$(php "$GITHUB_WORKSPACE/tools/rescue-extract.php" "$FEATURE_V1_ARCHIVE" --output="$ROOT/feature-v1-recovery")
+printf '%s\n' "$FEATURE_V1_REPORT" | grep -F 'Archive integrity: sha256_verified'
+rm -rf -- "$ROOT/feature-v1-recovery" "$FEATURE_V1_ARCHIVE" "$FEATURE_V1_ARCHIVE.manifest.json"
 # Safe recovery never overwrites a previous rehearsal and never creates a
 # relative destination that could accidentally point into a live site.
 if php "$GITHUB_WORKSPACE/tools/rescue-extract.php" "$ARCHIVE" --output="$RESCUE_DIR" >/dev/null 2>&1; then
