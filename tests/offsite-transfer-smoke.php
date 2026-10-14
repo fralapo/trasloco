@@ -33,6 +33,9 @@ class Trasloco_Fault_After_Put_Storage implements Trasloco_Storage_Adapter {
         throw new RuntimeException( 'Simulated connection loss after the provider stored the object.' );
     }
     public function open_read( $key, $max_bytes = null ) { return $this->storage->open_read( $key, $max_bytes ); }
+    public function open_read_range( $key, $offset, $length, $total_bytes ) {
+        return $this->storage->open_read_range( $key, $offset, $length, $total_bytes );
+    }
     public function exists( $key ) { return $this->storage->exists( $key ); }
     public function delete( $key ) { return $this->storage->delete( $key ); }
     public function enumerate() { return $this->storage->enumerate(); }
@@ -57,6 +60,29 @@ class Trasloco_Transient_Once_Storage implements Trasloco_Storage_Adapter {
             throw new Trasloco_Storage_Transient_Exception( 'Simulated temporary download failure.' );
         }
         return $this->storage->open_read( $key, $max_bytes );
+    }
+    public function open_read_range( $key, $offset, $length, $total_bytes ) {
+        if ( $this->fail_read ) {
+            $this->fail_read = false;
+            throw new Trasloco_Storage_Transient_Exception( 'Simulated temporary range failure.' );
+        }
+        return $this->storage->open_read_range( $key, $offset, $length, $total_bytes );
+    }
+    public function exists( $key ) { return $this->storage->exists( $key ); }
+    public function delete( $key ) { return $this->storage->delete( $key ); }
+    public function enumerate() { return $this->storage->enumerate(); }
+}
+
+class Trasloco_Tracking_Range_Storage implements Trasloco_Storage_Adapter {
+    private $storage;
+    public $offsets = array();
+
+    public function __construct( $storage ) { $this->storage = $storage; }
+    public function put_stream( $key, $handle ) { return $this->storage->put_stream( $key, $handle ); }
+    public function open_read( $key, $max_bytes = null ) { return $this->storage->open_read( $key, $max_bytes ); }
+    public function open_read_range( $key, $offset, $length, $total_bytes ) {
+        $this->offsets[] = $offset;
+        return $this->storage->open_read_range( $key, $offset, $length, $total_bytes );
     }
     public function exists( $key ) { return $this->storage->exists( $key ); }
     public function delete( $key ) { return $this->storage->delete( $key ); }
@@ -102,6 +128,49 @@ try {
     $transient_store->fail_read = true;
     offsite_assert( $transient_target->download( 'transient-retry.wpress' )['status'] === 'downloaded', 'Transient download failure was not retried.' );
     offsite_assert( hash_file( 'sha256', $transient_archive ) === hash_file( 'sha256', $local_target . '/transient-retry.wpress' ), 'Retried offsite transfer changed archive bytes.' );
+
+    $resumable_archive = $local_source . '/resume-after-interruption.wpress';
+    file_put_contents( $resumable_archive, str_repeat( 'durable offsite range fixture ', 90000 ) );
+    Trasloco_Integrity::create( $resumable_archive );
+    $source_transfer->upload( 'resume-after-interruption.wpress', true );
+    $worker = dirname( __FILE__ ) . '/offsite-resume-crash-worker.php';
+    $command = escapeshellarg( PHP_BINARY ) . ' ' . escapeshellarg( $worker ) . ' ' .
+        escapeshellarg( $remote_path ) . ' ' . escapeshellarg( $local_target ) . ' ' .
+        escapeshellarg( 'resume-after-interruption.wpress' );
+    exec( $command, $worker_output, $worker_status );
+    offsite_assert( $worker_status !== 0, 'Offsite crash fixture subprocess was not interrupted.' );
+    offsite_assert( ! file_exists( $local_target . '/resume-after-interruption.wpress' ),
+        'Interrupted offsite archive became visible before verification.' );
+    $resume_manifest_sha = hash_file( 'sha256', $remote_path . '/resume-after-interruption.wpress.manifest.json' );
+    $resume_folder = $local_target . '/.trasloco-offsite-' . hash( 'sha256', realpath( $local_target ) .
+        '|resume-after-interruption.wpress|' . $resume_manifest_sha );
+    offsite_assert( ( fileperms( $resume_folder ) & 0777 ) === 0700 &&
+        ( fileperms( $resume_folder . '/download.part' ) & 0777 ) === 0600 &&
+        ( fileperms( $resume_folder . '/manifest.json' ) & 0777 ) === 0600 &&
+        ( fileperms( $resume_folder . '/transfer.json' ) & 0777 ) === 0600 &&
+        ( fileperms( $resume_folder . '/transfer.lock' ) & 0777 ) === 0600,
+        'Offsite resume state permissions are not private.' );
+    $tracking_store = new Trasloco_Tracking_Range_Storage( $remote_store );
+    $resumable_target = new Trasloco_Offsite_Transfer( $tracking_store, $local_target );
+    $held_lock = fopen( $resume_folder . '/transfer.lock', 'c+b' );
+    flock( $held_lock, LOCK_EX | LOCK_NB );
+    offsite_throws(
+        function () use ( $resumable_target ) { $resumable_target->download( 'resume-after-interruption.wpress' ); },
+        'already running',
+        'Concurrent offsite resume was not rejected.'
+    );
+    flock( $held_lock, LOCK_UN );
+    fclose( $held_lock );
+    file_put_contents( $resume_folder . '/download.part', 'partial trailing block', FILE_APPEND );
+    $resume_metadata = json_decode( file_get_contents( $resume_folder . '/transfer.json' ), true );
+    file_put_contents( $resume_folder . '/transfer.json', json_encode( array_reverse( $resume_metadata, true ) ) );
+    $resume_result = $resumable_target->download( 'resume-after-interruption.wpress' );
+    offsite_assert( $resume_result['status'] === 'downloaded', 'Interrupted offsite download did not resume.' );
+    offsite_assert( $tracking_store->offsets[0] === Trasloco_Offsite_Transfer::DOWNLOAD_CHUNK_BYTES &&
+        $tracking_store->offsets[1] === Trasloco_Offsite_Transfer::DOWNLOAD_CHUNK_BYTES + Trasloco_Offsite_Transfer::DOWNLOAD_CHUNK_BYTES,
+        'Offsite retry did not resume at the last durable chunk boundary.' );
+    offsite_assert( hash_file( 'sha256', $resumable_archive ) === hash_file( 'sha256', $local_target . '/resume-after-interruption.wpress' ),
+        'Resumed offsite archive bytes differ from the source.' );
     copy( $source_archive, $local_source . '/lost-response.wpress' );
     copy( $source_archive . '.manifest.json', $local_source . '/lost-response.wpress.manifest.json' );
     $uncertain_remote = new Trasloco_Fault_After_Put_Storage( $remote_store );
@@ -122,7 +191,8 @@ try {
     offsite_assert( hash_file( 'sha256', $encrypted ) === hash_file( 'sha256', $local_target . '/encrypted.wpress.enc' ), 'Encrypted transfer bytes differ.' );
 
     $damaged = $remote_path . '/damaged.wpress';
-    file_put_contents( $damaged, 'corrupted remote bytes' );
+    $corrupt_bytes = file_get_contents( $source_archive );
+    file_put_contents( $damaged, 'X' . substr( $corrupt_bytes, 1 ) );
     copy( $source_archive . '.manifest.json', $damaged . '.manifest.json' );
     offsite_throws(
         function () use ( $target_transfer ) { $target_transfer->download( 'damaged.wpress' ); },

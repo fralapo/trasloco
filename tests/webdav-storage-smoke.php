@@ -29,7 +29,7 @@ class Trasloco_Test_WebDAV_Storage extends Trasloco_WebDAV_Storage {
         return array( 'storage.example:443:203.0.113.12' );
     }
 
-    protected function request( $method, $key, $input = null, $output = null, $headers = array(), $max_bytes = null ) {
+    protected function request( $method, $key, $input = null, $output = null, $headers = array(), $max_bytes = null, &$response_headers = null ) {
         $body = null;
         if ( is_resource( $input ) ) {
             $body = stream_get_contents( $input );
@@ -43,6 +43,7 @@ class Trasloco_Test_WebDAV_Storage extends Trasloco_WebDAV_Storage {
             fwrite( $output, $response['body'] );
             rewind( $output );
         }
+        $response_headers = isset( $response['headers'] ) ? $response['headers'] : array();
         return $response['status'];
     }
 }
@@ -95,6 +96,22 @@ $store->responses[] = array( 'status' => 200, 'body' => 'downloaded archive byte
 $download = $store->open_read( 'fixture.wpress' );
 webdav_assert( stream_get_contents( $download ) === 'downloaded archive bytes', 'WebDAV GET must return a readable stream.' );
 fclose( $download );
+
+$store->responses[] = array( 'status' => 206, 'body' => 'cdef',
+    'headers' => array( 'content-range' => 'bytes 2-5/10' ) );
+$range = $store->open_read_range( 'fixture.wpress', 2, 4, 10 );
+webdav_assert( stream_get_contents( $range ) === 'cdef', 'WebDAV range GET must return exactly the requested bytes.' );
+fclose( $range );
+webdav_assert( in_array( 'Range: bytes=2-5', $store->requests[4][3], true ), 'WebDAV range GET omitted its byte range.' );
+$store->responses[] = array( 'status' => 200, 'body' => 'whole object',
+    'headers' => array() );
+try {
+    $store->open_read_range( 'fixture.wpress', 2, 4, 10 );
+    throw new RuntimeException( 'WebDAV accepted a server that ignored the range request.' );
+} catch ( RuntimeException $expected ) {
+    webdav_assert( strpos( $expected->getMessage(), 'exact requested byte range' ) !== false,
+        'WebDAV range refusal returned an unexpected error.' );
+}
 
 $store->responses[] = array( 'status' => 200 );
 webdav_assert( $store->exists( 'fixture.wpress' ), 'Existing WebDAV object was not detected.' );

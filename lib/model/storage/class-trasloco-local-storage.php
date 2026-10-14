@@ -81,6 +81,36 @@ class Trasloco_Local_Storage implements Trasloco_Storage_Adapter {
         return $handle;
     }
 
+    public function open_read_range( $key, $offset, $length, $total_bytes ) {
+        $path = $this->path( $key );
+        if ( ! is_int( $offset ) || ! is_int( $length ) || ! is_int( $total_bytes ) ||
+            $offset < 0 || $length <= 0 || $offset > $total_bytes || $length > $total_bytes - $offset ) {
+            throw new InvalidArgumentException( 'Invalid or stale storage byte range.' );
+        }
+        if ( ! is_file( $path ) || filesize( $path ) !== $total_bytes ) {
+            throw new RuntimeException( 'Stored object size changed after manifest validation.' );
+        }
+        $input = @fopen( $path, 'rb' );
+        $range = @fopen( 'php://temp/maxmemory:2097152', 'w+b' );
+        if ( $input === false || $range === false ) {
+            if ( is_resource( $input ) ) { fclose( $input ); }
+            if ( is_resource( $range ) ) { fclose( $range ); }
+            throw new RuntimeException( 'Stored object range cannot be opened.' );
+        }
+        try {
+            if ( fseek( $input, $offset, SEEK_SET ) !== 0 ||
+                stream_copy_to_stream( $input, $range, $length ) !== $length || ! rewind( $range ) ) {
+                throw new RuntimeException( 'Stored object range is incomplete.' );
+            }
+            return $range;
+        } catch ( Throwable $error ) {
+            fclose( $range );
+            throw $error;
+        } finally {
+            fclose( $input );
+        }
+    }
+
     public function exists( $key ) {
         return is_file( $this->path( $key ) );
     }

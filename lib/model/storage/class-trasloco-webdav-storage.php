@@ -103,7 +103,7 @@ class Trasloco_WebDAV_Storage implements Trasloco_Storage_Adapter {
      * Execute one WebDAV request. Request/response content always uses streams;
      * PROPFIND is bounded to avoid loading an unbounded remote inventory.
      */
-    protected function request( $method, $key, $input = null, $output = null, $headers = array(), $max_bytes = null ) {
+    protected function request( $method, $key, $input = null, $output = null, $headers = array(), $max_bytes = null, &$response_headers = null ) {
         $url = $method === 'PROPFIND' ? $this->base : $this->base . rawurlencode( $this->validate_key( $key ) );
         $curl = curl_init( $url );
         if ( $curl === false ) {
@@ -111,6 +111,7 @@ class Trasloco_WebDAV_Storage implements Trasloco_Storage_Adapter {
         }
         $header_lines = array_merge( array( 'Expect:' ), $headers );
         $written = 0;
+        $captured_headers = array();
         $options = array(
             CURLOPT_FOLLOWLOCATION => false,
             CURLOPT_MAXREDIRS => 0,
@@ -119,6 +120,16 @@ class Trasloco_WebDAV_Storage implements Trasloco_Storage_Adapter {
             CURLOPT_TIMEOUT => 900,
             CURLOPT_LOW_SPEED_LIMIT => 1,
             CURLOPT_LOW_SPEED_TIME => 300,
+            CURLOPT_HEADERFUNCTION => function ( $handle, $line ) use ( &$captured_headers ) {
+                $length = strlen( $line );
+                if ( preg_match( '/^HTTP\/\S+\s+\d{3}/i', $line ) ) {
+                    $captured_headers = array();
+                } elseif ( strpos( $line, ':' ) !== false ) {
+                    list( $name, $value ) = explode( ':', $line, 2 );
+                    $captured_headers[ strtolower( trim( $name ) ) ] = trim( $value );
+                }
+                return $length;
+            },
             CURLOPT_HTTPAUTH => CURLAUTH_BASIC,
             CURLOPT_USERPWD => $this->username . ':' . $this->password,
             CURLOPT_SSL_VERIFYPEER => true,
@@ -173,7 +184,21 @@ class Trasloco_WebDAV_Storage implements Trasloco_Storage_Adapter {
         $result = curl_exec( $curl );
         $status = (int) curl_getinfo( $curl, CURLINFO_RESPONSE_CODE );
         curl_close( $curl );
+        $response_headers = $captured_headers;
         if ( $result === false ) {
+            $is_range_request = false;
+            foreach ( $headers as $header ) {
+                if ( stripos( $header, 'Range:' ) === 0 ) {
+                    $is_range_request = true;
+                    break;
+                }
+            }
+            // A server that ignores Range can exceed the bounded callback and
+            // make cURL report a write error. Let the caller reject its 200
+            // response explicitly instead of retrying it as a network fault.
+            if ( $is_range_request && in_array( $status, array( 200, 206, 416 ), true ) ) {
+                return $status;
+            }
             throw new Trasloco_Storage_Transient_Exception( 'WebDAV request failed; check the HTTPS service and certificate.' );
         }
         if ( $this->is_transient_status( $status ) ) {
@@ -217,6 +242,35 @@ class Trasloco_WebDAV_Storage implements Trasloco_Storage_Adapter {
             $status = $this->request( 'GET', $key, null, $stream, array(), $max_bytes );
             if ( $status < 200 || $status >= 300 || ! rewind( $stream ) ) {
                 throw new RuntimeException( 'WebDAV archive cannot be downloaded.' );
+            }
+            return $stream;
+        } catch ( Throwable $error ) {
+            fclose( $stream );
+            throw $error;
+        }
+    }
+
+    public function open_read_range( $key, $offset, $length, $total_bytes ) {
+        $key = $this->validate_key( $key );
+        if ( ! is_int( $offset ) || ! is_int( $length ) || ! is_int( $total_bytes ) ||
+            $offset < 0 || $length <= 0 || $offset > $total_bytes || $length > $total_bytes - $offset ) {
+            throw new InvalidArgumentException( 'Invalid WebDAV byte range.' );
+        }
+        $end = $offset + $length - 1;
+        $headers = null;
+        $stream = @fopen( 'php://temp/maxmemory:2097152', 'w+b' );
+        if ( $stream === false ) {
+            throw new RuntimeException( 'Unable to allocate a private WebDAV range stream.' );
+        }
+        try {
+            $status = $this->request( 'GET', $key, null, $stream,
+                array( 'Range: bytes=' . $offset . '-' . $end ), $length + 1, $headers );
+            $expected = 'bytes ' . $offset . '-' . $end . '/' . $total_bytes;
+            $stat = fstat( $stream );
+            if ( $status !== 206 || ! is_array( $headers ) ||
+                ! isset( $headers['content-range'] ) || strtolower( $headers['content-range'] ) !== $expected ||
+                ! is_array( $stat ) || $stat['size'] !== $length || ! rewind( $stream ) ) {
+                throw new RuntimeException( 'WebDAV server did not return the exact requested byte range.' );
             }
             return $stream;
         } catch ( Throwable $error ) {
