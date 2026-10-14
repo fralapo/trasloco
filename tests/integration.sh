@@ -2,16 +2,24 @@
 set -Eeuo pipefail
 export WP_CLI_ALLOW_ROOT=1
 WP="php /tmp/wp"
+TRASLOCO_TEST_DB_HOST="${TRASLOCO_TEST_DB_HOST:-127.0.0.1}"
+TRASLOCO_TEST_DB_PORT="${TRASLOCO_TEST_DB_PORT:-3306}"
+TRASLOCO_TEST_DB_USER="${TRASLOCO_TEST_DB_USER:-root}"
+TRASLOCO_TEST_DB_PASSWORD="${TRASLOCO_TEST_DB_PASSWORD:-root}"
+export TRASLOCO_TEST_DB_HOST TRASLOCO_TEST_DB_PORT TRASLOCO_TEST_DB_USER TRASLOCO_TEST_DB_PASSWORD
+MYSQL=(mysql --protocol=TCP -h "$TRASLOCO_TEST_DB_HOST" -P "$TRASLOCO_TEST_DB_PORT" \
+  -u "$TRASLOCO_TEST_DB_USER" "-p$TRASLOCO_TEST_DB_PASSWORD")
 ROOT="$(mktemp -d)"
 trap 'rm -rf "$ROOT"' EXIT
 
-mysql --protocol=TCP -h 127.0.0.1 -u root -proot -e "CREATE DATABASE trasloco_source; CREATE DATABASE trasloco_target;"
+"${MYSQL[@]}" -e "CREATE DATABASE trasloco_source; CREATE DATABASE trasloco_target;"
 for ROLE in source target; do
   SITE="$ROOT/$ROLE"
   $WP core download --path="$SITE" --skip-content
   mkdir -p "$SITE/wp-content/plugins"
   cp -R "$GITHUB_WORKSPACE" "$SITE/wp-content/plugins/trasloco"
-  $WP config create --path="$SITE" --dbname="trasloco_$ROLE" --dbuser=root --dbpass=root --dbhost=127.0.0.1:3306 --skip-check
+  $WP config create --path="$SITE" --dbname="trasloco_$ROLE" --dbuser="$TRASLOCO_TEST_DB_USER" \
+    --dbpass="$TRASLOCO_TEST_DB_PASSWORD" --dbhost="$TRASLOCO_TEST_DB_HOST:$TRASLOCO_TEST_DB_PORT" --skip-check
   if [ "$ROLE" = source ]; then
     $WP core install --path="$SITE" --url=http://old.example.test --title=Original --admin_user=oldadmin --admin_password=testpassword --admin_email=old@example.test
   else
@@ -20,6 +28,23 @@ for ROLE in source target; do
   $WP plugin activate trasloco --path="$SITE"
   echo "$ROLE home before migration: $($WP option get home --path="$SITE")"
 done
+WC_ORDER_ID=""
+WC_REFUND_ID=""
+WC_PRODUCT_ID=""
+if [ "${TRASLOCO_TEST_WOOCOMMERCE:-0}" = 1 ]; then
+  TRASLOCO_TEST_WOOCOMMERCE_VERSION="${TRASLOCO_TEST_WOOCOMMERCE_VERSION:-11.2.1}"
+  for ROLE in source target; do
+    $WP plugin install woocommerce --version="$TRASLOCO_TEST_WOOCOMMERCE_VERSION" \
+      --activate --path="$ROOT/$ROLE"
+    $WP wc hpos enable --path="$ROOT/$ROLE"
+  done
+  WC_FIXTURE=$($WP eval-file "$GITHUB_WORKSPACE/tests/woocommerce-fixture.php" seed --path="$ROOT/source" | tail -n 1)
+  WC_ORDER_ID=$(printf '%s' "$WC_FIXTURE" | php -r '$v=json_decode(stream_get_contents(STDIN),true); if(!is_array($v)||empty($v["order_id"])) exit(1); echo (int)$v["order_id"];')
+  WC_REFUND_ID=$(printf '%s' "$WC_FIXTURE" | php -r '$v=json_decode(stream_get_contents(STDIN),true); if(!is_array($v)||empty($v["refund_id"])) exit(1); echo (int)$v["refund_id"];')
+  WC_PRODUCT_ID=$(printf '%s' "$WC_FIXTURE" | php -r '$v=json_decode(stream_get_contents(STDIN),true); if(!is_array($v)||empty($v["product_id"])) exit(1); echo (int)$v["product_id"];')
+  $WP eval-file "$GITHUB_WORKSPACE/tests/woocommerce-fixture.php" verify \
+    "$WC_ORDER_ID" "$WC_REFUND_ID" "$WC_PRODUCT_ID" --path="$ROOT/source"
+fi
 EXPECTED_HOME=$($WP option get home --path="$ROOT/target")
 EXPECTED_SITE=$($WP option get siteurl --path="$ROOT/target")
 # Set up an original destination file BEFORE intentionally failing SQL.
@@ -426,7 +451,7 @@ $WP trasloco restore "$(basename "$CRASH_ARCHIVE")" --path="$ROOT/target" > "$RO
 CRASH_PID=$!
 SLEEP_QUERY_SEEN=0
 for attempt in $(seq 1 600); do
-  if mysql --protocol=TCP -h 127.0.0.1 -u root -proot -N -e 'SHOW FULL PROCESSLIST' 2>/dev/null | grep -Fq 'SELECT SLEEP(30)'; then
+  if "${MYSQL[@]}" -N -e 'SHOW FULL PROCESSLIST' 2>/dev/null | grep -Fq 'SELECT SLEEP(30)'; then
     SLEEP_QUERY_SEEN=1
     break
   fi
@@ -480,6 +505,11 @@ php -r '
 ' "$CRASH_RECEIPT" "$GITHUB_WORKSPACE/lib/model/import/class-trasloco-recovery-journal.php"
 $WP user get oldadmin --path="$ROOT/target" --field=user_login | grep -Fx oldadmin
 echo "PASS: SIGKILL after post-DDL SQL preserved its pending receipt; a successful replay completed with a separate receipt."
+if [ -n "$WC_ORDER_ID" ]; then
+  $WP eval-file "$GITHUB_WORKSPACE/tests/woocommerce-fixture.php" verify \
+    "$WC_ORDER_ID" "$WC_REFUND_ID" "$WC_PRODUCT_ID" --path="$ROOT/target"
+  echo "PASS: WooCommerce HPOS order, refund, product line, metadata and note survived backup and restore."
+fi
 
 echo "Destination tables:"
 $WP db tables --path="$ROOT/target" || true

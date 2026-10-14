@@ -6,7 +6,9 @@ Updated 2026-10-14. Version 1.2.0 ships the reviewed hardening work on `main`; i
 
 Release candidate `d9581af` passed [quality checks](https://github.com/fralapo/trasloco/actions/runs/38417080300) on PHP 7.4/8.2/8.4 and [six CLI integration jobs](https://github.com/fralapo/trasloco/actions/runs/38417080326) across those PHP versions with MySQL 8.0 and MariaDB 11.4. The integration downloads WordPress at execution time; this is not a pinned current/previous-major WordPress matrix or an HTTP hosting test.
 
-On 2026-10-14, the complete CLI integration and same-site staged rollback rehearsal passed locally on PHP 8.5.4, WordPress 7.1.3 and MariaDB 13.0.2. Separate anonymous HTTP fixtures returned 200 for a public page and 403 for an archive, its manifest, an arbitrary temporary file and plugin storage on Apache 2.4.67 and Nginx 1.31.6. The Nginx fixture used the rules documented in [security guidance](SECURITY.md); this does not certify a hosting provider, reverse proxy, WAF, IIS or production virtual host.
+On 2026-10-14, the complete CLI integration and same-site staged rollback rehearsal passed locally on PHP 8.5.4, WordPress 7.1.3 and MariaDB 13.0.2. The optional WooCommerce test also passed on WooCommerce 11.2.1 with HPOS enabled, preserving an order, refund, product line, custom metadata and order note through backup, SQL-failure recovery and restore replay. Anonymous HTTP fixtures returned 200 for a public page and 403 for an archive, its manifest, an arbitrary temporary file and plugin storage on Apache 2.4.67 and Nginx 1.31.6. These results cover local fixtures only, not production hosting or concurrent store writes.
+
+Run the optional pinned WooCommerce fixture with `TRASLOCO_TEST_WOOCOMMERCE=1 TRASLOCO_TEST_DB_PORT=3307 GITHUB_WORKSPACE="$PWD" tests/integration.sh` when a disposable MySQL-compatible server and WP-CLI are available. It installs WooCommerce 11.2.1 into the temporary source and target sites and checks order data through WooCommerce APIs.
 
 - [x] Expiring operation-scoped tokens, administrator permissions and authenticated backup downloads.
 - [x] Apache/IIS access rules for archives and private staging; Nginx configuration documented.
@@ -32,7 +34,7 @@ On 2026-10-14, the complete CLI integration and same-site staged rollback rehear
 - [ ] Real-host Apache/Nginx/IIS HTTP denial and authenticated restore tests; sessions replaced mid-import, WAF, disconnected uploads and large-host stress. Local Apache and Nginx fixture checks pass as recorded above.
 - [ ] Pinned current/previous-major WordPress compatibility fixtures.
 - [ ] Remote storage/cloud adapters and incremental chain delivery on the canonical job/storage contracts.
-- [ ] WooCommerce order consistency and HPOS validation. Multisite remains unsupported; a regression verifies network imports fail closed before importer metadata, files or database replacement.
+- [ ] Consistency of WooCommerce/HPOS data while orders or scheduled actions are changing, plus other versions and order-related extensions. The pinned HPOS 11.2.1 restore fixture passes locally. Multisite remains unsupported; a regression verifies network imports fail closed before importer metadata, files or database replacement.
 - [ ] Accessibility, keyboard/screen-reader audits and independent security review.
 - [ ] Module-by-module reconciliation of draft PR #2; textual conflict resolution alone is insufficient.
 
