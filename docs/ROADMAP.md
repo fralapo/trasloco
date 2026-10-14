@@ -31,7 +31,7 @@ Run the optional previous-major WordPress fixture with `TRASLOCO_TEST_WORDPRESS_
 ## Remaining production certification work
 
 - [x] Local operator-driven full-site rollback rehearsal, including reviewed archive-absent paths. Production portability remains open and overlay recovery is not globally atomic.
-- [x] Local process-lock contention regressions for server-side backup jobs and offline file recovery; a local integration also sends SIGKILL to WP-CLI during SQL import, confirms the crash receipt remains pending, then successfully repeats the restore.
+- [x] Local process-lock contention regressions for browser-style export leases, WP-CLI/server backup jobs and offline file recovery; integration covers yielding and resuming one export owner while rejecting another, and SIGKILL replay during SQL import.
 - [ ] Cross-host/NFS fencing and storage-device power-failure injection. Local `flock` and `fsync()` tests do not prove remote filesystem or storage-controller durability.
 - [ ] Real-host Apache/Nginx/IIS HTTP denial and authenticated restore tests; sessions replaced mid-import, WAF, disconnected uploads and large-host stress. Local Apache and Nginx fixture checks pass as recorded above.
 - [ ] Repeat the PHP 7.4/8.2/8.4 and MySQL 8.0/MariaDB 11.4 CI matrix after local changes; the locally tested WordPress versions are 7.1.3 and 6.9.10 on PHP 8.5.4 / MariaDB 13.0.2.

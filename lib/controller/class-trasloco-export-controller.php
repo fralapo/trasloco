@@ -61,6 +61,31 @@ class Trasloco_Export_Controller {
 			exit;
 		}
 
+		// The browser resumes one export over multiple AJAX requests. Keep the
+		// same owner lease in its storage identifier until the final stage.
+		if ( empty( $params['storage'] ) ) {
+			$params['storage'] = trasloco_storage_folder();
+		}
+		if ( ! is_string( $params['storage'] ) || ! preg_match( '/^[A-Za-z0-9_-]{1,128}$/D', $params['storage'] ) ) {
+			self::respond_with_export_error( __( 'The export could not start.', TRASLOCO_PLUGIN_NAME ),
+				__( 'The export storage identifier is invalid. Refresh the page and try again.', TRASLOCO_PLUGIN_NAME ) );
+		}
+		$lock_owner = hash( 'sha256', 'trasloco-interactive-export:' . $params['storage'] );
+		try {
+			$lock = Trasloco_Export_Lock::acquire( $lock_owner );
+		} catch ( Throwable $e ) {
+			self::respond_with_export_error( __( 'The export could not start.', TRASLOCO_PLUGIN_NAME ),
+				__( 'The export lock is unavailable. Check the private backup directory and try again.', TRASLOCO_PLUGIN_NAME ) );
+		}
+		if ( $lock === false ) {
+			self::respond_with_export_error( __( 'Another export is already running.', TRASLOCO_PLUGIN_NAME ),
+				__( 'Wait for it to finish before starting another export.', TRASLOCO_PLUGIN_NAME ) );
+		}
+		$GLOBALS['trasloco_active_export_lock'] = array(
+			'handle' => $lock, 'owner' => $lock_owner, 'lease_seconds' => Trasloco_Export_Lock::DEFAULT_LEASE_SECONDS,
+			'last_renew' => time(),
+		);
+
 		// Get hook
 		if ( isset( $wp_filter['trasloco_export'] ) && ( $filters = $wp_filter['trasloco_export'] ) ) {
 			// WordPress 4.7 introduces new class for working with filters/actions called WP_Hook
@@ -91,6 +116,9 @@ class Trasloco_Export_Controller {
 								Trasloco_Directory::delete( trasloco_storage_path( $params ) );
 							} catch ( Exception $ignored ) {
 							}
+							Trasloco_Export_Lock::release( $lock, $lock_owner );
+							unset( $GLOBALS['trasloco_active_export_lock'] );
+							$lock = false;
 							exit;
 						}
 					}
@@ -104,10 +132,16 @@ class Trasloco_Export_Controller {
 					// Do request
 					if ( $completed === false || ( $next = next( $filters ) ) && ( $params['priority'] = key( $filters ) ) ) {
 						if ( isset( $params['trasloco_manual_export'] ) ) {
+							unset( $GLOBALS['trasloco_active_export_lock'] );
+							Trasloco_Export_Lock::suspend( $lock, $lock_owner );
+							$lock = false;
 							echo json_encode( $params );
 							exit;
 						}
 
+						Trasloco_Export_Lock::suspend( $lock, $lock_owner );
+						unset( $GLOBALS['trasloco_active_export_lock'] );
+						$lock = false;
 						wp_remote_post( apply_filters( 'trasloco_http_export_url', admin_url( 'admin-ajax.php?action=trasloco_export' ) ), array(
 							'timeout'   => apply_filters( 'trasloco_http_export_timeout', 5 ),
 							'blocking'  => apply_filters( 'trasloco_http_export_blocking', false ),
@@ -122,6 +156,18 @@ class Trasloco_Export_Controller {
 				next( $filters );
 			}
 		}
+		if ( is_resource( $lock ) ) {
+			Trasloco_Export_Lock::release( $lock, $lock_owner );
+			unset( $GLOBALS['trasloco_active_export_lock'] );
+		}
+	}
+
+	private static function respond_with_export_error( $title, $message ) {
+		if ( ! headers_sent() ) {
+			header( 'Content-Type: application/json; charset=' . get_option( 'blog_charset', 'UTF-8' ) );
+		}
+		echo wp_json_encode( array( 'error' => true, 'title' => $title, 'message' => $message ) );
+		exit;
 	}
 
 

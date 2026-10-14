@@ -185,7 +185,30 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 				}
 			}
 
+			$keep = null;
+			if ( isset( $assoc_args['keep'] ) ) {
+				$keep = filter_var( $assoc_args['keep'], FILTER_VALIDATE_INT, array( 'options' => array( 'min_range' => 1 ) ) );
+				if ( $keep === false ) {
+					WP_CLI::error( '--keep must be a positive integer.' );
+				}
+			}
+
 			WP_CLI::log( 'Backup in progress...' );
+			$lock_owner = hash( 'sha256', 'trasloco-cli-backup:' . wp_generate_uuid4() );
+			$backup_lock = Trasloco_Export_Lock::acquire( $lock_owner, HOUR_IN_SECONDS );
+			if ( $backup_lock === false ) {
+				WP_CLI::error( __( 'Another site export is already running.', TRASLOCO_PLUGIN_NAME ) );
+			}
+			$GLOBALS['trasloco_active_export_lock'] = array(
+				'handle' => $backup_lock, 'owner' => $lock_owner,
+				'lease_seconds' => HOUR_IN_SECONDS, 'last_renew' => time(),
+			);
+			register_shutdown_function( function () use ( &$backup_lock, $lock_owner ) {
+				if ( is_resource( $backup_lock ) ) {
+					unset( $GLOBALS['trasloco_active_export_lock'] );
+					Trasloco_Export_Lock::release( $backup_lock, $lock_owner );
+				}
+			} );
 
 			try {
 
@@ -199,6 +222,8 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 				$params = apply_filters( 'trasloco_export', $params );
 
 			} catch ( Exception $e ) {
+				unset( $GLOBALS['trasloco_active_export_lock'] );
+				Trasloco_Export_Lock::release( $backup_lock, $lock_owner );
 				WP_CLI::error( $e->getMessage() );
 			}
 
@@ -209,11 +234,7 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 			WP_CLI::log( sprintf( __( 'Backup location: %s', TRASLOCO_PLUGIN_NAME ), trasloco_backup_path( $params ) ) );
 			// Opt-in retention for unattended schedules. Keep newest backups
 			// only after the current archive was successfully created.
-			if ( isset( $assoc_args['keep'] ) ) {
-				$keep = filter_var( $assoc_args['keep'], FILTER_VALIDATE_INT, array( 'options' => array( 'min_range' => 1 ) ) );
-				if ( $keep === false ) {
-					WP_CLI::error( '--keep must be a positive integer.' );
-				}
+			if ( $keep !== null ) {
 				$archive_list = new Trasloco_Backups;
 				foreach ( array_slice( $archive_list->get_retention_files(), $keep ) as $old_backup ) {
 					if ( ! $archive_list->delete_file( $old_backup['filename'] ) ) {
@@ -221,6 +242,8 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 					}
 				}
 			}
+			unset( $GLOBALS['trasloco_active_export_lock'] );
+			Trasloco_Export_Lock::release( $backup_lock, $lock_owner );
 		}
 
 

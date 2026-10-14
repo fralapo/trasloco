@@ -66,6 +66,17 @@ class Trasloco_Status {
 				$job['last_renew'] = time();
 			}
 		}
+		if ( ! empty( $GLOBALS['trasloco_active_export_lock'] ) ) {
+			$lock = &$GLOBALS['trasloco_active_export_lock'];
+			if ( isset( $lock['handle'], $lock['owner'], $lock['last_renew'] ) &&
+				time() - (int) $lock['last_renew'] >= 60 ) {
+				$lease_seconds = isset( $lock['lease_seconds'] ) ? (int) $lock['lease_seconds'] : Trasloco_Export_Lock::DEFAULT_LEASE_SECONDS;
+				if ( ! Trasloco_Export_Lock::renew_held( $lock['handle'], $lock['owner'], $lease_seconds ) ) {
+					throw new RuntimeException( 'Backup process lock expired or could not be renewed.' );
+				}
+				$lock['last_renew'] = time();
+			}
+		}
 		if ( ! trasloco_is_scheduled_backup() && empty( $GLOBALS['trasloco_recovery_export_active'] ) ) {
 			update_option( TRASLOCO_STATUS, $data );
 		}

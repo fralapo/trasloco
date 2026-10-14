@@ -9,9 +9,7 @@ TRASLOCO_TEST_DB_PASSWORD="${TRASLOCO_TEST_DB_PASSWORD:-root}"
 export TRASLOCO_TEST_DB_HOST TRASLOCO_TEST_DB_PORT TRASLOCO_TEST_DB_USER TRASLOCO_TEST_DB_PASSWORD
 MYSQL=(mysql --protocol=TCP -h "$TRASLOCO_TEST_DB_HOST" -P "$TRASLOCO_TEST_DB_PORT" \
   -u "$TRASLOCO_TEST_DB_USER" "-p$TRASLOCO_TEST_DB_PASSWORD")
-WP_CORE_VERSION_ARGS=()
 if [ -n "${TRASLOCO_TEST_WORDPRESS_VERSION:-}" ]; then
-  WP_CORE_VERSION_ARGS+=(--version="$TRASLOCO_TEST_WORDPRESS_VERSION")
   export TRASLOCO_TEST_WORDPRESS_VERSION
 fi
 ROOT="$(mktemp -d)"
@@ -20,7 +18,11 @@ trap 'rm -rf "$ROOT"' EXIT
 "${MYSQL[@]}" -e "CREATE DATABASE trasloco_source; CREATE DATABASE trasloco_target;"
 for ROLE in source target; do
   SITE="$ROOT/$ROLE"
-  $WP core download --path="$SITE" --skip-content "${WP_CORE_VERSION_ARGS[@]}"
+  if [ -n "${TRASLOCO_TEST_WORDPRESS_VERSION:-}" ]; then
+    $WP core download --path="$SITE" --skip-content --version="$TRASLOCO_TEST_WORDPRESS_VERSION"
+  else
+    $WP core download --path="$SITE" --skip-content
+  fi
   mkdir -p "$SITE/wp-content/plugins"
   cp -R "$GITHUB_WORKSPACE" "$SITE/wp-content/plugins/trasloco"
   $WP config create --path="$SITE" --dbname="trasloco_$ROLE" --dbuser="$TRASLOCO_TEST_DB_USER" \
@@ -829,11 +831,18 @@ if ( strpos( wp_json_encode( $data ), ABSPATH ) !== false ) { throw new Exceptio
 
 # An existing export must prevent a second server-side backup from racing.
 $WP eval '
-$path = TRASLOCO_BACKUPS_PATH . "/.trasloco-export.lock";
-$holder = fopen( $path, "c+" );
-if ( ! $holder || ! flock( $holder, LOCK_EX | LOCK_NB ) ) {
-    throw new Exception( "Could not acquire fixture export lock" );
+$holder_owner = str_repeat( "a", 64 );
+$other_owner = str_repeat( "b", 64 );
+$holder = Trasloco_Export_Lock::acquire( $holder_owner );
+if ( ! is_resource( $holder ) ) { throw new Exception( "Could not acquire fixture export lock" ); }
+if ( ! Trasloco_Export_Lock::suspend( $holder, $holder_owner ) ) {
+    throw new Exception( "Could not suspend the first request while preserving its export lease" );
 }
+if ( Trasloco_Export_Lock::acquire( $other_owner ) !== false ) {
+    throw new Exception( "A different export owner acquired an active lease" );
+}
+$holder = Trasloco_Export_Lock::acquire( $holder_owner );
+if ( ! is_resource( $holder ) ) { throw new Exception( "The same export owner could not resume its next request" ); }
 $id = Trasloco_Job_Store::create( "backup", array( "retention" => 1 ), "ci-overlap-blocked-00001" );
 $result = Trasloco_Job_Worker::run( $id );
 if ( $result["status"] !== "failed" ) {
@@ -843,8 +852,15 @@ $stored = Trasloco_Job_Store::get( $id );
 if ( $stored["state"] !== "failed" ) {
     throw new Exception( "Concurrent attempt did not fail safely" );
 }
-flock( $holder, LOCK_UN );
-fclose( $holder );
+if ( ! Trasloco_Export_Lock::renew_held( $holder, $holder_owner ) ) {
+    throw new Exception( "The active export owner could not renew its lease" );
+}
+if ( ! Trasloco_Export_Lock::release( $holder, $holder_owner ) ) {
+    throw new Exception( "The active export owner could not release its lease" );
+}
+$next = Trasloco_Export_Lock::acquire( $other_owner );
+if ( ! is_resource( $next ) ) { throw new Exception( "Export lock did not become available after release" ); }
+Trasloco_Export_Lock::release( $next, $other_owner );
 ' --path="$ROOT/source"
 
 # Failed scheduled jobs fire an alert hook without deleting good backups.

@@ -11,6 +11,42 @@
  */
 
 return array(
+	'The export could not start.' => array(
+		'it' => 'Impossibile avviare l’esportazione.',
+		'es' => 'No se pudo iniciar la exportación.',
+		'fr' => 'Impossible de démarrer l’exportation.',
+		'de' => 'Der Export konnte nicht gestartet werden.',
+	),
+	'The export storage identifier is invalid. Refresh the page and try again.' => array(
+		'it' => 'L’identificatore dello spazio di esportazione non è valido. Aggiorna la pagina e riprova.',
+		'es' => 'El identificador del almacenamiento de exportación no es válido. Actualiza la página e inténtalo de nuevo.',
+		'fr' => 'L’identifiant de stockage de l’exportation est invalide. Actualisez la page et réessayez.',
+		'de' => 'Die Kennung des Exportspeichers ist ungültig. Aktualisieren Sie die Seite und versuchen Sie es erneut.',
+	),
+	'The export lock is unavailable. Check the private backup directory and try again.' => array(
+		'it' => 'Il blocco dell’esportazione non è disponibile. Controlla la cartella privata dei backup e riprova.',
+		'es' => 'El bloqueo de exportación no está disponible. Comprueba la carpeta privada de copias e inténtalo de nuevo.',
+		'fr' => 'Le verrou d’exportation est indisponible. Vérifiez le dossier privé des sauvegardes et réessayez.',
+		'de' => 'Die Exportsperre ist nicht verfügbar. Prüfen Sie den privaten Backup-Ordner und versuchen Sie es erneut.',
+	),
+	'Another export is already running.' => array(
+		'it' => 'È già in corso un’altra esportazione.',
+		'es' => 'Ya hay otra exportación en curso.',
+		'fr' => 'Une autre exportation est déjà en cours.',
+		'de' => 'Ein anderer Export läuft bereits.',
+	),
+	'Wait for it to finish before starting another export.' => array(
+		'it' => 'Attendi che termini prima di avviare un’altra esportazione.',
+		'es' => 'Espera a que termine antes de iniciar otra exportación.',
+		'fr' => 'Attendez sa fin avant de démarrer une autre exportation.',
+		'de' => 'Warten Sie das Ende ab, bevor Sie einen weiteren Export starten.',
+	),
+	'Another site export is already running.' => array(
+		'it' => 'È già in corso un’altra esportazione del sito.',
+		'es' => 'Ya hay otra exportación del sitio en curso.',
+		'fr' => 'Une autre exportation du site est déjà en cours.',
+		'de' => 'Ein weiterer Website-Export läuft bereits.',
+	),
 	'WooCommerce order consistency' => array(
 		'it' => 'Coerenza degli ordini WooCommerce',
 		'es' => 'Coherencia de los pedidos de WooCommerce',

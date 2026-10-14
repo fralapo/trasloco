@@ -96,23 +96,13 @@ class Trasloco_Job_Worker {
      * descriptor ownership is process-scoped and released on PHP process exit.
      * Do not silently wait and generate two backups from inconsistent data.
      */
-    private static function acquire_backup_lock() {
-        if ( ! wp_mkdir_p( TRASLOCO_BACKUPS_PATH ) ) {
-            throw new RuntimeException( 'Unable to create backup directory for exclusive lock.' );
-        }
-        $path = TRASLOCO_BACKUPS_PATH . DIRECTORY_SEPARATOR . '.trasloco-export.lock';
-        if ( is_link( $path ) ) {
-            throw new RuntimeException( 'Backup lock may not be a symbolic link.' );
-        }
-        $handle = @fopen( $path, 'c+' );
+    private static function acquire_backup_lock( $id ) {
+        $owner = hash( 'sha256', 'trasloco-job-backup:' . (int) $id );
+        $handle = Trasloco_Export_Lock::acquire( $owner, HOUR_IN_SECONDS );
         if ( $handle === false ) {
-            throw new RuntimeException( 'Backup lock file cannot be opened.' );
+            throw new RuntimeException( 'Another site export is already running.' );
         }
-        if ( ! @flock( $handle, LOCK_EX | LOCK_NB ) ) {
-            fclose( $handle );
-            throw new RuntimeException( 'Another server-side backup is already running.' );
-        }
-        return $handle;
+        return array( $handle, $owner );
     }
 
     /** Reuse tested synchronous WP-CLI export pipeline without AJAX exits. */
@@ -270,7 +260,7 @@ class Trasloco_Job_Worker {
         }
         try {
             if ( $record['kind'] === 'backup' ) {
-                $backup_lock = self::acquire_backup_lock();
+                list( $backup_lock, $backup_lock_owner ) = self::acquire_backup_lock( $id );
                 try {
                     // The export pipeline emits progress events while streaming.
                     // A bounded heartbeat keeps its job lease alive beyond
@@ -278,11 +268,15 @@ class Trasloco_Job_Worker {
                     $GLOBALS['trasloco_active_backup_job'] = array(
                         'id' => $id, 'owner' => $owner, 'last_renew' => time(),
                     );
+                    $GLOBALS['trasloco_active_export_lock'] = array(
+                        'handle' => $backup_lock, 'owner' => $backup_lock_owner,
+                        'lease_seconds' => HOUR_IN_SECONDS, 'last_renew' => time(),
+                    );
                     $name = self::backup( $id, $owner, $record['payload'] );
                 } finally {
                     unset( $GLOBALS['trasloco_active_backup_job'] );
-                    flock( $backup_lock, LOCK_UN );
-                    fclose( $backup_lock );
+                    unset( $GLOBALS['trasloco_active_export_lock'] );
+                    Trasloco_Export_Lock::release( $backup_lock, $backup_lock_owner );
                 }
                 if ( ! Trasloco_Job_Store::finish( $id, $owner ) ) {
                     return array( 'status' => 'not_claimed' );
