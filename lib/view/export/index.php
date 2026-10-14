@@ -30,6 +30,14 @@
 		<p class="tr-lead"><?php esc_html_e( 'Create one export file (its name ends in .wpress) with a complete copy of this site. Use it to move the site, or keep it as a backup. On the new site, upload it in Trasloco → Import.', TRASLOCO_PLUGIN_NAME ); ?></p>
 	</header>
 
+	<?php if ( function_exists( 'wc_get_order' ) ) : ?>
+	<section class="tr-card tr-card-warn" aria-labelledby="tr-export-woocommerce">
+		<h2 id="tr-export-woocommerce"><span class="dashicons dashicons-warning" aria-hidden="true"></span> <?php esc_html_e( 'WooCommerce order consistency', TRASLOCO_PLUGIN_NAME ); ?></h2>
+		<p><?php esc_html_e( 'This export reads database tables in separate steps. New orders, refunds, payment notifications, or scheduled actions during the export may be captured at different times.', TRASLOCO_PLUGIN_NAME ); ?></p>
+		<p><?php esc_html_e( 'Before exporting a live store, enable maintenance mode and pause checkout, webhooks, incoming integrations, and scheduled order work until the export finishes.', TRASLOCO_PLUGIN_NAME ); ?></p>
+	</section>
+	<?php endif; ?>
+
 	<?php $tr_step = 1; include TRASLOCO_TEMPLATES_PATH . '/main/steps.php'; ?>
 
 	<form action="" method="post" id="trasloco-export-form" class="tr-form">

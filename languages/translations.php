@@ -11,6 +11,24 @@
  */
 
 return array(
+	'WooCommerce order consistency' => array(
+		'it' => 'Coerenza degli ordini WooCommerce',
+		'es' => 'Coherencia de los pedidos de WooCommerce',
+		'fr' => 'Cohérence des commandes WooCommerce',
+		'de' => 'Konsistenz der WooCommerce-Bestellungen',
+	),
+	'This export reads database tables in separate steps. New orders, refunds, payment notifications, or scheduled actions during the export may be captured at different times.' => array(
+		'it' => 'Questa esportazione legge le tabelle del database in passaggi separati. I nuovi ordini, i rimborsi, le notifiche di pagamento o le attività pianificate durante l’esportazione potrebbero essere acquisiti in momenti diversi.',
+		'es' => 'Esta exportación lee las tablas de la base de datos en pasos separados. Los pedidos nuevos, los reembolsos, las notificaciones de pago o las tareas programadas durante la exportación podrían capturarse en momentos distintos.',
+		'fr' => 'Cette exportation lit les tables de la base de données en plusieurs étapes. Les nouvelles commandes, les remboursements, les notifications de paiement ou les tâches planifiées pendant l’exportation peuvent être capturés à des moments différents.',
+		'de' => 'Dieser Export liest Datenbanktabellen in mehreren Schritten. Neue Bestellungen, Rückerstattungen, Zahlungsbenachrichtigungen oder geplante Aufgaben während des Exports können zu unterschiedlichen Zeitpunkten erfasst werden.',
+	),
+	'Before exporting a live store, enable maintenance mode and pause checkout, webhooks, incoming integrations, and scheduled order work until the export finishes.' => array(
+		'it' => 'Prima di esportare un negozio attivo, attiva la modalità manutenzione e sospendi il checkout, i webhook, le integrazioni in ingresso e le attività pianificate sugli ordini fino al termine dell’esportazione.',
+		'es' => 'Antes de exportar una tienda activa, activa el modo de mantenimiento y pausa el pago, los webhooks, las integraciones entrantes y las tareas programadas de pedidos hasta que termine la exportación.',
+		'fr' => 'Avant d’exporter une boutique en activité, activez le mode maintenance et suspendez le paiement, les webhooks, les intégrations entrantes et les tâches planifiées sur les commandes jusqu’à la fin de l’exportation.',
+		'de' => 'Aktivieren Sie vor dem Export eines aktiven Shops den Wartungsmodus und pausieren Sie den Checkout, Webhooks, eingehende Integrationen und geplante Bestellaufgaben bis zum Ende des Exports.',
+	),
 	'Recovery points requiring attention' => array(
 		'it' => 'Punti di ripristino da verificare',
 		'es' => 'Puntos de recuperación que requieren atención',

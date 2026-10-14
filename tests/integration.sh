@@ -33,6 +33,9 @@ for ROLE in source target; do
   $WP plugin activate trasloco --path="$SITE"
   echo "$ROLE home before migration: $($WP option get home --path="$SITE")"
 done
+if [ "${TRASLOCO_TEST_WOOCOMMERCE:-0}" != 1 ]; then
+  $WP eval-file "$GITHUB_WORKSPACE/tests/export-consistency-warning.php" absent --path="$ROOT/source"
+fi
 WC_ORDER_ID=""
 WC_REFUND_ID=""
 WC_PRODUCT_ID=""
@@ -54,6 +57,7 @@ if [ "${TRASLOCO_TEST_WOOCOMMERCE:-0}" = 1 ]; then
       --activate --path="$ROOT/$ROLE"
     $WP wc hpos "$WC_ORDER_STORE_COMMAND" --path="$ROOT/$ROLE"
   done
+  $WP eval-file "$GITHUB_WORKSPACE/tests/export-consistency-warning.php" present --path="$ROOT/source"
   WC_FIXTURE=$($WP eval-file "$GITHUB_WORKSPACE/tests/woocommerce-fixture.php" seed "$WC_ORDER_STORE" --path="$ROOT/source" | tail -n 1)
   WC_ORDER_ID=$(printf '%s' "$WC_FIXTURE" | php -r '$v=json_decode(stream_get_contents(STDIN),true); if(!is_array($v)||empty($v["order_id"])) exit(1); echo (int)$v["order_id"];')
   WC_REFUND_ID=$(printf '%s' "$WC_FIXTURE" | php -r '$v=json_decode(stream_get_contents(STDIN),true); if(!is_array($v)||empty($v["refund_id"])) exit(1); echo (int)$v["refund_id"];')
