@@ -13,7 +13,7 @@ class Trasloco_Scheduled_Backups {
         add_action( self::HOOK, array( __CLASS__, 'enqueue' ) );
         add_action( 'trasloco_scheduled_backup_failed', array( __CLASS__, 'notify_failure' ) );
         add_action( 'trasloco_offsite_transfer_failed', array( __CLASS__, 'notify_offsite_failure' ) );
-        add_action( self::NOTIFICATION_HOOK, array( __CLASS__, 'retry_notification' ), 10, 2 );
+        add_action( self::NOTIFICATION_HOOK, array( __CLASS__, 'retry_notification' ), 10, 3 );
         add_action( 'init', array( __CLASS__, 'sync_health_check' ), 31 );
         add_action( self::HEALTH_HOOK, array( __CLASS__, 'health_check' ) );
     }
@@ -34,8 +34,7 @@ class Trasloco_Scheduled_Backups {
             return false;
         }
         $settings = self::settings();
-        $email = $settings['notification_email'];
-        if ( ! $settings['notify_alerts'] || ! is_email( $email ) ) {
+        if ( ! $settings['notify_alerts'] ) {
             return false;
         }
         $messages = array(
@@ -52,22 +51,114 @@ class Trasloco_Scheduled_Backups {
                 __( 'Trasloco can reach offsite storage again and its archive inventory is complete.', TRASLOCO_PLUGIN_NAME ),
             ),
         );
-        if ( wp_mail( $email, $messages[ $event ][0], $messages[ $event ][1] ) ) {
+        $email_ok = self::deliver_email( $event, $attempt, $settings, $messages[ $event ] );
+        $webhook_ok = self::deliver_webhook( $event, $attempt, $settings );
+        return $email_ok && $webhook_ok;
+    }
+
+    /** Schedule one of at most three retries after a channel reports failure. */
+    private static function schedule_notification_retry( $channel, $event, $attempt ) {
+        if ( $attempt >= 3 ) {
+            return;
+        }
+        $delays = array( 60, 300, 900 );
+        wp_schedule_single_event( time() + $delays[ $attempt ], self::NOTIFICATION_HOOK,
+            array( $event, $attempt + 1, $channel ) );
+    }
+
+    private static function deliver_email( $event, $attempt, $settings, $message ) {
+        $email = $settings['notification_email'];
+        if ( ! is_email( $email ) ) {
             return true;
         }
-        if ( $attempt < 3 ) {
-            $delays = array( 60, 300, 900 );
-            wp_schedule_single_event( time() + $delays[ $attempt ], self::NOTIFICATION_HOOK, array( $event, $attempt + 1 ) );
+        if ( wp_mail( $email, $message[0], $message[1] ) ) {
+            return true;
         }
+        self::schedule_notification_retry( 'email', $event, $attempt );
         return false;
     }
 
-    /** Retry only known, credential-free alert types and bounded attempts. */
-    public static function retry_notification( $event, $attempt ) {
-        if ( ! is_string( $event ) || ! is_int( $attempt ) ) {
+    /** Send a signed, minimal event payload through WordPress safe HTTP. */
+    private static function deliver_webhook( $event, $attempt, $settings ) {
+        $url = $settings['webhook_url'];
+        $secret = $settings['webhook_secret'];
+        if ( $url === '' ) {
+            return true;
+        }
+        if ( ! self::valid_webhook_url( $url ) || strlen( $secret ) < 32 ) {
+            return true; // Invalid saved settings are disabled until corrected.
+        }
+        $timestamp = time();
+        $payload = wp_json_encode( array(
+            'event' => $event,
+            'site' => hash_hmac( 'sha256', home_url( '/' ), $secret ),
+            'timestamp' => $timestamp,
+            'attempt' => $attempt,
+        ) );
+        if ( ! is_string( $payload ) ) {
+            self::schedule_notification_retry( 'webhook', $event, $attempt );
             return false;
         }
-        return self::send_alert( $event, $attempt );
+        $signature = hash_hmac( 'sha256', $timestamp . '.' . $payload, $secret );
+        $response = wp_safe_remote_post( $url, array(
+            'timeout' => 5,
+            'redirection' => 0,
+            'limit_response_size' => 1024,
+            'headers' => array(
+                'Content-Type' => 'application/json',
+                'X-Trasloco-Event' => $event,
+                'X-Trasloco-Timestamp' => (string) $timestamp,
+                'X-Trasloco-Signature' => 'sha256=' . $signature,
+            ),
+            'body' => $payload,
+        ) );
+        if ( ! is_wp_error( $response ) && (int) wp_remote_retrieve_response_code( $response ) >= 200 &&
+             (int) wp_remote_retrieve_response_code( $response ) < 300 ) {
+            return true;
+        }
+        self::schedule_notification_retry( 'webhook', $event, $attempt );
+        return false;
+    }
+
+    private static function valid_webhook_url( $url ) {
+        if ( ! is_string( $url ) || strlen( $url ) > 2048 ) {
+            return false;
+        }
+        $parts = wp_parse_url( $url );
+        return is_array( $parts ) && isset( $parts['scheme'], $parts['host'] ) &&
+            strtolower( $parts['scheme'] ) === 'https' && empty( $parts['user'] ) && empty( $parts['pass'] ) && empty( $parts['fragment'] );
+    }
+
+    /** Retry one channel for known events and bounded attempts only. */
+    public static function retry_notification( $event, $attempt, $channel = 'email' ) {
+        if ( ! is_string( $event ) || ! is_int( $attempt ) || ! is_string( $channel ) ||
+             ! in_array( $channel, array( 'email', 'webhook' ), true ) || $attempt < 1 || $attempt > 3 ) {
+            return false;
+        }
+        $settings = self::settings();
+        if ( ! $settings['notify_alerts'] ) {
+            return false;
+        }
+        $messages = array(
+            'backup_failed' => array(
+                __( 'Trasloco automatic backup failed', TRASLOCO_PLUGIN_NAME ),
+                __( 'An automatic site backup failed. Open WordPress administration and review Trasloco backups and job status. Your previous backups have not been removed.', TRASLOCO_PLUGIN_NAME ),
+            ),
+            'offsite_attention' => array(
+                __( 'Trasloco offsite storage needs attention', TRASLOCO_PLUGIN_NAME ),
+                __( 'Trasloco could not confirm that offsite storage is healthy. Check the provider configuration and recent transfer jobs in WordPress administration.', TRASLOCO_PLUGIN_NAME ),
+            ),
+            'offsite_recovered' => array(
+                __( 'Trasloco offsite storage recovered', TRASLOCO_PLUGIN_NAME ),
+                __( 'Trasloco can reach offsite storage again and its archive inventory is complete.', TRASLOCO_PLUGIN_NAME ),
+            ),
+        );
+        if ( ! isset( $messages[ $event ] ) ) {
+            return false;
+        }
+        return $channel === 'email'
+            ? self::deliver_email( $event, $attempt, $settings, $messages[ $event ] )
+            : self::deliver_webhook( $event, $attempt, $settings );
     }
 
     /** Notify only on a health-state transition; never include credentials or endpoints. */
@@ -133,6 +224,11 @@ class Trasloco_Scheduled_Backups {
         if ( ! is_email( $notification_email ) ) {
             $notification_email = get_option( 'admin_email' );
         }
+        $webhook_url = isset( $value['webhook_url'] ) && is_string( $value['webhook_url'] ) &&
+            self::valid_webhook_url( $value['webhook_url'] ) ? $value['webhook_url'] : '';
+        $webhook_secret = isset( $value['webhook_secret'] ) && is_string( $value['webhook_secret'] ) &&
+            strlen( $value['webhook_secret'] ) >= 32 && strlen( $value['webhook_secret'] ) <= 128
+            ? $value['webhook_secret'] : '';
         if ( ! in_array( $frequency, array( 'off', 'hourly', 'daily', 'weekly', 'monthly' ), true ) ) {
             $frequency = 'off';
         }
@@ -143,6 +239,8 @@ class Trasloco_Scheduled_Backups {
             'upload_offsite' => ! empty( $value['upload_offsite'] ),
             'notify_alerts' => ! array_key_exists( 'notify_alerts', $value ) || ! empty( $value['notify_alerts'] ),
             'notification_email' => $notification_email,
+            'webhook_url' => $webhook_url,
+            'webhook_secret' => $webhook_secret,
         );
     }
 
@@ -194,6 +292,22 @@ class Trasloco_Scheduled_Backups {
         if ( ! is_email( $notification_email ) ) {
             wp_die( 'A valid alert email address is required.', '', array( 'response' => 400 ) );
         }
+        $webhook_url = isset( $_POST['webhook_url'] ) && is_string( $_POST['webhook_url'] )
+            ? esc_url_raw( wp_unslash( $_POST['webhook_url'] ), array( 'https' ) ) : '';
+        if ( $webhook_url !== '' && ( ! self::valid_webhook_url( $webhook_url ) || wp_http_validate_url( $webhook_url ) === false ) ) {
+            wp_die( 'Webhook URL must be a valid public HTTPS URL.', '', array( 'response' => 400 ) );
+        }
+        $existing = get_option( self::OPTION, array() );
+        $existing_secret = is_array( $existing ) && isset( $existing['webhook_secret'] ) &&
+            is_string( $existing['webhook_secret'] ) ? $existing['webhook_secret'] : '';
+        $webhook_secret = isset( $_POST['webhook_secret'] ) && is_string( $_POST['webhook_secret'] )
+            ? trim( wp_unslash( $_POST['webhook_secret'] ) ) : '';
+        if ( $webhook_secret === '' ) {
+            $webhook_secret = $existing_secret;
+        }
+        if ( $webhook_url !== '' && ( strlen( $webhook_secret ) < 32 || strlen( $webhook_secret ) > 128 ) ) {
+            wp_die( 'Webhook signing secret must contain 32 to 128 characters.', '', array( 'response' => 400 ) );
+        }
         update_option( self::OPTION, array(
             'frequency' => $frequency,
             'keep' => $keep,
@@ -201,6 +315,8 @@ class Trasloco_Scheduled_Backups {
             'upload_offsite' => $upload_offsite,
             'notify_alerts' => $notify_alerts,
             'notification_email' => $notification_email,
+            'webhook_url' => $webhook_url,
+            'webhook_secret' => $webhook_secret,
         ), false );
         wp_clear_scheduled_hook( self::HOOK );
         self::sync();

@@ -98,7 +98,7 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 - [ ] Multi-site coordinator with mutual trust, reconciliation, notifications, permissions and site onboarding.
 
 - [x] Scheduled backup failure alert hook with administrator email notification (subject to WordPress mail delivery).
-- [ ] Webhook notifications and provider delivery certification. Backup/offsite email alerts now have per-installation enablement and recipient settings, plus three bounded WP-Cron retries after mail transport failure. Webhooks and retry-delivery tests against external providers remain open.
+- [ ] Webhook notifications and provider delivery certification. Backup/offsite email alerts and signed HTTPS webhooks now have per-installation settings, credential-free event payloads, safe HTTP requests and three bounded WP-Cron retries per channel. Local mocked transport covers request signing and retry queueing; external endpoint and mail-provider tests remain open.
 
 - [x] Phase 9A: read-only archive file inventory and admin REST preview with explicit database-diff limitations.
 - [x] Phase 9B file checksum diff: `php tools/recovery-diff.php` compares actual bytes from a verified `.wpress` against destination `wp-content` files, with bounded inventory and no writes. Integration covers missing, modified and archive-absent paths.

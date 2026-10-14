@@ -946,8 +946,8 @@ update_option( Trasloco_Scheduled_Backups::OPTION, array(
 add_filter( "pre_wp_mail", $mail_filter, 10, 2 );
 Trasloco_Scheduled_Backups::notify_failure( 123 );
 remove_filter( "pre_wp_mail", $mail_filter, 10 );
-$retry = wp_get_scheduled_event( Trasloco_Scheduled_Backups::NOTIFICATION_HOOK, array( "backup_failed", 1 ) );
-if ( $mail_attempts !== 1 || ! $retry || $retry->args !== array( "backup_failed", 1 ) ||
+$retry = wp_get_scheduled_event( Trasloco_Scheduled_Backups::NOTIFICATION_HOOK, array( "backup_failed", 1, "email" ) );
+if ( $mail_attempts !== 1 || ! $retry || $retry->args !== array( "backup_failed", 1, "email" ) ||
     $retry->timestamp < time() + 55 || $retry->timestamp > time() + 65 ) {
     throw new Exception( "Failed alert mail did not queue a bounded first retry: " . wp_json_encode( array(
         "mail_attempts" => $mail_attempts, "event" => $retry ? $retry->args : null,
@@ -958,9 +958,41 @@ wp_unschedule_event( $retry->timestamp, Trasloco_Scheduled_Backups::NOTIFICATION
 add_filter( "pre_wp_mail", $mail_filter, 10, 2 );
 Trasloco_Scheduled_Backups::retry_notification( "backup_failed", 3 );
 remove_filter( "pre_wp_mail", $mail_filter, 10 );
-if ( $mail_attempts !== 2 || wp_next_scheduled( Trasloco_Scheduled_Backups::NOTIFICATION_HOOK ) ) {
+if ( $mail_attempts !== 2 || wp_get_scheduled_event( Trasloco_Scheduled_Backups::NOTIFICATION_HOOK,
+    array( "backup_failed", 4, "email" ) ) ) {
     throw new Exception( "Exhausted alert delivery kept retrying" );
 }
+$webhook_secret = str_repeat( "webhook-test-secret-", 3 );
+update_option( Trasloco_Scheduled_Backups::OPTION, array(
+    "frequency" => "daily", "keep" => 2, "notify_alerts" => true,
+    "notification_email" => "trasloco-test@example.com",
+    "webhook_url" => "https://8.8.8.8/trasloco-hook", "webhook_secret" => $webhook_secret,
+) );
+$http_requests = array();
+$http_filter = function ( $response, $args, $url ) use ( &$http_requests ) {
+    $http_requests[] = array( "args" => $args, "url" => $url );
+    return new WP_Error( "fixture_failure", "local transport fixture" );
+};
+$mail_success = function ( $short_circuit, $atts ) { return true; };
+add_filter( "pre_http_request", $http_filter, 10, 3 );
+add_filter( "pre_wp_mail", $mail_success, 10, 2 );
+Trasloco_Scheduled_Backups::notify_failure( 124 );
+remove_filter( "pre_http_request", $http_filter, 10 );
+remove_filter( "pre_wp_mail", $mail_success, 10 );
+$webhook_retry = wp_get_scheduled_event( Trasloco_Scheduled_Backups::NOTIFICATION_HOOK,
+    array( "backup_failed", 1, "webhook" ) );
+$sent_request = isset( $http_requests[0] ) ? $http_requests[0] : null;
+$sent_headers = $sent_request ? $sent_request["args"]["headers"] : array();
+$sent_body = $sent_request ? json_decode( $sent_request["args"]["body"], true ) : null;
+$expected_signature = $sent_request ? hash_hmac( "sha256",
+    $sent_headers["X-Trasloco-Timestamp"] . "." . $sent_request["args"]["body"], $webhook_secret ) : "";
+if ( ! $webhook_retry || ! $sent_request || $sent_request["url"] !== "https://8.8.8.8/trasloco-hook" ||
+    ! is_array( $sent_body ) || $sent_body["event"] !== "backup_failed" ||
+    $sent_headers["X-Trasloco-Signature"] !== "sha256=" . $expected_signature ||
+    strpos( $sent_request["args"]["body"], $webhook_secret ) !== false ) {
+    throw new Exception( "Webhook notification was not signed, minimized or retried correctly" );
+}
+wp_unschedule_event( $webhook_retry->timestamp, Trasloco_Scheduled_Backups::NOTIFICATION_HOOK, $webhook_retry->args );
 update_option( Trasloco_Scheduled_Backups::OPTION, array( "frequency" => "weekly", "keep" => 2, "upload_offsite" => true ) );
 wp_clear_scheduled_hook( Trasloco_Scheduled_Backups::HOOK );
 Trasloco_Scheduled_Backups::sync();
@@ -1047,6 +1079,7 @@ if ( strpos( $schedule_html, "Encrypt and upload each scheduled backup to remote
     strpos( $schedule_html, "Decrypt backup" ) === false ||
     strpos( $schedule_html, "action=trasloco_decrypt_backup" ) === false ||
     strpos( $schedule_html, "Email me about scheduled backup failures and offsite storage status changes" ) === false ||
+    strpos( $schedule_html, "Webhook signing secret" ) === false ||
     strpos( $schedule_html, "Download encrypted backup" ) === false ||
     strpos( $schedule_html, "to WebDAV" ) !== false ) {
     throw new Exception( "Backup UI does not show archive verification, manual encryption or remote delivery" );

@@ -355,6 +355,24 @@ return array(
 		'fr' => 'Les envois échoués sont retentés jusqu’à trois fois. La livraison dépend du courrier et de cron WordPress.',
 		'de' => 'Fehlgeschlagene E-Mails werden bis zu dreimal erneut versucht. Die Zustellung hängt von WordPress-Mail und Cron ab.',
 	),
+	'Webhook URL (HTTPS)' => array(
+		'it' => 'URL del webhook (HTTPS)',
+		'es' => 'URL del webhook (HTTPS)',
+		'fr' => 'URL du webhook (HTTPS)',
+		'de' => 'Webhook-URL (HTTPS)',
+	),
+	'Webhook signing secret' => array(
+		'it' => 'Chiave segreta per firmare il webhook',
+		'es' => 'Secreto de firma del webhook',
+		'fr' => 'Secret de signature du webhook',
+		'de' => 'Webhook-Signaturschlüssel',
+	),
+	'Use a secret of 32 to 128 characters. Leave it empty to keep the saved secret. Webhook requests contain only the event and delivery metadata and include an HMAC-SHA-256 signature.' => array(
+		'it' => 'Usa una chiave da 32 a 128 caratteri. Lasciala vuota per mantenere quella salvata. Le richieste webhook contengono solo l’evento e i dati di consegna e includono una firma HMAC-SHA-256.',
+		'es' => 'Usa un secreto de 32 a 128 caracteres. Déjalo vacío para conservar el guardado. El webhook solo envía el evento y los datos de entrega con una firma HMAC-SHA-256.',
+		'fr' => 'Utilisez un secret de 32 à 128 caractères. Laissez-le vide pour conserver celui enregistré. Le webhook envoie uniquement l’événement et les données de livraison, avec une signature HMAC-SHA-256.',
+		'de' => 'Verwenden Sie ein Geheimnis mit 32 bis 128 Zeichen. Leer lassen, um das gespeicherte Geheimnis beizubehalten. Webhook-Anfragen enthalten nur Ereignis- und Zustelldaten mit HMAC-SHA-256-Signatur.',
+	),
 	'WordPress scheduled tasks depend on site traffic. Configure system cron for reliable timing on low-traffic sites.' => array(
 		'it' => 'Le attività pianificate dipendono dalle visite al sito. Per orari affidabili configura cron di sistema.',
 		'es' => 'Las tareas dependen del tráfico del sitio. Configura cron del sistema para cumplir los horarios.',

@@ -60,6 +60,11 @@
 			<p><label><input type="checkbox" name="notify_alerts" value="1" <?php checked( $tr_schedule['notify_alerts'] ); ?> /> <?php esc_html_e( 'Email me about scheduled backup failures and offsite storage status changes', TRASLOCO_PLUGIN_NAME ); ?></label></p>
 			<p><label for="tr-notification-email"><strong><?php esc_html_e( 'Alert email address', TRASLOCO_PLUGIN_NAME ); ?></strong></label></p>
 			<p><input id="tr-notification-email" type="email" name="notification_email" autocomplete="email" required value="<?php echo esc_attr( $tr_schedule['notification_email'] ); ?>" /></p>
+			<p><label for="tr-notification-webhook"><strong><?php esc_html_e( 'Webhook URL (HTTPS)', TRASLOCO_PLUGIN_NAME ); ?></strong></label></p>
+			<p><input id="tr-notification-webhook" type="url" name="webhook_url" value="<?php echo esc_attr( $tr_schedule['webhook_url'] ); ?>" placeholder="https://" /></p>
+			<p><label for="tr-notification-webhook-secret"><strong><?php esc_html_e( 'Webhook signing secret', TRASLOCO_PLUGIN_NAME ); ?></strong></label></p>
+			<p><input id="tr-notification-webhook-secret" type="password" name="webhook_secret" autocomplete="new-password" value="" /></p>
+			<p class="tr-hint"><?php esc_html_e( 'Use a secret of 32 to 128 characters. Leave it empty to keep the saved secret. Webhook requests contain only the event and delivery metadata and include an HMAC-SHA-256 signature.', TRASLOCO_PLUGIN_NAME ); ?></p>
 			<p class="tr-hint"><?php esc_html_e( 'Failed email deliveries are retried up to three times. Delivery depends on WordPress mail and cron configuration.', TRASLOCO_PLUGIN_NAME ); ?></p>
 			<p class="tr-hint"><?php esc_html_e( 'WordPress scheduled tasks depend on site traffic. Configure system cron for reliable timing on low-traffic sites.', TRASLOCO_PLUGIN_NAME ); ?></p>
 			<p><button type="submit" class="button button-primary"><?php esc_html_e( 'Save schedule', TRASLOCO_PLUGIN_NAME ); ?></button></p>
