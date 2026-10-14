@@ -320,6 +320,52 @@ class Trasloco_Job_Store {
         return $result;
     }
 
+    /** Return bounded, per-archive verification summaries for the admin list. */
+    public static function verification_statuses( $archives ) {
+        global $wpdb;
+        if ( ! is_array( $archives ) ) {
+            return array();
+        }
+        $wanted = array();
+        foreach ( array_slice( $archives, 0, 100 ) as $archive ) {
+            if ( is_string( $archive ) && preg_match( '/^[A-Za-z0-9][A-Za-z0-9_.-]*\.wpress$/D', $archive ) &&
+                strpos( $archive, '..' ) === false ) {
+                $wanted[ $archive ] = true;
+            }
+        }
+        if ( empty( $wanted ) ) {
+            return array();
+        }
+        $table = self::table();
+        $rows = $wpdb->get_results( $wpdb->prepare(
+            "SELECT state, payload, checkpoint FROM {$table} WHERE kind = %s ORDER BY id DESC LIMIT %d",
+            'verify', 1000
+        ), ARRAY_A );
+        if ( ! is_array( $rows ) ) {
+            return array();
+        }
+        $statuses = array();
+        foreach ( $rows as $row ) {
+            $payload = json_decode( $row['payload'], true );
+            if ( ! is_array( $payload ) || ! isset( $payload['archive'] ) ||
+                ! is_string( $payload['archive'] ) || ! isset( $wanted[ $payload['archive'] ] ) ||
+                isset( $statuses[ $payload['archive'] ] ) ) {
+                continue;
+            }
+            $checkpoint = json_decode( $row['checkpoint'], true );
+            $proof = is_array( $checkpoint ) && isset( $checkpoint['phase'] ) &&
+                $checkpoint['phase'] === 'verified' ? array_intersect_key( $checkpoint, array_flip( array(
+                    'phase', 'size_bytes', 'file_mtime', 'file_ctime', 'file_inode', 'file_device',
+                    'manifest_size_bytes', 'manifest_mtime', 'manifest_ctime', 'manifest_inode', 'manifest_device',
+                ) ) ) : array();
+            $statuses[ $payload['archive'] ] = array(
+                'state' => sanitize_key( $row['state'] ),
+                'proof' => $proof,
+            );
+        }
+        return $statuses;
+    }
+
     public static function claim( $id, $worker, $lease_seconds = 300 ) {
         global $wpdb;
         if ( ! is_string( $worker ) || ! preg_match( '/^[a-zA-Z0-9:_-]{12,64}$/D', $worker ) ||

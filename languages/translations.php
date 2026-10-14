@@ -329,6 +329,24 @@ return array(
 		'fr' => 'Non vérifié',
 		'de' => 'Nicht überprüft',
 	),
+	'Verified' => array(
+		'it' => 'Verificato',
+		'es' => 'Verificado',
+		'fr' => 'Vérifié',
+		'de' => 'Verifiziert',
+	),
+	'Verification in progress' => array(
+		'it' => 'Verifica in corso',
+		'es' => 'Verificación en curso',
+		'fr' => 'Vérification en cours',
+		'de' => 'Überprüfung läuft',
+	),
+	'Verification failed' => array(
+		'it' => 'Verifica non riuscita',
+		'es' => 'Error de verificación',
+		'fr' => 'Échec de la vérification',
+		'de' => 'Überprüfung fehlgeschlagen',
+	),
 	'Overview' => array(
 		'it' => 'Panoramica',
 		'es' => 'Vista general',

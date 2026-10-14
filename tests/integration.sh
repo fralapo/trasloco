@@ -863,14 +863,48 @@ $offsite_job = is_int( $offsite_id ) ? Trasloco_Job_Store::workload( $offsite_id
 if ( ! is_array( $offsite_job ) || $offsite_job["payload"] !== array( "retention" => 2, "upload_offsite" => true ) ) {
     throw new Exception( "Scheduled encrypted offsite delivery was not represented by a credential-free backup job" );
 }
-$backups = array();
+$backups = (new Trasloco_Backups())->get_files();
+if ( empty( $backups ) || empty( $backups[0]["filename"] ) ) {
+    throw new Exception( "No local backup was available for the verified UI regression" );
+}
+$view_archive = $backups[0]["filename"];
+$view_verify_id = Trasloco_Job_Store::create( "verify", array( "archive" => $view_archive ),
+    wp_generate_password( 32, false, false ) );
+if ( is_wp_error( $view_verify_id ) || ! $view_verify_id ) {
+    throw new Exception( "Could not create the backup-list verification fixture" );
+}
+$view_verify_result = Trasloco_Job_Worker::run( $view_verify_id );
+$view_status = Trasloco_Job_Store::verification_statuses( array( $view_archive ) );
+if ( $view_verify_result["status"] !== "completed" ||
+    ! isset( $view_status[$view_archive]["state"], $view_status[$view_archive]["proof"]["phase"] ) ||
+    $view_status[$view_archive]["state"] !== "completed" ||
+    $view_status[$view_archive]["proof"]["phase"] !== "verified" ) {
+    throw new Exception( "Completed verification did not publish a private archive identity proof" );
+}
 ob_start();
 include TRASLOCO_TEMPLATES_PATH . "/backups/index.php";
 $schedule_html = ob_get_clean();
 if ( strpos( $schedule_html, "Encrypt and upload each scheduled backup to remote storage" ) === false ||
     strpos( $schedule_html, "S3 also requires its optional runtime and PHP 8.1 or later" ) === false ||
+    strpos( $schedule_html, "Verified" ) === false ||
     strpos( $schedule_html, "to WebDAV" ) !== false ) {
-    throw new Exception( "Scheduled encrypted delivery UI does not describe the configured S3/WebDAV providers" );
+    throw new Exception( "Backup UI does not show verified archive status or describe S3/WebDAV delivery" );
+}
+$view_archive_path = trasloco_backup_path( array( "archive" => $view_archive ) );
+$view_archive_mtime = filemtime( $view_archive_path );
+if ( ! touch( $view_archive_path, $view_archive_mtime + 5 ) ) {
+    throw new Exception( "Could not arrange a stale verification UI fixture" );
+}
+clearstatcache( true, $view_archive_path );
+$backups = (new Trasloco_Backups())->get_files();
+ob_start();
+include TRASLOCO_TEMPLATES_PATH . "/backups/index.php";
+$stale_html = ob_get_clean();
+touch( $view_archive_path, $view_archive_mtime );
+clearstatcache( true, $view_archive_path );
+if ( strpos( $stale_html, "Verified" ) !== false ||
+    strpos( $stale_html, "Manifest available (not verified)" ) === false ) {
+    throw new Exception( "Backup UI kept a verified status after the archive file changed" );
 }
 Trasloco_Job_Store::cancel( $offsite_id );
 Trasloco_Scheduled_Backups::sync_health_check();

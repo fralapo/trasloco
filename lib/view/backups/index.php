@@ -115,6 +115,7 @@
 
 					<?php if ( is_readable( TRASLOCO_BACKUPS_PATH ) && is_writable( TRASLOCO_BACKUPS_PATH ) ) : ?>
 						<?php if ( $backups ) : ?>
+							<?php $tr_verification_statuses = Trasloco_Job_Store::verification_statuses( array_column( $backups, 'filename' ) ); ?>
 							<table class="trasloco-backups tr-table">
 								<thead>
 									<tr>
@@ -149,13 +150,46 @@
 										</td>
 										<td><?php
 											require_once TRASLOCO_LIB_PATH . '/vendor/core/archiver/class-trasloco-integrity.php';
-											$manifest_file = Trasloco_Integrity::manifest_path( trasloco_backup_path( array( 'archive' => $backup['filename'] ) ) );
+											$archive_file = trasloco_backup_path( array( 'archive' => $backup['filename'] ) );
+											$manifest_file = Trasloco_Integrity::manifest_path( $archive_file );
+											$tr_verification = isset( $tr_verification_statuses[ $backup['filename'] ] )
+												? $tr_verification_statuses[ $backup['filename'] ] : null;
 											if ( ! is_file( $manifest_file ) ) {
 												esc_html_e( 'Not verified', TRASLOCO_PLUGIN_NAME );
+											} elseif ( $tr_verification && in_array( $tr_verification['state'], array( 'pending', 'running' ), true ) ) {
+												esc_html_e( 'Verification in progress', TRASLOCO_PLUGIN_NAME );
+											} elseif ( $tr_verification && $tr_verification['state'] === 'failed' ) {
+												esc_html_e( 'Verification failed', TRASLOCO_PLUGIN_NAME );
 											} else {
-												// A manifest is not proof of integrity. Hashing each archive
-											// here made listing large backups extremely slow.
-											esc_html_e( 'Manifest available (not verified)', TRASLOCO_PLUGIN_NAME );
+												$proof = $tr_verification && $tr_verification['state'] === 'completed'
+													? $tr_verification['proof'] : array();
+												clearstatcache( true, $archive_file );
+												$archive_stat = @lstat( $archive_file );
+												clearstatcache( true, $manifest_file );
+												$manifest_stat = @lstat( $manifest_file );
+												$still_verified = isset( $proof['phase'], $proof['size_bytes'], $proof['file_mtime'], $proof['file_ctime'],
+													$proof['file_inode'], $proof['file_device'], $proof['manifest_size_bytes'],
+													$proof['manifest_mtime'], $proof['manifest_ctime'], $proof['manifest_inode'], $proof['manifest_device'] ) &&
+													is_array( $archive_stat ) && ! is_link( $archive_file ) && is_file( $archive_file ) &&
+													is_array( $manifest_stat ) && ! is_link( $manifest_file ) && is_file( $manifest_file ) &&
+													$proof['phase'] === 'verified' &&
+													(int) $archive_stat['size'] === (int) $proof['size_bytes'] &&
+													(int) $archive_stat['mtime'] === (int) $proof['file_mtime'] &&
+													(int) $archive_stat['ctime'] === (int) $proof['file_ctime'] &&
+													(int) $archive_stat['ino'] === (int) $proof['file_inode'] &&
+													(int) $archive_stat['dev'] === (int) $proof['file_device'] &&
+													(int) $manifest_stat['size'] === (int) $proof['manifest_size_bytes'] &&
+													(int) $manifest_stat['mtime'] === (int) $proof['manifest_mtime'] &&
+													(int) $manifest_stat['ctime'] === (int) $proof['manifest_ctime'] &&
+													(int) $manifest_stat['ino'] === (int) $proof['manifest_inode'] &&
+													(int) $manifest_stat['dev'] === (int) $proof['manifest_device'];
+												if ( $still_verified ) {
+													esc_html_e( 'Verified', TRASLOCO_PLUGIN_NAME );
+												} else {
+													// A manifest alone is not proof of integrity. Avoid hashing
+													// large archives during the backup-list request.
+													esc_html_e( 'Manifest available (not verified)', TRASLOCO_PLUGIN_NAME );
+												}
 											}
 										?></td>
 										<td class="trasloco-column-actions trasloco-backup-actions">

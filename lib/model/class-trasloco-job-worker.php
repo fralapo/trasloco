@@ -382,6 +382,41 @@ class Trasloco_Job_Worker {
     }
 
 
+    /** Persist a small file-identity proof so the archive list can show fresh results. */
+    private static function verification_proof( $archive, $result ) {
+        clearstatcache( true, $archive );
+        $archive_stat = @lstat( $archive );
+        $manifest = Trasloco_Integrity::manifest_path( $archive );
+        clearstatcache( true, $manifest );
+        $manifest_stat = @lstat( $manifest );
+        if ( ! is_array( $archive_stat ) || is_link( $archive ) || ! is_file( $archive ) ||
+            ! is_array( $manifest_stat ) || is_link( $manifest ) || ! is_file( $manifest ) ||
+            (int) $archive_stat['size'] !== (int) $result['size_bytes'] ) {
+            throw new RuntimeException( 'Archive changed after verification.' );
+        }
+        return array(
+            'phase' => 'verified',
+            'size_bytes' => (int) $archive_stat['size'],
+            'file_mtime' => (int) $archive_stat['mtime'],
+            'file_ctime' => (int) $archive_stat['ctime'],
+            'file_inode' => (int) $archive_stat['ino'],
+            'file_device' => (int) $archive_stat['dev'],
+            'manifest_size_bytes' => (int) $manifest_stat['size'],
+            'manifest_mtime' => (int) $manifest_stat['mtime'],
+            'manifest_ctime' => (int) $manifest_stat['ctime'],
+            'manifest_inode' => (int) $manifest_stat['ino'],
+            'manifest_device' => (int) $manifest_stat['dev'],
+        );
+    }
+
+    private static function finish_verification( $id, $owner, $archive, $result ) {
+        $proof = self::verification_proof( $archive, $result );
+        if ( ! Trasloco_Job_Store::checkpoint( $id, $owner, 99, $proof ) ) {
+            return false;
+        }
+        return Trasloco_Job_Store::finish( $id, $owner );
+    }
+
     /** Advance bounded v2 verification with an owned, crash-replay checkpoint. */
     private static function verify_chunk_job( $id, $owner, $archive, $manifest ) {
         $size = (int) filesize( $archive );
@@ -432,7 +467,9 @@ class Trasloco_Job_Worker {
                  hash_file( 'sha256', Trasloco_Integrity::manifest_path( $archive ) ) !== $manifest['_manifest_sha256'] ) {
                 throw new RuntimeException( 'Archive or manifest changed during final verification.' );
             }
-            if ( ! Trasloco_Job_Store::finish( $id, $owner ) ) {
+            if ( ! self::finish_verification( $id, $owner, $archive, array(
+                'size_bytes' => $size, 'sha256' => $manifest['sha256'],
+            ) ) ) {
                 return array( 'status' => 'not_claimed' );
             }
             return array( 'status' => 'completed' );
@@ -523,7 +560,7 @@ class Trasloco_Job_Worker {
             if ( $result['status'] !== 'verified' ) {
                 throw new RuntimeException( 'Backup verification: ' . $result['status'] );
             }
-            if ( ! Trasloco_Job_Store::finish( $id, $owner ) ) {
+            if ( ! self::finish_verification( $id, $owner, $archive, $result ) ) {
                 return array( 'status' => 'not_claimed' );
             }
             return array( 'status' => 'completed', 'archive' => $filename );

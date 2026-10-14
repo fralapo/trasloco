@@ -74,7 +74,7 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 - [ ] Remote storage increment: the bounded WebDAV adapter implements the stream contract with HTTPS/DNS pinning, conditional create-only writes, no redirects/proxies, exact byte-range reads and bounded inventory parsing. WP-CLI upload/download verifies SHA-256 sidecars, refuses replacement, requires explicit consent for plaintext uploads and retries temporary errors up to three times. Downloads resume from private checkpoints; WebDAV and S3 multipart uploads resume from provider-backed state. `wp trasloco offsite status` checks provider reachability and archive/manifest pairing; `queue-upload`, `queue-download` and their retry commands create credential-free durable jobs. Scheduled backups can opt into encrypted resumable WebDAV/S3 upload without persisting the passphrase, with daily provider checks and transition alerts. The optional AWS SDK adapter uses conditional writes and range downloads, has a local signed HTTP wire fixture and is included in the S3 release package by `tools/build-release.sh --with-s3`. Live WebDAV/S3 provider tests, other providers and incremental retention remain pending.
 - [x] Direct peer pull increment: administrator-only manifest/chunk REST routes and `wp trasloco pull-site` use HTTPS, private resumable staging, whole-archive SHA-256 verification and no-overwrite publication. Local WordPress integration verifies route permissions, resume, idempotent finalization and conflicting-file refusal; a standalone transport smoke test now runs in the quality workflow. Paired-site onboarding, live cross-host/WAF testing and encrypted relay remain open; see [peer transfer operations](PEER_TRANSFER.md).
 - [x] Phase 1A: create local SHA-256 sidecar manifests and add WP-CLI verification with WordPress integration test.
-- [ ] Phase 1B: verified UI, restore rehearsals and full archive content checks.
+- [x] Phase 1B: the backup list shows completed archive verification only while the archive and manifest still match the worker-recorded file identities; pending and failed states are visible. Durable full-archive checks, verified restore rehearsals and the rendered UI regression pass in local WordPress integration.
 - [x] Initial feature 14 foundation: read-only admin-scoped REST inventory with integration permission test.
 - [ ] Feature 14 mutating API (only after durable job engine and audit log).
 - [ ] Phases 2-15 as ordered above.
@@ -101,7 +101,8 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 - [ ] Per-site notification settings, webhook integrations and delivery retries.
 
 - [x] Phase 9A: read-only archive file inventory and admin REST preview with explicit database-diff limitations.
-- [ ] Phase 9B: true file checksum diff, SQL changeset preview and selective preflight exclusions.
+- [x] Phase 9B file checksum diff: `php tools/recovery-diff.php` compares actual bytes from a verified `.wpress` against destination `wp-content` files, with bounded inventory and no writes. Integration covers missing, modified and archive-absent paths.
+- [ ] Phase 9B SQL changeset preview and selective preflight exclusions.
 
 - [x] Phase 8A: WP-CLI selective media/plugin/theme extraction into a new private directory without overwriting live site content.
 - [ ] Phase 8B: selective database table restore, UI, collision handling and live-site consistency checks.
