@@ -32,7 +32,7 @@ On 2026-10-14, the complete CLI integration and same-site staged rollback rehear
 - [ ] Real-host Apache/Nginx/IIS HTTP denial and authenticated restore tests; sessions replaced mid-import, WAF, disconnected uploads and large-host stress. Local Apache and Nginx fixture checks pass as recorded above.
 - [ ] Pinned current/previous-major WordPress compatibility fixtures.
 - [ ] Remote storage/cloud adapters and incremental chain delivery on the canonical job/storage contracts.
-- [ ] WooCommerce order consistency and multisite fidelity.
+- [ ] WooCommerce order consistency and HPOS validation. Multisite remains unsupported; a regression verifies network imports fail closed before importer metadata, files or database replacement.
 - [ ] Accessibility, keyboard/screen-reader audits and independent security review.
 - [ ] Module-by-module reconciliation of draft PR #2; textual conflict resolution alone is insufficient.
 
