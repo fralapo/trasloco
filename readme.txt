@@ -3,7 +3,7 @@ Tags: backup, migration, migrate, export, import
 Requires at least: 5.5
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.4.0
+Stable tag: 1.5.0
 License: AGPL-3.0-or-later
 License URI: https://www.gnu.org/licenses/agpl-3.0.html
 
@@ -35,6 +35,11 @@ Trasloco exports a whole WordPress site (database, media, themes and plugins) to
 The new address is set by the import: there is nothing to type. Trasloco > Guide explains every option.
 
 == Changelog ==
+
+= 1.5.0 =
+* Scheduled backups can opt into private content-addressed snapshots. Workers capture at most eight 4-MiB chunks per request and resume from a durable journal after interruption.
+* Snapshot retention follows scheduled backup retention and preserves recovery-point snapshots. Ordinary .wpress files remain in place; local disk reclamation and snapshot-only restore are still open.
+* The full WordPress integration and incremental smoke tests pass locally on PHP 7.4, 8.2, 8.4 and 8.5 with WordPress 6.9.10 and MariaDB 13.0.2. GitHub Actions was not run for this candidate.
 
 = 1.4.0 =
 * Administrators can queue authenticated backup encryption and decryption from the Backups page. Bounded jobs resume after interruption, preserve TRLENC01 decryption compatibility and publish output only after authentication and archive inspection.
