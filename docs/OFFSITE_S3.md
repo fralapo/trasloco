@@ -10,7 +10,7 @@ The optional AWS SDK runtime requires PHP 8.1 or newer. Trasloco's core remains 
 COMPOSER=composer.s3.json composer install --no-dev --classmap-authoritative
 ```
 
-This creates `vendor-s3/`, which must be present in the deployed plugin directory. The optional dependencies are ignored by Git. For a plugin ZIP or deployment artifact, include `vendor-s3/` after running the command on a PHP 8.1+ build environment. Do not install Composer packages in a web request.
+This creates `vendor-s3/`, which must be present in the deployed plugin directory. The optional dependencies are ignored by Git. To build a plugin ZIP with the complete S3 runtime, run `tools/build-release.sh --with-s3` on a PHP 8.1+ build environment. The script includes and verifies `vendor-s3/autoload.php`. Do not install Composer packages in a web request.
 
 ## Configuration
 

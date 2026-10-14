@@ -1,6 +1,7 @@
 # working folders the plugin creates at runtime
 /storage/
 /vendor-s3/
+/dist/
 
 # test archives
 *.wpress
