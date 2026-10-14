@@ -479,6 +479,8 @@ class Trasloco_Job_Worker {
     /** Run one resumable export stage and preserve its last durable position. */
     private static function backup( $id, $owner, $payload, $saved = array() ) {
         $is_recovery = ! empty( $payload['recovery_point'] );
+        $incremental_enabled = ! $is_recovery && ! empty( $payload['incremental_snapshots'] );
+        $incremental_resume = is_array( $saved ) && isset( $saved['phase'] ) && $saved['phase'] === 'incremental';
         $keep = isset( $payload['retention'] ) ? (int) $payload['retention'] : 0;
         if ( ! $is_recovery && ( $keep < 1 || $keep > 100 ) ) {
             throw new RuntimeException( 'Invalid retention policy.' );
@@ -500,7 +502,7 @@ class Trasloco_Job_Worker {
         $checkpoint = is_array( $saved ) && isset( $saved['phase'] ) && $saved['phase'] === 'export'
             ? $saved : array();
         $finalizing = is_array( $saved ) && isset( $saved['phase'], $saved['archive'] ) &&
-            in_array( $saved['phase'], array( 'retention', 'recovery' ), true ) &&
+            in_array( $saved['phase'], array( 'incremental', 'retention', 'recovery' ), true ) &&
             is_string( $saved['archive'] ) && preg_match( '/^[A-Za-z0-9_.-]+\.wpress$/D', $saved['archive'] );
         $params = $finalizing
             ? array( 'archive' => $saved['archive'] )
@@ -549,7 +551,60 @@ class Trasloco_Job_Worker {
         }
         $archive = trasloco_backup_path( $params );
         require_once TRASLOCO_LIB_PATH . '/vendor/core/archiver/class-trasloco-integrity.php';
-        if ( Trasloco_Integrity::verify( $archive )['status'] !== 'verified' ) {
+        if ( $incremental_resume && ! $incremental_enabled ) {
+            throw new RuntimeException( 'Incremental backup checkpoint does not match its job payload.' );
+        }
+        if ( $incremental_enabled ) {
+            require_once TRASLOCO_LIB_PATH . '/model/class-trasloco-incremental-store.php';
+            if ( $incremental_resume ) {
+                $manifest = Trasloco_Integrity::chunked_manifest( $archive );
+                if ( ! is_array( $manifest ) || ! isset( $saved['integrity_sha256'], $saved['manifest_sha256'], $saved['size_bytes'] ) ||
+                    ! hash_equals( $saved['integrity_sha256'], $manifest['sha256'] ) ||
+                    ! hash_equals( $saved['manifest_sha256'], $manifest['_manifest_sha256'] ) ||
+                    $saved['size_bytes'] !== $manifest['size_bytes'] ) {
+                    throw new RuntimeException( 'Incremental capture manifest changed while the backup was pending.' );
+                }
+            } else {
+                $integrity = Trasloco_Integrity::verify( $archive );
+                if ( $integrity['status'] !== 'verified' ) {
+                    throw new RuntimeException( 'Backup did not pass integrity verification.' );
+                }
+                $manifest = Trasloco_Integrity::chunked_manifest( $archive );
+                if ( $manifest === null ) {
+                    Trasloco_Integrity::create_chunked( $archive );
+                    $integrity = Trasloco_Integrity::verify( $archive );
+                    $manifest = Trasloco_Integrity::chunked_manifest( $archive );
+                    if ( $integrity['status'] !== 'verified' || ! is_array( $manifest ) ) {
+                        throw new RuntimeException( 'Could not prepare chunk checksums for incremental capture.' );
+                    }
+                }
+            }
+            if ( ! $incremental_resume && ! Trasloco_Job_Store::checkpoint( $id, $owner, 90, array(
+                'phase' => 'incremental', 'archive' => $params['archive'],
+                'storage' => isset( $params['storage'] ) ? $params['storage'] : '',
+                'integrity_sha256' => $manifest['sha256'], 'manifest_sha256' => $manifest['_manifest_sha256'],
+                'size_bytes' => $manifest['size_bytes'],
+            ) ) ) {
+                throw new RuntimeException( 'Backup cancelled before incremental capture.' );
+            }
+            $store = new Trasloco_Incremental_Store(
+                rtrim( TRASLOCO_BACKUPS_PATH, DIRECTORY_SEPARATOR ) . DIRECTORY_SEPARATOR . '.trasloco-incremental'
+            );
+            $capture = $store->capture_batch( $archive, $manifest['sha256'], $manifest['_manifest_sha256'],
+                $manifest['chunks'], (int) $id, 8 );
+            if ( $capture['status'] === 'pending' ) {
+                $ratio = $capture['size_bytes'] > 0 ? $capture['bytes'] / $capture['size_bytes'] : 1;
+                $progress = min( 98, 90 + (int) floor( 8 * $ratio ) );
+                $next = array( 'phase' => 'incremental', 'archive' => $params['archive'],
+                    'storage' => isset( $params['storage'] ) ? $params['storage'] : '',
+                    'integrity_sha256' => $manifest['sha256'], 'manifest_sha256' => $manifest['_manifest_sha256'],
+                    'size_bytes' => $manifest['size_bytes'] );
+                if ( ! Trasloco_Job_Store::yield_backup( $id, $owner, $progress, $next ) ) {
+                    throw new RuntimeException( 'Incremental backup checkpoint could not be committed.' );
+                }
+                return array( 'status' => 'pending', 'progress' => $progress );
+            }
+        } elseif ( ! $incremental_resume && Trasloco_Integrity::verify( $archive )['status'] !== 'verified' ) {
             throw new RuntimeException( 'Backup did not pass integrity verification.' );
         }
         if ( ! Trasloco_Job_Store::checkpoint( $id, $owner, 95, array( 'phase' => $is_recovery ? 'recovery' : 'retention',
@@ -601,6 +656,22 @@ class Trasloco_Job_Worker {
         $prior = array_values( array_filter( $model->get_retention_files(), function ( $entry ) use ( $params ) {
             return $entry['filename'] !== $params['archive'];
         } ) );
+        if ( $incremental_enabled ) {
+            $retained_archives = array( basename( $params['archive'] ) => true );
+            foreach ( array_slice( $prior, 0, $keep - 1 ) as $entry ) {
+                $retained_archives[ basename( $entry['filename'] ) ] = true;
+            }
+            $snapshot_keep = array();
+            foreach ( $store->list_snapshots() as $snapshot ) {
+                if ( Trasloco_Backups::is_recovery_point( $snapshot['archive'] ) || isset( $retained_archives[ $snapshot['archive'] ] ) ) {
+                    $snapshot_keep[] = $snapshot['archive'];
+                }
+            }
+            if ( empty( $snapshot_keep ) ) {
+                throw new RuntimeException( 'Incremental retention could not preserve the new snapshot.' );
+            }
+            $store->prune( $snapshot_keep );
+        }
         // Always protect the newly verified archive, even when creation
         // timestamps tie and sort order is not deterministic.
         foreach ( array_slice( $prior, $keep - 1 ) as $entry ) {
@@ -955,9 +1026,17 @@ class Trasloco_Job_Worker {
                     if ( is_file( $partial ) && ! is_link( $partial ) ) { @unlink( $partial ); }
                 }
             }
-            if ( $record['kind'] === 'backup' && $failed ) {
+            if ( $record['kind'] === 'backup' ) {
                 $internal = Trasloco_Job_Store::get_internal( $id );
-                if ( is_array( $internal ) && isset( $internal['checkpoint']['phase'], $internal['checkpoint']['params']['storage'] ) &&
+                if ( is_array( $internal ) && in_array( $internal['state'], array( 'cancelled', 'failed' ), true ) ) {
+                    try {
+                        require_once TRASLOCO_LIB_PATH . '/model/class-trasloco-incremental-store.php';
+                        ( new Trasloco_Incremental_Store(
+                            rtrim( TRASLOCO_BACKUPS_PATH, DIRECTORY_SEPARATOR ) . DIRECTORY_SEPARATOR . '.trasloco-incremental'
+                        ) )->discard_capture( (int) $id );
+                    } catch ( Throwable $ignored ) {}
+                }
+                if ( $failed && is_array( $internal ) && isset( $internal['checkpoint']['phase'], $internal['checkpoint']['params']['storage'] ) &&
                     $internal['checkpoint']['phase'] === 'export' &&
                     preg_match( '/^[A-Za-z0-9_-]{1,128}$/D', $internal['checkpoint']['params']['storage'] ) ) {
                     $workspace = TRASLOCO_STORAGE_PATH . DIRECTORY_SEPARATOR . $internal['checkpoint']['params']['storage'];

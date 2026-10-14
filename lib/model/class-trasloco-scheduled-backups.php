@@ -237,6 +237,7 @@ class Trasloco_Scheduled_Backups {
             'keep' => max( 1, min( 100, $keep ) ),
             'before_updates' => ! empty( $value['before_updates'] ),
             'upload_offsite' => ! empty( $value['upload_offsite'] ),
+            'incremental_snapshots' => ! empty( $value['incremental_snapshots'] ),
             'notify_alerts' => ! array_key_exists( 'notify_alerts', $value ) || ! empty( $value['notify_alerts'] ),
             'notification_email' => $notification_email,
             'webhook_url' => $webhook_url,
@@ -286,6 +287,7 @@ class Trasloco_Scheduled_Backups {
         }
         $before_updates = isset( $_POST['before_updates'] ) && $_POST['before_updates'] === '1';
         $upload_offsite = isset( $_POST['upload_offsite'] ) && $_POST['upload_offsite'] === '1';
+        $incremental_snapshots = isset( $_POST['incremental_snapshots'] ) && $_POST['incremental_snapshots'] === '1';
         $notify_alerts = isset( $_POST['notify_alerts'] ) && $_POST['notify_alerts'] === '1';
         $notification_email = isset( $_POST['notification_email'] ) && is_string( $_POST['notification_email'] )
             ? sanitize_email( wp_unslash( $_POST['notification_email'] ) ) : get_option( 'admin_email' );
@@ -313,6 +315,7 @@ class Trasloco_Scheduled_Backups {
             'keep' => $keep,
             'before_updates' => $before_updates,
             'upload_offsite' => $upload_offsite,
+            'incremental_snapshots' => $incremental_snapshots,
             'notify_alerts' => $notify_alerts,
             'notification_email' => $notification_email,
             'webhook_url' => $webhook_url,
@@ -338,10 +341,14 @@ class Trasloco_Scheduled_Backups {
             $bucket = (int) floor( time() / $seconds[ $settings['frequency'] ] );
         }
         $key = hash( 'sha256', 'scheduled-backup|' . $settings['frequency'] . '|' . $bucket );
-        $id = Trasloco_Job_Store::create( 'backup', array(
+        $payload = array(
             'retention' => $settings['keep'],
             'upload_offsite' => $settings['upload_offsite'],
-        ), $key );
+        );
+        if ( $settings['incremental_snapshots'] ) {
+            $payload['incremental_snapshots'] = true;
+        }
+        $id = Trasloco_Job_Store::create( 'backup', $payload, $key );
         if ( is_wp_error( $id ) || ! $id ) {
             return false;
         }

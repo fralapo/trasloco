@@ -281,6 +281,18 @@ return array(
 		'fr' => 'Créez des sauvegardes vérifiées et ne conservez automatiquement que les dernières.',
 		'de' => 'Erstellen Sie überprüfte Backups nach Zeitplan und behalten Sie nur die neuesten.',
 	),
+	'Store scheduled backups as local incremental snapshots' => array(
+		'it' => 'Conserva i backup pianificati come snapshot incrementali locali',
+		'es' => 'Guarda las copias programadas como instantáneas incrementales locales',
+		'fr' => 'Stocker les sauvegardes planifiées sous forme de snapshots incrémentiels locaux',
+		'de' => 'Geplante Backups als lokale inkrementelle Snapshots speichern',
+	),
+	'Snapshots use a private local content store and follow the scheduled retention count. Reconstruct one with wp trasloco incremental materialize before using the existing restore workflow. This does not upload snapshots or reduce disk usage while the regular .wpress archives remain.' => array(
+		'it' => 'Gli snapshot usano un archivio locale privato e seguono il numero di conservazione pianificato. Ricostruiscine uno con wp trasloco incremental materialize prima di usare il normale ripristino. Gli snapshot non vengono caricati e non riducono lo spazio usato finché restano gli archivi .wpress normali.',
+		'es' => 'Las instantáneas usan un almacén local privado y respetan el número de retención programado. Reconstruye una con wp trasloco incremental materialize antes de usar el flujo de restauración habitual. No se suben y no reducen el espacio mientras permanezcan los archivos .wpress normales.',
+		'fr' => 'Les snapshots utilisent un stockage local privé et suivent le nombre de sauvegardes à conserver. Reconstruisez-en un avec wp trasloco incremental materialize avant le processus de restauration habituel. Ils ne sont pas téléversés et ne réduisent pas l’espace utilisé tant que les archives .wpress ordinaires sont conservées.',
+		'de' => 'Snapshots verwenden einen privaten lokalen Speicher und folgen der festgelegten Aufbewahrungszahl. Rekonstruieren Sie einen Snapshot mit wp trasloco incremental materialize, bevor Sie den normalen Wiederherstellungsablauf nutzen. Die Snapshots werden nicht hochgeladen und sparen keinen Speicherplatz, solange die regulären .wpress-Dateien vorhanden sind.',
+	),
 	'Encrypt and upload each scheduled backup to remote storage' => array(
 		'it' => 'Cifra e carica ogni backup pianificato sullo storage remoto',
 		'es' => 'Cifra y sube cada copia programada al almacenamiento remoto',

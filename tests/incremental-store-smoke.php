@@ -93,7 +93,38 @@ try {
     incremental_assert( $failed && ! file_exists( $restore_dir . '/corrupt.wpress' ),
         'Corrupt object data was published as a materialized archive.' );
 
-    echo "Incremental snapshot storage, reconstruction, corruption and retention tests passed.\n";
+    $batch_bytes = str_repeat( 'D', Trasloco_Incremental_Store::CHUNK_BYTES ) .
+        str_repeat( 'E', Trasloco_Incremental_Store::CHUNK_BYTES ) . 'last partial chunk';
+    $batch_archive = $source_dir . '/batch.wpress';
+    file_put_contents( $batch_archive, $batch_bytes );
+    $batch_chunks = array(
+        hash( 'sha256', substr( $batch_bytes, 0, Trasloco_Incremental_Store::CHUNK_BYTES ) ),
+        hash( 'sha256', substr( $batch_bytes, Trasloco_Incremental_Store::CHUNK_BYTES, Trasloco_Incremental_Store::CHUNK_BYTES ) ),
+        hash( 'sha256', substr( $batch_bytes, 2 * Trasloco_Incremental_Store::CHUNK_BYTES ) ),
+    );
+    $batch_store = new Trasloco_Incremental_Store( $base . DIRECTORY_SEPARATOR . 'batch-store' );
+    $batch_sha = hash( 'sha256', $batch_bytes );
+    $manifest_sha = hash( 'sha256', 'verified chunk manifest' );
+    $batch = $batch_store->capture_batch( $batch_archive, $batch_sha, $manifest_sha, $batch_chunks, 91, 1 );
+    incremental_assert( $batch['status'] === 'pending' && $batch['bytes'] === Trasloco_Incremental_Store::CHUNK_BYTES,
+        'Resumable capture did not stop at its configured chunk budget.' );
+    $journal = $base . '/batch-store/pending/backup-91.jsonl';
+    file_put_contents( $journal, '{"sha256":', FILE_APPEND );
+    $batch = $batch_store->capture_batch( $batch_archive, $batch_sha, $manifest_sha, $batch_chunks, 91, 1 );
+    incremental_assert( $batch['status'] === 'pending' && $batch['bytes'] === 2 * Trasloco_Incremental_Store::CHUNK_BYTES,
+        'Resumable capture did not recover a torn final journal record.' );
+    $batch = $batch_store->capture_batch( $batch_archive, $batch_sha, $manifest_sha, $batch_chunks, 91, 1 );
+    incremental_assert( $batch['status'] === 'completed' && ! file_exists( $journal ) &&
+        $batch_store->verify( 'batch.wpress' )['sha256'] === $batch_sha,
+        'Resumable capture did not publish and verify the complete archive.' );
+    incremental_assert( $batch_store->capture_batch( $batch_archive, $batch_sha, $manifest_sha,
+        $batch_chunks, 91, 1 )['status'] === 'completed',
+        'Resuming after catalog publication was not idempotent.' );
+    $batch_store->materialize( 'batch.wpress', $restore_dir . '/batch.wpress' );
+    incremental_assert( hash_file( 'sha256', $restore_dir . '/batch.wpress' ) === $batch_sha,
+        'Resumable capture did not reconstruct the exact source bytes.' );
+
+    echo "Incremental snapshot storage, bounded capture, crash replay, reconstruction, corruption and retention tests passed.\n";
 } finally {
     incremental_remove_tree( $base );
 }

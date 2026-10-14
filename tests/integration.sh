@@ -1040,6 +1040,9 @@ if ( ! $store->delete( "fixture.wpress.enc" ) ) { throw new Exception( "Encrypte
 rmdir( $root );
 ' --path="$ROOT/source"
 
+mkdir -p "$ROOT/source/wp-content/uploads/incremental-fixture"
+php -r 'file_put_contents($argv[1], random_bytes(34 * 1024 * 1024));' \
+  "$ROOT/source/wp-content/uploads/incremental-fixture/payload.bin"
 $WP eval '
 update_option( Trasloco_Scheduled_Backups::OPTION, array( "frequency" => "daily", "keep" => 2 ) );
 wp_clear_scheduled_hook( Trasloco_Scheduled_Backups::HOOK );
@@ -1049,18 +1052,37 @@ if ( wp_get_schedule( Trasloco_Scheduled_Backups::HOOK ) !== "daily" ) { throw n
 update_option( Trasloco_Scheduled_Backups::OPTION, array( "frequency" => "weekly", "keep" => 2 ) );
 Trasloco_Scheduled_Backups::sync();
 if ( wp_get_schedule( Trasloco_Scheduled_Backups::HOOK ) !== "weekly" ) { throw new Exception( "Old recurrence was not replaced" ); }
-update_option( Trasloco_Scheduled_Backups::OPTION, array( "frequency" => "daily", "keep" => 2 ) );
+update_option( Trasloco_Scheduled_Backups::OPTION, array(
+    "frequency" => "daily", "keep" => 2, "incremental_snapshots" => true,
+) );
 Trasloco_Scheduled_Backups::sync();
 if ( wp_get_schedule( Trasloco_Scheduled_Backups::HOOK ) !== "daily" ) { throw new Exception( "Recurrence was not restored to daily" ); }
 $id = Trasloco_Scheduled_Backups::enqueue();
 if ( ! is_int( $id ) || $id < 1 ) { throw new Exception( "Schedule failed to enqueue" ); }
+$scheduled_job = Trasloco_Job_Store::workload( $id );
+if ( ! is_array( $scheduled_job ) || empty( $scheduled_job["payload"]["incremental_snapshots"] ) ) {
+    throw new Exception( "Scheduled incremental snapshot option was not placed in the job payload" );
+}
+$incremental_yield = false;
 for ( $attempt = 0; $attempt < 200; $attempt++ ) {
     $result = Trasloco_Job_Worker::run( $id );
+    if ( $result["status"] === "pending" ) {
+        $progress = Trasloco_Job_Store::get_internal( $id );
+        if ( is_array( $progress ) && isset( $progress["checkpoint"]["phase"] ) && $progress["checkpoint"]["phase"] === "incremental" ) {
+            $incremental_yield = true;
+        }
+    }
     if ( $result["status"] !== "pending" ) { break; }
 }
 if ( $result["status"] !== "completed" ) { throw new Exception( "Scheduled export failed: " . wp_json_encode( Trasloco_Job_Store::get( $id ) ) ); }
+if ( ! $incremental_yield ) { throw new Exception( "Large scheduled incremental capture did not yield a resumable checkpoint" ); }
 $archive = trasloco_backup_path( array( "archive" => $result["archive"] ) );
 if ( Trasloco_Integrity::verify( $archive )["status"] !== "verified" ) { throw new Exception( "Scheduled archive is corrupt" ); }
+$incremental = new Trasloco_Incremental_Store( TRASLOCO_BACKUPS_PATH . DIRECTORY_SEPARATOR . ".trasloco-incremental" );
+$snapshot = $incremental->verify( basename( $archive ) );
+if ( $snapshot["sha256"] !== hash_file( "sha256", $archive ) || $snapshot["objects"] < 9 ) {
+    throw new Exception( "Scheduled incremental snapshot did not verify every chunk of the large archive" );
+}
 if ( count( (new Trasloco_Backups())->get_retention_files() ) > 2 ) { throw new Exception( "Retention failed" ); }
 $mail_attempts = 0;
 $mail_filter = function ( $short_circuit, $atts ) use ( &$mail_attempts ) {

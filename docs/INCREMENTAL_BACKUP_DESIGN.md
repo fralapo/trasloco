@@ -45,6 +45,8 @@ wp trasloco incremental prune --keep=backup.wpress,newer.wpress
 
 The reconstructed file is compatible with the existing importer. For a one-shot CLI export, `wp trasloco backup --incremental` captures the new verified archive automatically. Adding the existing `--keep=<count>` option applies the same retention to ordinary archives and their incremental catalogs while preserving recovery-point catalogs. Without `--keep`, no snapshots are pruned. Manual capture and pruning remain available for existing archives.
 
+Scheduled backups can opt into the same local snapshot format from **Trasloco → Backups**. The worker verifies or creates the chunk manifest, then captures at most eight 4-MiB chunks per request. A private append-only journal lets the next leased worker resume after interruption; the catalog is published only after every chunk matches the verified manifest. Scheduled retention prunes snapshot catalogs with their `.wpress` archives and preserves recovery-point catalogs. The full `.wpress` archive remains in place, so this provides a second verified local representation and deduplication across snapshot objects, but does not yet reclaim archive disk space. Materialize the catalog to a separate archive before using the current restore workflow.
+
 ## Acceptance tests
 
 - Two archives with shared content reuse verified objects while both catalogs reconstruct their exact original bytes.

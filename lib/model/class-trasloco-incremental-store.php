@@ -86,6 +86,139 @@ class Trasloco_Incremental_Store {
         } );
     }
 
+    /**
+     * Capture a verified chunked-manifest archive in bounded, resumable batches.
+     * The private journal is authoritative across worker crashes; its only
+     * published catalog is still created atomically after every chunk matches
+     * the already-verified archive manifest.
+     */
+    public function capture_batch( $archive, $expected_sha256, $manifest_sha256, $expected_chunks, $job_id, $max_chunks = 8 ) {
+        if ( ! is_string( $expected_sha256 ) || ! preg_match( '/^[a-f0-9]{64}$/D', $expected_sha256 ) ||
+            ! is_string( $manifest_sha256 ) || ! preg_match( '/^[a-f0-9]{64}$/D', $manifest_sha256 ) ||
+            ! is_array( $expected_chunks ) || ! is_int( $job_id ) || $job_id < 1 ||
+            ! is_int( $max_chunks ) || $max_chunks < 1 || $max_chunks > 32 ) {
+            throw new InvalidArgumentException( 'Invalid resumable incremental capture request.' );
+        }
+        $this->ensure_root();
+        return $this->locked( function () use ( $archive, $expected_sha256, $manifest_sha256, $expected_chunks, $job_id, $max_chunks ) {
+            $source = $this->source( $archive );
+            $expected_count = intdiv( $source['stat']['size'], self::CHUNK_BYTES ) +
+                ( $source['stat']['size'] % self::CHUNK_BYTES === 0 ? 0 : 1 );
+            if ( count( $expected_chunks ) !== $expected_count || $expected_count > self::MAX_OBJECTS ) {
+                throw new RuntimeException( 'Verified archive manifest does not match the source size.' );
+            }
+            foreach ( $expected_chunks as $digest ) {
+                if ( ! is_string( $digest ) || ! preg_match( '/^[a-f0-9]{64}$/D', $digest ) ) {
+                    throw new RuntimeException( 'Verified archive manifest contains an invalid chunk digest.' );
+                }
+            }
+            $catalog_path = $this->catalog_path( $source['name'] );
+            $journal_path = $this->capture_journal_path( $job_id );
+            if ( file_exists( $catalog_path ) || is_link( $catalog_path ) ) {
+                $catalog = $this->read_catalog( $source['name'] );
+                if ( $catalog['size_bytes'] !== $source['stat']['size'] ||
+                    ! hash_equals( $expected_sha256, $catalog['sha256'] ) ) {
+                    throw new RuntimeException( 'Published incremental snapshot conflicts with this backup job.' );
+                }
+                $this->remove_capture_journal( $journal_path );
+                return array( 'status' => 'completed', 'archive' => $source['name'], 'size_bytes' => $catalog['size_bytes'],
+                    'sha256' => $catalog['sha256'], 'objects' => count( $catalog['chunks'] ) );
+            }
+
+            $header = array( 'schema' => self::SCHEMA, 'job_id' => $job_id, 'archive' => $source['name'],
+                'size_bytes' => $source['stat']['size'], 'mtime' => $source['stat']['mtime'],
+                'ctime' => $source['stat']['ctime'], 'ino' => $source['stat']['ino'], 'dev' => $source['stat']['dev'],
+                'sha256' => $expected_sha256, 'manifest_sha256' => $manifest_sha256 );
+            $handle = $this->open_capture_journal( $journal_path, $header );
+            $chunks = array();
+            $valid_bytes = 0;
+            try {
+                $line = fgets( $handle );
+                $decoded_header = is_string( $line ) && substr( $line, -1 ) === "\n"
+                    ? json_decode( rtrim( $line, "\r\n" ), true ) : null;
+                if ( $decoded_header !== $header ) {
+                    throw new RuntimeException( 'Incremental capture journal does not match its source or manifest.' );
+                }
+                $valid_bytes = ftell( $handle );
+                while ( ( $line = fgets( $handle ) ) !== false ) {
+                    if ( substr( $line, -1 ) !== "\n" ) { break; }
+                    $entry = json_decode( rtrim( $line, "\r\n" ), true );
+                    $index = count( $chunks );
+                    $expected_size = min( self::CHUNK_BYTES, $source['stat']['size'] - $index * self::CHUNK_BYTES );
+                    if ( ! is_array( $entry ) || array_keys( $entry ) !== array( 'sha256', 'size_bytes' ) ||
+                        ! isset( $expected_chunks[ $index ] ) || $entry['sha256'] !== $expected_chunks[ $index ] ||
+                        ! is_int( $entry['size_bytes'] ) || $entry['size_bytes'] !== $expected_size ) {
+                        throw new RuntimeException( 'Incremental capture journal contains an invalid chunk record.' );
+                    }
+                    $chunks[] = $entry;
+                    $valid_bytes = ftell( $handle );
+                }
+                if ( ! @ftruncate( $handle, $valid_bytes ) || fseek( $handle, 0, SEEK_END ) !== 0 ) {
+                    throw new RuntimeException( 'Cannot recover the incremental capture journal position.' );
+                }
+                $offset = count( $chunks ) * self::CHUNK_BYTES;
+                if ( $offset > $source['stat']['size'] ) { throw new RuntimeException( 'Incremental capture journal exceeds the source size.' ); }
+                $input = $this->open_private_file( $source['path'] );
+                try {
+                    if ( fseek( $input, $offset, SEEK_SET ) !== 0 ) { throw new RuntimeException( 'Cannot resume archive reading.' ); }
+                    $added = 0;
+                    while ( $offset < $source['stat']['size'] && $added < $max_chunks ) {
+                        $index = count( $chunks );
+                        $length = min( self::CHUNK_BYTES, $source['stat']['size'] - $offset );
+                        $bytes = self::read_exact( $input, $length );
+                        $digest = hash( 'sha256', $bytes );
+                        if ( ! hash_equals( $expected_chunks[ $index ], $digest ) ) {
+                            throw new RuntimeException( 'Archive chunk changed after integrity verification.' );
+                        }
+                        $this->store_object( $digest, $bytes );
+                        $entry = array( 'sha256' => $digest, 'size_bytes' => $length );
+                        self::write( $handle, json_encode( $entry, JSON_UNESCAPED_SLASHES ) . "\n" );
+                        $chunks[] = $entry;
+                        $offset += $length;
+                        $added++;
+                    }
+                    if ( $offset >= $source['stat']['size'] && self::read_exact( $input, 1, true ) !== '' ) {
+                        throw new RuntimeException( 'Source archive grew during incremental capture.' );
+                    }
+                } finally { fclose( $input ); }
+            } catch ( Throwable $error ) {
+                fclose( $handle );
+                throw $error;
+            }
+            if ( ! fflush( $handle ) || ( function_exists( 'fsync' ) && ! @fsync( $handle ) ) ) {
+                fclose( $handle ); throw new RuntimeException( 'Cannot synchronize the incremental capture journal.' );
+            }
+            fclose( $handle );
+            clearstatcache( true, $source['path'] );
+            if ( ! self::same_file( $source['stat'], @lstat( $source['path'] ) ) ) {
+                throw new RuntimeException( 'Source archive changed during incremental capture.' );
+            }
+            $offset = min( count( $chunks ) * self::CHUNK_BYTES, $source['stat']['size'] );
+            if ( $offset < $source['stat']['size'] ) {
+                return array( 'status' => 'pending', 'archive' => $source['name'], 'bytes' => $offset,
+                    'size_bytes' => $source['stat']['size'], 'chunks' => count( $chunks ) );
+            }
+            if ( count( $chunks ) !== $expected_count ) { throw new RuntimeException( 'Incremental capture ended before all chunks were journaled.' ); }
+            $catalog = array( 'schema' => self::SCHEMA, 'archive' => $source['name'],
+                'size_bytes' => $source['stat']['size'], 'sha256' => $expected_sha256,
+                'chunk_bytes' => self::CHUNK_BYTES, 'chunks' => $chunks );
+            $this->publish_json( $catalog_path, $catalog );
+            $this->remove_capture_journal( $journal_path );
+            return array( 'status' => 'completed', 'archive' => $source['name'], 'size_bytes' => $catalog['size_bytes'],
+                'sha256' => $catalog['sha256'], 'objects' => count( $chunks ) );
+        } );
+    }
+
+    /** Remove an unpublished capture journal after a job is cancelled or fails. */
+    public function discard_capture( $job_id ) {
+        if ( ! is_int( $job_id ) || $job_id < 1 ) { throw new InvalidArgumentException( 'Invalid incremental capture job id.' ); }
+        $this->ensure_root();
+        return $this->locked( function () use ( $job_id ) {
+            $this->remove_capture_journal( $this->capture_journal_path( $job_id ) );
+            return true;
+        } );
+    }
+
     /** Verify every referenced object and the reconstructed whole-archive digest. */
     public function verify( $archive ) {
         $this->ensure_root();
@@ -460,11 +593,72 @@ class Trasloco_Incremental_Store {
 
     private function object_dir() { return $this->root . DIRECTORY_SEPARATOR . 'objects'; }
     private function catalog_dir() { return $this->root . DIRECTORY_SEPARATOR . 'catalogs'; }
+    private function capture_dir() { return $this->root . DIRECTORY_SEPARATOR . 'pending'; }
+
+    private function capture_journal_path( $job_id ) {
+        return $this->capture_dir() . DIRECTORY_SEPARATOR . 'backup-' . (int) $job_id . '.jsonl';
+    }
+
+    private function open_capture_journal( $path, $header ) {
+        clearstatcache( true, $path );
+        if ( ! file_exists( $path ) && ! is_link( $path ) ) {
+            $temporary = $path . '.tmp-' . bin2hex( random_bytes( 8 ) );
+            $handle = @fopen( $temporary, 'x+b' );
+            if ( ! $handle ) { throw new RuntimeException( 'Cannot create incremental capture journal.' ); }
+            @chmod( $temporary, 0600 );
+            try {
+                self::write( $handle, json_encode( $header, JSON_UNESCAPED_SLASHES ) . "\n" );
+                if ( ! fflush( $handle ) || ( function_exists( 'fsync' ) && ! @fsync( $handle ) ) ) {
+                    throw new RuntimeException( 'Cannot synchronize incremental capture journal header.' );
+                }
+            } catch ( Throwable $error ) {
+                fclose( $handle ); @unlink( $temporary ); throw $error;
+            }
+            fclose( $handle );
+            // The store lock serializes capture creation. Rename publishes the
+            // complete header atomically; a crash before it leaves only a
+            // private temporary file that cannot be mistaken for a journal.
+            clearstatcache( true, $path );
+            if ( file_exists( $path ) || is_link( $path ) || ! @rename( $temporary, $path ) ) {
+                @unlink( $temporary );
+                clearstatcache( true, $path );
+                if ( ! file_exists( $path ) || is_link( $path ) ) {
+                    throw new RuntimeException( 'Cannot publish incremental capture journal.' );
+                }
+            }
+        }
+        clearstatcache( true, $path );
+        $before = @lstat( $path );
+        if ( ! is_array( $before ) || is_link( $path ) || ! is_file( $path ) ||
+            ( isset( $before['nlink'] ) && $before['nlink'] !== 1 ) ) {
+            throw new RuntimeException( 'Incremental capture journal is unsafe.' );
+        }
+        $handle = @fopen( $path, 'r+b' );
+        if ( ! $handle ) { throw new RuntimeException( 'Cannot open incremental capture journal.' ); }
+        $opened = fstat( $handle ); clearstatcache( true, $path ); $current = @lstat( $path );
+        if ( ! self::same_file( $before, $opened ) || ! self::same_file( $before, $current ) || is_link( $path ) ||
+            ( isset( $opened['nlink'] ) && $opened['nlink'] !== 1 ) ) {
+            fclose( $handle ); throw new RuntimeException( 'Incremental capture journal changed while opening.' );
+        }
+        return $handle;
+    }
+
+    private function remove_capture_journal( $path ) {
+        clearstatcache( true, $path );
+        if ( ! file_exists( $path ) && ! is_link( $path ) ) { return true; }
+        $stat = @lstat( $path );
+        if ( ! is_array( $stat ) || is_link( $path ) || ! is_file( $path ) ||
+            ( isset( $stat['nlink'] ) && $stat['nlink'] !== 1 ) || ! @unlink( $path ) ) {
+            throw new RuntimeException( 'Cannot safely remove incremental capture journal.' );
+        }
+        return true;
+    }
 
     private function ensure_root() {
         $this->ensure_directory( $this->root );
         $this->ensure_directory( $this->object_dir() );
         $this->ensure_directory( $this->catalog_dir() );
+        $this->ensure_directory( $this->capture_dir() );
     }
 
     private function ensure_directory( $path ) {
