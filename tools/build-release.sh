@@ -23,6 +23,9 @@ fi
 
 OUTPUT_DIR="$ROOT/dist"
 PACKAGE_NAME="trasloco-${VERSION}"
+if ! git -C "$ROOT" describe --exact-match --tags HEAD >/dev/null 2>&1; then
+  PACKAGE_NAME+="-$(git -C "$ROOT" rev-parse --short HEAD)"
+fi
 if [[ "$WITH_S3" == 1 ]]; then
   PACKAGE_NAME+="-s3"
 fi
