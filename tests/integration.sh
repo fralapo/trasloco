@@ -386,9 +386,20 @@ php -r 'clearstatcache(); if ((fileperms($argv[1]) & 0777) !== 0600) { fwrite(ST
 php "$GITHUB_WORKSPACE/tools/recovery-files.php" apply \
   "$RESCUE_OVERLAY" "$ROOT/target/wp-content" --site-offline-confirmed | grep -F '"already_completed": true'
 
-# Operator-driven rollback: do NOT silently restore in the failed import
-# process, whose database and active plugin set may already be inconsistent.
-$WP trasloco restore "$(basename "$FAILED_RECOVERY")" --path="$ROOT/target"
+# Operator-driven rollback: address the exact verified archive through the
+# pending receipt ID. The default command prints a read-only plan; --yes applies.
+RECOVERY_ID=$(php -r '$r=json_decode(file_get_contents($argv[1]),true); echo is_array($r) ? $r["id"] : "";' "$PENDING_RECEIPT")
+test "${#RECOVERY_ID}" -eq 32
+if $WP trasloco restore-recovery 00000000000000000000000000000000 --yes --path="$ROOT/target"; then
+  echo "ERROR: an unknown recovery receipt was allowed to restore" >&2
+  exit 1
+fi
+RECOVERY_PLAN=$($WP trasloco restore-recovery "$RECOVERY_ID" --path="$ROOT/target" 2>&1)
+printf '%s\n' "$RECOVERY_PLAN" | grep -F "Recovery archive: $(basename "$FAILED_RECOVERY")"
+printf '%s\n' "$RECOVERY_PLAN" | grep -F 'No changes were made. Repeat with --yes'
+$WP user get oldadmin --path="$ROOT/target" --field=user_login | grep -Fx oldadmin
+# The operator must explicitly approve the pending receipt's snapshot.
+$WP trasloco restore-recovery "$RECOVERY_ID" --yes --path="$ROOT/target"
 # The importer restores archived files and SQL, but it leaves extra files
 # behind. Prepare and inspect a separate quarantine only after SQL recovery so
 # a changed candidate cannot be silently discarded by the standard import.

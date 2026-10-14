@@ -548,6 +548,60 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 		}
 
 		/**
+		 * Restore the exact recovery archive recorded for a failed import.
+		 *
+		 * ## OPTIONS
+		 * <receipt-id>
+		 * The 32-character identifier from `php tools/recovery-status.php --json`.
+		 * [--yes]
+		 * Apply the displayed plan. Without this flag the command is read-only.
+		 *
+		 * @subcommand restore-recovery
+		 */
+		public function restore_recovery( array $args, array $assoc_args ) {
+			if ( count( $args ) !== 1 || ! is_string( $args[0] ) ||
+				! preg_match( '/^[a-f0-9]{32}$/D', $args[0] ) ) {
+				WP_CLI::error( 'Usage: wp trasloco restore-recovery <receipt-id> [--yes]' );
+			}
+
+			require_once TRASLOCO_LIB_PATH . '/model/import/class-trasloco-recovery-journal.php';
+			require_once TRASLOCO_LIB_PATH . '/vendor/core/archiver/class-trasloco-integrity.php';
+			require_once TRASLOCO_LIB_PATH . '/model/class-trasloco-archive-inspector.php';
+			$receipt = Trasloco_Recovery_Journal::get( TRASLOCO_BACKUPS_PATH, $args[0] );
+			if ( ! is_array( $receipt ) || $receipt['status'] !== 'pending' ) {
+				WP_CLI::error( 'The pending recovery receipt was not found. No changes were made.' );
+			}
+
+			try {
+				$archive_path = trasloco_backup_path( array( 'archive' => $receipt['recovery_archive'] ) );
+				if ( Trasloco_Integrity::verify( $archive_path )['status'] !== 'verified' ) {
+					throw new RuntimeException( 'Recovery archive checksum verification failed.' );
+				}
+				$inventory = Trasloco_Archive_Inspector::inspect( $archive_path, 0 );
+				if ( empty( $inventory['restore_inputs']['package.json'] ) ||
+					empty( $inventory['restore_inputs']['database.sql'] ) ) {
+					throw new RuntimeException( 'Required restore metadata or database SQL is missing.' );
+				}
+			} catch ( Throwable $error ) {
+				WP_CLI::error( 'The recovery archive could not be safely inspected. No changes were made.' );
+			}
+
+			WP_CLI::line( 'Failed import: ' . $receipt['source_archive'] );
+			WP_CLI::line( 'Recovery archive: ' . $receipt['recovery_archive'] );
+			WP_CLI::line( 'Receipt created (UTC): ' . $receipt['created_at'] );
+			WP_CLI::line( 'Archive integrity: SHA-256 verified' );
+			WP_CLI::line( 'Restore payload: ' . (int) $inventory['files_in_archive'] . ' archive entries and database.sql' );
+			WP_CLI::warning( 'This restores the recorded database and archived files. It does not remove files absent from the snapshot. Stop site writes and review the separate file-recovery quarantine before reopening traffic.' );
+			if ( empty( $assoc_args['yes'] ) ) {
+				WP_CLI::success( 'Read-only recovery plan complete. No changes were made. Repeat with --yes to apply it.' );
+				return;
+			}
+
+			$this->restore( array( $receipt['recovery_archive'] ), array() );
+			WP_CLI::warning( 'Database and archived files were restored. Keep the site offline while reviewing archive-absent files with tools/recovery-files.php.' );
+		}
+
+		/**
 		 * Restore selected database tables from a verified local backup.
 		 *
 		 * ## OPTIONS

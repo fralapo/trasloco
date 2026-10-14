@@ -89,7 +89,7 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 - [x] In-app encryption UI for manual backup workflows. The Backups page can create and securely download a separate encrypted copy of a checksum-verified archive using the configured worker secret; local integration checks encryption, collision refusal and rendered links. In-app decryption, resumable/timeout handling for large archives and full recovery UX remain open. Scheduled encrypted WebDAV/S3 delivery and its provider/runtime guidance are also covered by integration.
 
 - [x] Phase 2A: verified pre-import recovery snapshot before file/database replacement; on failure import aborts.
-- [ ] Phase 2B: independent one-click rescue handler and tested true rollback, including large hosting environments.
+- [ ] Phase 2B: independent one-click rescue handler and tested true rollback, including large hosting environments. A new `wp trasloco restore-recovery <receipt-id>` workflow resolves and verifies the exact pending receipt's archive, shows a no-write plan by default and requires `--yes` to run the normal restore with a fresh safety snapshot. Reviewed quarantine of files absent from the snapshot remains a separate step; the command is an operator-guided recovery aid, not globally atomic rollback.
 
 - [x] Phase 10A: optional verified recovery point before core/plugin/theme updates, fail closed when backup fails.
 - [ ] Phase 10B: automated rollback, failure alerts and cross-host upgrade checks.

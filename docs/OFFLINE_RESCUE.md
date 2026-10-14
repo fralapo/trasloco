@@ -113,6 +113,20 @@ php tools/recovery-status.php /absolute/private/trasloco-backups --json
 
 Only filenames and timestamps are displayed; no credentials or data are extracted. Keep the source backup and the `recovery-*.wpress` backup (with its manifest) unchanged. On a newly provisioned staging site, first verify that exact recovery archive. If the damaged target's WordPress can still boot, the operator can restore it explicitly with `wp trasloco restore recovery-....wpress`. The original `pending` receipt remains as a forensic record even after a separate manual recovery succeeds.
 
+On a site where Trasloco and WP-CLI still run, use the receipt ID from the JSON list to avoid selecting a recovery archive by hand. The command checks that exact receipt, verifies the paired archive and prints a read-only plan by default:
+
+```bash
+wp trasloco restore-recovery 0123456789abcdef0123456789abcdef --path=/absolute/path/to/wordpress
+```
+
+After reviewing the source archive, recovery archive and SHA-256 result, pause site writes and apply with `--yes`:
+
+```bash
+wp trasloco restore-recovery 0123456789abcdef0123456789abcdef --yes --path=/absolute/path/to/wordpress
+```
+
+The command restores the database and files represented in the recovery archive and creates a fresh safety backup first. It does not remove files absent from that snapshot. Keep traffic stopped and use the reviewed `recovery-files.php` quarantine procedure below before reopening the site. The receipt for the failed import remains pending as a forensic record. If WordPress or its database cannot boot, use the independent staging procedure above instead.
+
 **Important:** restoring an earlier database does not necessarily remove additional files created during a failed migration. Review and reconcile files separately. This is not atomic full-site rollback, and no automatic rollback is attempted.
 
 ### WordPress plugin deactivated by a failed SQL import

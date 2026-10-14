@@ -125,6 +125,37 @@ class Trasloco_Recovery_Journal {
         self::publish( $path, $data, false );
     }
 
+    /** Read one validated receipt by its opaque identifier. */
+    public static function get( $directory, $id ) {
+        $path = self::receipt_path( $directory, $id );
+        clearstatcache( true, $path );
+        $stat = @lstat( $path );
+        if ( ! is_array( $stat ) || is_link( $path ) || ! is_file( $path ) || $stat['size'] > 2048 ) {
+            return null;
+        }
+        $data = json_decode( (string) file_get_contents( $path ), true );
+        if ( ! is_array( $data ) || ! isset( $data['version'], $data['id'], $data['status'],
+                $data['source_archive'], $data['recovery_archive'], $data['created_at'] ) ||
+            $data['version'] !== self::VERSION || $data['id'] !== $id ||
+            ! in_array( $data['status'], array( 'pending', 'completed' ), true ) ||
+            ! is_string( $data['created_at'] ) ) {
+            return null;
+        }
+        try {
+            self::archive_name( $data['source_archive'] );
+            self::archive_name( $data['recovery_archive'] );
+        } catch ( InvalidArgumentException $error ) {
+            return null;
+        }
+        return array(
+            'id' => $id,
+            'status' => $data['status'],
+            'source_archive' => $data['source_archive'],
+            'recovery_archive' => $data['recovery_archive'],
+            'created_at' => $data['created_at'],
+        );
+    }
+
     public static function entries( $directory, $limit = 100 ) {
         $dir = self::directory( $directory );
         $limit = max( 1, min( 100, (int) $limit ) );
