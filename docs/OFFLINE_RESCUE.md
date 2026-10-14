@@ -148,6 +148,8 @@ php tools/recovery-files.php apply /private/recovery-files-work \
 
 This restores archived files and moves reviewed archive-absent regular files into the private workspace, where they remain recoverable. Verify the restored users, URLs, representative posts, media and `wp db check` before reopening traffic. A pending receipt remains a record of the failed import. This is a staged operator-driven recovery, not a globally atomic transaction: if a step fails, keep the site offline, retain both workspaces and resume from the failed step after reviewing its state. If WordPress or its database cannot run, restore the archive to an isolated fresh site first; do not point recovery commands at a live database that cannot be verified.
 
+The complete same-site sequence is exercised by `tests/integration.sh`: it injects a real SQL failure after DDL, restores the recovery-point database, verifies the original destination media, reviews and quarantines a file created after the failed import, and checks the restored WordPress users and URL. This was run locally on PHP 8.5.4, WordPress 7.1.3 and MariaDB 13.0.2 on 2026-10-14. Other PHP/database combinations and hosting configurations still require their own rehearsal.
+
 ## Administrator view and API
 
 When WordPress still runs and the plugin is enabled, open **Trasloco → Backups** to inspect pending recovery points. This is a **read-only** table: it does not delete archives or launch a rollback. Authenticated administrators may also use `GET /wp-json/trasloco/v1/recovery-points` with their normal WordPress REST nonce or an Application Password; anonymous access is denied. The API returns a bounded list of pending receipts and archive filenames only, never absolute paths or database credentials.

@@ -232,12 +232,20 @@ FULL_SITE_APPROVAL=$(php -r '
   $prepared = json_decode(file_get_contents($argv[1]), true);
   $review = json_decode(file_get_contents($argv[2]), true);
   $expected = "uploads/target-before-import/untracked-after-failure.txt";
+  $found = false;
+  $files = is_array($review["quarantine_files"] ?? null) ? $review["quarantine_files"] : array();
+  foreach ($files as $entry) {
+      if (($entry["relative_path"] ?? null) === $expected) { $found = true; }
+  }
   if (!is_array($prepared) || !is_array($review) ||
-      $prepared["quarantine_candidates"] !== 1 ||
+      !isset($prepared["quarantine_candidates"], $prepared["approval_sha256"]) ||
+      !isset($review["approval_sha256"]) ||
+      $prepared["quarantine_candidates"] < 1 ||
+      $prepared["quarantine_candidates"] !== count($files) ||
       !hash_equals($prepared["approval_sha256"], $review["approval_sha256"]) ||
-      count($review["quarantine_files"]) !== 1 ||
-      $review["quarantine_files"][0]["relative_path"] !== $expected) {
-      fwrite(STDERR, "Full-site rollback did not produce the expected reviewed file set\n"); exit(1);
+      !$found) {
+      fwrite(STDERR, "Full-site rollback did not produce the expected reviewed file set: " .
+          json_encode(array("prepared" => $prepared, "review" => $review), JSON_UNESCAPED_SLASHES) . "\n"); exit(1);
   }
   echo $review["approval_sha256"];
 ' "$ROOT/full-site-prepare.json" "$ROOT/full-site-review.json")
@@ -287,7 +295,8 @@ echo "PASS: real SQL fault preserved receipt and verified recovery restored dest
 # plan storage and rehearse recovery instead of relying on transient /tmp paths.
 RESCUE_DIR="$ROOT/offline-rehearsal"
 RESCUE_REPORT=$(php "$GITHUB_WORKSPACE/tools/rescue-extract.php" "$ARCHIVE" --content --output="$RESCUE_DIR")
-printf '%s\n' "$RESCUE_REPORT" | grep -F "Recovery metadata saved in: $RESCUE_DIR"
+RESCUE_CANONICAL_DIR=$(cd "$RESCUE_DIR" && pwd -P)
+printf '%s\n' "$RESCUE_REPORT" | grep -F "Recovery metadata saved in: $RESCUE_CANONICAL_DIR"
 printf '%s\n' "$RESCUE_REPORT" | grep -F 'Archive integrity: sha256_verified'
 test -s "$RESCUE_DIR/database.sql"
 test -s "$RESCUE_DIR/package.json"

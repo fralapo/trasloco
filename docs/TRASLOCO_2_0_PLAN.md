@@ -150,7 +150,7 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 - [x] Offline encrypted recovery: standalone PHP CLI decrypts authenticated .wpress.enc archives without WordPress/MySQL, validates .wpress structure, rejects existing targets and wrong keys; WP integration exercises the full round trip.
 
 - [x] Independent offline rescue rehearsals on actual WP-CLI exports and on mandatory pre-import recovery snapshots, including target-only media checks and real SQL metadata. Output can be placed in an explicitly selected private directory without overwriting existing files.
-- [ ] This is NOT an independent bootable site restore; production release still requires isolated SQL + WordPress recovery and hosting-level tests.
+- [x] The offline extractor is data rescue only. The separate disaster-rehearsal fixture provisions a bootable WordPress/MySQL destination and imports the archive; in-place rollback remains a different workflow.
 
 - [x] Restoring corrupted .wpress archives: malformed dot/control/empty path components are blocked by preflight and extractor; incomplete reads and writes abort instead of being counted as successful. Added regression fixtures.
 
@@ -169,10 +169,11 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 - [x] Offline emergency recovery now rejects the same malformed path components and DEL/control characters as live import preflight, including unsafe late archive entries. Regression verifies private staging does not create partial recovery output.
 
 - [x] P0 preflight: require nonempty root `database.sql` before destructive restore unless `package.json` explicitly has `NoDatabase=true`; reject missing/invalid root package and add full/files-only negative fixtures.
-- [ ] Independent bootable recovery and SQL failure rollback still require isolated end-to-end disaster tests.
+- [x] Bootable recovery and post-DDL SQL-failure rollback have an end-to-end integration rehearsal; last run locally on PHP 8.5.4, WordPress 7.1.3 and MariaDB 13.0.2. MySQL 8.0/MariaDB 11.4 and PHP 7.4/8.2/8.4 CI matrix was not rerun.
 
 - [x] Phase 2B-2A: independent disaster-rehearsal fixture provisions fresh WordPress/MySQL, verifies archived bytes, restores users/posts/media and preserves the new site's URL, without using source WordPress runtime.
-- [ ] Phase 2B-2B: staged rollback on induced SQL failures, operating-system-level disaster tests, and production rescue setup.
+- [x] Phase 2B-2B: operator-driven same-site rollback after an induced SQL failure restores the prior database and archived files, then quarantines the exact reviewed archive-absent file. Full integration test passes locally on PHP 8.5.4 / WordPress 7.1.3 / MariaDB 13.0.2.
+- [ ] Operating-system-level disaster tests, cross-host recovery and production rescue setup remain open.
 
 - [x] P0 negative end-to-end: derive a structurally valid .wpress from a real export with only database.sql removed; attempted restore must fail at preflight with an explicit diagnostic, leaving destination URL/user/media unchanged.
 
@@ -187,21 +188,22 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 
 - [x] Phase 2B-2C: independent CLI `tools/recovery-status.php`, retry-idempotent recovery receipts, pending-first bounded inventory, administrator-only read-only REST and admin warning panel. Regression includes anonymous permission denial and no server-path leakage.
 - [x] Recovery audit: a failed SQL import can deactivate the Trasloco plugin before import finalization; documented safe WP-CLI reactivation, plus a real recovery rehearsal after failure.
-- [ ] **P0: Atomic full-site rollback is not implemented.** Restoring the previous database does not automatically remove newly created filesystem contents; unbootable WordPress and other hosting configurations still require independently rehearsed recovery and operator intervention.
+- [ ] **P0: Globally atomic/automatic full-site rollback is not implemented.** A complete operator-driven database + file rollback is now documented and integration-tested, including reviewed quarantine of archive-absent files. MySQL DDL and filesystem mutations still cannot be committed as one global transaction; unbootable WordPress and other hosting configurations require isolated recovery and operator intervention.
 - [ ] P0: cross-host HTTP denial tests, truly interrupted PHP crash/replay, WooCommerce order consistency and multisite fidelity before production certification.
 
 - [x] P0 manual recovery aid: standalone, SHA-256-gated, bounded offline comparison of a recovery archive's uploads/themes/plugins/mu-plugins against actual destination bytes. Reports changed/missing/unsafe files without loading WordPress/MySQL or touching content; includes an actual post-DDL SQL error followed by simulated missing/modified-file states and operator-driven recovery.
-- [ ] Recovery diff is **read-only and incomplete for automatic rollback**: it deliberately excludes extra imported-only files and database changes. A staged, reviewed full filesystem rollback remains a release blocker.
+- [x] Recovery diff remains read-only and is not itself an automatic rollback. The separate staged file recovery workflow overlays verified snapshot content and can quarantine reviewed archive-absent paths.
 
 - [x] P0 recovery audit: after induced post-DDL SQL failure and database recovery, a target-only file may still be absent from the live site. End-to-end test detects this, independently stages the original bytes from the verified recovery archive and confirms offline diff still flags unrecovered content; no false claim of atomic rollback.
 
 - [x] P0 read-only extension: optional bounded offline scan of destination files absent from a verified recovery archive, with separate symlink warnings, independent relative-path samples and post-SQL-failure integration. Untracked files are not proven imported-only and are never automatically deleted.
-- [ ] Safe staged filesystem rollback and full-site atomic restore remain open; the untracked report is an input for operator review, not a deletion policy.
+- [x] Safe staged filesystem rollback is available through `tools/recovery-files.php`; the integration rehearsal verifies file restoration plus reviewed quarantine after restoring the database.
+- [ ] Full-site automatic/global atomic restore remains open; an untracked report or quarantine candidate is never treated as proof that a file came from an import.
 
 
 - [x] Phase 2B-2D-1: independent two-phase, SHA-256-verified wp-content file recovery (prepare/apply) with offline confirmation, preserved replaced bytes, preflight symlink rejection, atomic per-file replacement, retry-idempotent workspace and no deletion of untracked files. Standalone and induced-SQL-failure integration regressions included.
-- [x] Phase 2B-2D-2A: optional archive-absent regular-file quarantine with complete bounded inventory, full-content archive checks, exact approval fingerprint, preserved bytes and no-overwrite restore. Standalone PHP regressions cover review, changed files, interrupted apply, budget and symlinks. This is a local-only implementation pending full verification.
-- [ ] Phase 2B-2D-2B: same-site recovery runbook now sequences verified database restore and reviewed file quarantine; integration fixture exercises the complete user/database/media/file reconciliation after an induced SQL failure. Local PHP and shell checks pass; WordPress/MySQL execution remains pending because this environment has no WP-CLI, database server or Docker.
+- [x] Phase 2B-2D-2A: optional archive-absent regular-file quarantine with complete bounded inventory, full-content archive checks, exact approval fingerprint, preserved bytes and no-overwrite restore. Standalone safety tests and full local WordPress/MySQL integration pass.
+- [x] Phase 2B-2D-2B: same-site recovery runbook sequences verified database restore and reviewed file quarantine; integration fixture verifies the full user/database/media/file reconciliation after an induced SQL failure. Local PHP 8.5.4 / WordPress 7.1.3 / MariaDB 13.0.2 passed; CI matrix and other hosts remain unverified.
 - [x] Phase 2B-2D-2C-1: opt-in `--require-fsync` recovery mode synchronizes staged/preserved data, plan publication, destination renames and affected directory entries; strict plans fail closed when local fsync support is unavailable. Standalone test passes on the current PHP 8.5/macOS filesystem.
 - [ ] Phase 2B-2D-2C-2: cross-host fencing and power-loss failure injection remain unverified. Successful OS `fsync()` calls are not proof of storage-controller or remote-filesystem durability. A local workspace lock serializes apply processes only where `flock` is honored; file and database changes are not a globally atomic transaction.
 
