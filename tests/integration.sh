@@ -221,8 +221,35 @@ php "$GITHUB_WORKSPACE/tools/recovery-files.php" apply \
 # Operator-driven rollback: do NOT silently restore in the failed import
 # process, whose database and active plugin set may already be inconsistent.
 $WP trasloco restore "$(basename "$FAILED_RECOVERY")" --path="$ROOT/target"
+# The importer restores archived files and SQL, but it leaves extra files
+# behind. Prepare and inspect a separate quarantine only after SQL recovery so
+# a changed candidate cannot be silently discarded by the standard import.
+FULL_SITE_FILES="$ROOT/full-site-file-recovery"
+php "$GITHUB_WORKSPACE/tools/recovery-files.php" prepare \
+  "$FAILED_RECOVERY" "$ROOT/target/wp-content" "$FULL_SITE_FILES" --include-untracked > "$ROOT/full-site-prepare.json"
+php "$GITHUB_WORKSPACE/tools/recovery-files.php" review "$FULL_SITE_FILES" > "$ROOT/full-site-review.json"
+FULL_SITE_APPROVAL=$(php -r '
+  $prepared = json_decode(file_get_contents($argv[1]), true);
+  $review = json_decode(file_get_contents($argv[2]), true);
+  $expected = "uploads/target-before-import/untracked-after-failure.txt";
+  if (!is_array($prepared) || !is_array($review) ||
+      $prepared["quarantine_candidates"] !== 1 ||
+      !hash_equals($prepared["approval_sha256"], $review["approval_sha256"]) ||
+      count($review["quarantine_files"]) !== 1 ||
+      $review["quarantine_files"][0]["relative_path"] !== $expected) {
+      fwrite(STDERR, "Full-site rollback did not produce the expected reviewed file set\n"); exit(1);
+  }
+  echo $review["approval_sha256"];
+' "$ROOT/full-site-prepare.json" "$ROOT/full-site-review.json")
+php "$GITHUB_WORKSPACE/tools/recovery-files.php" apply \
+  "$FULL_SITE_FILES" "$ROOT/target/wp-content" --site-offline-confirmed \
+  --approve-untracked="$FULL_SITE_APPROVAL"
+test ! -e "$ROOT/target/wp-content/uploads/target-before-import/untracked-after-failure.txt"
+test -f "$FULL_SITE_FILES/quarantine/uploads/target-before-import/untracked-after-failure.txt"
+grep -Fx 'LATE FILE AFTER FAILED IMPORT' \
+  "$FULL_SITE_FILES/quarantine/uploads/target-before-import/untracked-after-failure.txt"
 # SQL recovery can finish while the plugin leaves files deleted by the
-# interrupted import. Do not call that a complete filesystem rollback.
+# interrupted import. The reviewed file overlay must restore the original.
 if ! cmp -s "$ROOT/target-safety-marker.expected" "$ROOT/target/wp-content/uploads/target-before-import/safety-marker.txt"; then
   echo "KNOWN P0: database rollback completed but original destination media still needs operator-driven file recovery."
   # Independently extract into a NEW private directory: do not overwrite live

@@ -126,6 +126,28 @@ wp trasloco restore recovery-EXAMPLE.wpress --path=/absolute/path/to/wordpress
 
 Use the **exact** recovery filename reported by `php tools/recovery-status.php`, not an arbitrary archive. When WordPress or the database will not boot, the `wp plugin activate` workaround is unavailable: preserve the backup files and use the independent staging and disaster-recovery steps above. Restoration remains a manual operator action, not an automatic rollback.
 
+### Reconcile files after restoring the database
+
+For a same-site rollback, stop web traffic, PHP workers, cron and deployment writers for the entire operation. After `wp trasloco restore` completes successfully, prepare a file plan from the **same** verified recovery archive and target `wp-content`:
+
+```bash
+php tools/recovery-files.php prepare \
+  /private/trasloco-backups/recovery-EXAMPLE.wpress \
+  /absolute/path/to/wordpress/wp-content \
+  /private/recovery-files-work --include-untracked
+php tools/recovery-files.php review /private/recovery-files-work
+```
+
+Inspect every `quarantine_files` entry. If the list is correct, copy the exact `approval_sha256` printed by `review` into the apply command:
+
+```bash
+php tools/recovery-files.php apply /private/recovery-files-work \
+  /absolute/path/to/wordpress/wp-content \
+  --site-offline-confirmed --approve-untracked=<approval_sha256>
+```
+
+This restores archived files and moves reviewed archive-absent regular files into the private workspace, where they remain recoverable. Verify the restored users, URLs, representative posts, media and `wp db check` before reopening traffic. A pending receipt remains a record of the failed import. This is a staged operator-driven recovery, not a globally atomic transaction: if a step fails, keep the site offline, retain both workspaces and resume from the failed step after reviewing its state. If WordPress or its database cannot run, restore the archive to an isolated fresh site first; do not point recovery commands at a live database that cannot be verified.
+
 ## Administrator view and API
 
 When WordPress still runs and the plugin is enabled, open **Trasloco → Backups** to inspect pending recovery points. This is a **read-only** table: it does not delete archives or launch a rollback. Authenticated administrators may also use `GET /wp-json/trasloco/v1/recovery-points` with their normal WordPress REST nonce or an Application Password; anonymous access is denied. The API returns a bounded list of pending receipts and archive filenames only, never absolute paths or database credentials.
