@@ -86,7 +86,7 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 - [ ] Phase 6B: CLI and UI workflows, storage protection and recovery integration.
 
 - [x] Optional encryption via wp trasloco encrypt/decrypt with Argon2id and XChaCha20 secretstream (CLI and test).
-- [ ] In-app encryption UI and encrypted cloud storage integration.
+- [ ] In-app encryption UI for manual backup workflows. Scheduled encrypted WebDAV/S3 delivery is implemented, and the schedule page now explains provider and runtime requirements; WordPress integration checks the rendered copy.
 
 - [x] Phase 2A: verified pre-import recovery snapshot before file/database replacement; on failure import aborts.
 - [ ] Phase 2B: independent one-click rescue handler and tested true rollback, including large hosting environments.

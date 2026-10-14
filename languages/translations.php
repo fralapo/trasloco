@@ -233,17 +233,17 @@ return array(
 		'fr' => 'Créez des sauvegardes vérifiées et ne conservez automatiquement que les dernières.',
 		'de' => 'Erstellen Sie überprüfte Backups nach Zeitplan und behalten Sie nur die neuesten.',
 	),
-	'Encrypt and upload each scheduled backup to WebDAV' => array(
-		'it' => 'Cifra e carica ogni backup pianificato su WebDAV',
-		'es' => 'Cifra y sube cada copia programada a WebDAV',
-		'fr' => 'Chiffrer et envoyer chaque sauvegarde planifiée vers WebDAV',
-		'de' => 'Jedes geplante Backup verschlüsseln und zu WebDAV hochladen',
+	'Encrypt and upload each scheduled backup to remote storage' => array(
+		'it' => 'Cifra e carica ogni backup pianificato sullo storage remoto',
+		'es' => 'Cifra y sube cada copia programada al almacenamiento remoto',
+		'fr' => 'Chiffrer et envoyer chaque sauvegarde planifiée vers le stockage distant',
+		'de' => 'Jedes geplante Backup verschlüsseln und in den Remotespeicher hochladen',
 	),
-	'Requires a resumable WebDAV provider and TRASLOCO_ARCHIVE_PASSPHRASE in the worker environment or wp-config.php. The passphrase is never stored in WordPress options or job records.' => array(
-		'it' => 'Richiede un provider WebDAV con upload riprendibili e TRASLOCO_ARCHIVE_PASSPHRASE nell’ambiente del worker o in wp-config.php. La passphrase non viene salvata nelle opzioni WordPress né nei job.',
-		'es' => 'Requiere un proveedor WebDAV con cargas reanudables y TRASLOCO_ARCHIVE_PASSPHRASE en el entorno del worker o en wp-config.php. La frase de contraseña nunca se guarda en las opciones de WordPress ni en los trabajos.',
-		'fr' => 'Nécessite un fournisseur WebDAV prenant en charge la reprise et TRASLOCO_ARCHIVE_PASSPHRASE dans l’environnement du worker ou dans wp-config.php. La phrase secrète n’est jamais enregistrée dans les options WordPress ni dans les tâches.',
-		'de' => 'Erfordert einen WebDAV-Anbieter mit fortsetzbaren Uploads und TRASLOCO_ARCHIVE_PASSPHRASE in der Worker-Umgebung oder in wp-config.php. Die Passphrase wird weder in WordPress-Optionen noch in Job-Datensätzen gespeichert.',
+	'Requires configured WebDAV or S3-compatible storage and TRASLOCO_ARCHIVE_PASSPHRASE in the worker environment or wp-config.php. S3 also requires its optional runtime and PHP 8.1 or later. The passphrase is never stored in WordPress options or job records.' => array(
+		'it' => 'Richiede uno storage WebDAV o compatibile con S3 configurato e TRASLOCO_ARCHIVE_PASSPHRASE nell’ambiente del worker o in wp-config.php. S3 richiede anche il runtime opzionale e PHP 8.1 o successivo. La passphrase non viene salvata nelle opzioni WordPress né nei job.',
+		'es' => 'Requiere almacenamiento WebDAV o compatible con S3 configurado y TRASLOCO_ARCHIVE_PASSPHRASE en el entorno del worker o en wp-config.php. S3 también requiere el runtime opcional y PHP 8.1 o posterior. La frase de contraseña nunca se guarda en las opciones de WordPress ni en los trabajos.',
+		'fr' => 'Nécessite un stockage WebDAV ou compatible S3 configuré et TRASLOCO_ARCHIVE_PASSPHRASE dans l’environnement du worker ou dans wp-config.php. S3 nécessite aussi le runtime facultatif et PHP 8.1 ou ultérieur. La phrase secrète n’est jamais enregistrée dans les options WordPress ni dans les tâches.',
+		'de' => 'Erfordert konfigurierten WebDAV- oder S3-kompatiblen Speicher und TRASLOCO_ARCHIVE_PASSPHRASE in der Worker-Umgebung oder in wp-config.php. S3 benötigt zusätzlich die optionale Laufzeitumgebung und PHP 8.1 oder neuer. Die Passphrase wird weder in WordPress-Optionen noch in Job-Datensätzen gespeichert.',
 	),
 	'Trasloco offsite storage needs attention' => array(
 		'it' => 'Lo storage offsite di Trasloco richiede attenzione',

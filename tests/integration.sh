@@ -863,6 +863,15 @@ $offsite_job = is_int( $offsite_id ) ? Trasloco_Job_Store::workload( $offsite_id
 if ( ! is_array( $offsite_job ) || $offsite_job["payload"] !== array( "retention" => 2, "upload_offsite" => true ) ) {
     throw new Exception( "Scheduled encrypted offsite delivery was not represented by a credential-free backup job" );
 }
+$backups = array();
+ob_start();
+include TRASLOCO_TEMPLATES_PATH . "/backups/index.php";
+$schedule_html = ob_get_clean();
+if ( strpos( $schedule_html, "Encrypt and upload each scheduled backup to remote storage" ) === false ||
+    strpos( $schedule_html, "S3 also requires its optional runtime and PHP 8.1 or later" ) === false ||
+    strpos( $schedule_html, "to WebDAV" ) !== false ) {
+    throw new Exception( "Scheduled encrypted delivery UI does not describe the configured S3/WebDAV providers" );
+}
 Trasloco_Job_Store::cancel( $offsite_id );
 Trasloco_Scheduled_Backups::sync_health_check();
 if ( ! wp_next_scheduled( Trasloco_Scheduled_Backups::HEALTH_HOOK ) ) {
