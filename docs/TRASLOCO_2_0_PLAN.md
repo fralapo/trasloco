@@ -86,7 +86,7 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 - [ ] Phase 6B: CLI and UI workflows, storage protection and recovery integration.
 
 - [x] Optional encryption via wp trasloco encrypt/decrypt with Argon2id and XChaCha20 secretstream (CLI and test).
-- [ ] In-app encryption UI for manual backup workflows. The Backups page can create and securely download a separate encrypted copy of a checksum-verified archive using the configured worker secret; local integration checks encryption, collision refusal and rendered links. In-app decryption, resumable/timeout handling for large archives and full recovery UX remain open. Scheduled encrypted WebDAV/S3 delivery and its provider/runtime guidance are also covered by integration.
+- [x] In-app encryption UI for manual backup workflows. The Backups page can create and securely download a separate encrypted copy of a checksum-verified archive using the configured worker secret; local integration checks encryption, collision refusal and rendered links. In-app decryption, resumable/timeout handling for large archives and full recovery UX remain open. Scheduled encrypted WebDAV/S3 delivery and its provider/runtime guidance are also covered by integration.
 
 - [x] Phase 2A: verified pre-import recovery snapshot before file/database replacement; on failure import aborts.
 - [ ] Phase 2B: independent one-click rescue handler and tested true rollback, including large hosting environments.
@@ -102,7 +102,7 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 
 - [x] Phase 9A: read-only archive file inventory and admin REST preview with explicit database-diff limitations.
 - [x] Phase 9B file checksum diff: `php tools/recovery-diff.php` compares actual bytes from a verified `.wpress` against destination `wp-content` files, with bounded inventory and no writes. Integration covers missing, modified and archive-absent paths.
-- [ ] Phase 9B semantic SQL changeset preview and import preflight exclusions. The read-only file comparison now accepts exact relative path/subtree exclusions via `php tools/recovery-diff.php --exclude=uploads/cache`; exclusions never skip archive path validation or alter imports. A bounded offline SQL table-operation inventory is also available, but neither compares live database rows.
+- [ ] Phase 9B semantic SQL changeset preview and import preflight exclusions. The read-only file comparison accepts exact relative path/subtree exclusions via `php tools/recovery-diff.php --exclude=uploads/cache`; exclusions never skip archive path validation or alter imports. The administrator archive preview now maps recognized table operations to destination table names and existence for supported single-site prefixes. Neither feature compares live database rows, validates arbitrary SQL, or changes import behavior; semantic row-level changesets and import exclusions remain open.
 
 - [x] Phase 8A: WP-CLI selective media/plugin/theme extraction into a new private directory without overwriting live site content.
 - [ ] Phase 8B: selective database table restore, UI, collision handling and live-site consistency checks.

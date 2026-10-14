@@ -1153,6 +1153,21 @@ $admins = get_users( array( "role" => "administrator", "number" => 1 ) );
 wp_set_current_user( $admins[0]->ID );
 $resp = rest_do_request( new WP_REST_Request( "GET", "/trasloco/v1/backups/" . $file . "/preview" ) );
 if ( $resp->get_status() !== 200 ) { throw new Exception( "Authenticated archive preview failed" ); }
+$wpdb = $GLOBALS["wpdb"];
+$preview_data = $resp->get_data();
+$has_options_preview = false;
+foreach ( $preview_data["database_preview"]["table_operations"] as $table_operation ) {
+    if ( $table_operation["destination_table"] === $wpdb->prefix . "options" &&
+        $table_operation["destination_exists"] === true &&
+        $table_operation["expected_effect"] === "replace_existing_table" ) {
+        $has_options_preview = true;
+        break;
+    }
+}
+if ( $preview_data["database_preview"]["status"] !== "available" || ! $has_options_preview ||
+    strpos( $preview_data["database_preview"]["warning"], "does not compare row values" ) === false ) {
+    throw new Exception( "Archive preview did not map the SQL table replacement to the destination" );
+}
 ' --path="$ROOT/source"
 
 # Reconcile only idempotent verification jobs; do not repeat backups.

@@ -58,3 +58,5 @@ php tools/recovery-sql-preview.php /private/trasloco-backups/recovery-example.wp
 The command requires a valid SHA-256 sidecar and scans at most 1 GiB of `database.sql` in bounded chunks. It reports the `DROP`, `CREATE`, `INSERT`, `REPLACE`, `ALTER` and `TRUNCATE` statements recognized in Trasloco-generated exports, grouped by table. It never executes SQL or emits row contents.
 
 This is an operation inventory, **not a semantic database changeset**: it does not validate arbitrary SQL syntax, count affected rows, compare values, inspect the destination database or approve a restore. Treat the archive as authoritative input and rehearse a restore against an isolated copy before production use.
+
+The administrator-only REST archive preview also compares recognized table names with the current site's table names when Trasloco can safely infer the single-site prefix mapping. It labels likely table creation, modification or replacement and returns `unknown_mapping` where multisite or source naming makes that inference unsafe. This still does not compare rows, validate arbitrary SQL, predict plugin behavior or make an import safe; it is only a table-level review aid.

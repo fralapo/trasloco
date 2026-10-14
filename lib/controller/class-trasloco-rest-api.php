@@ -214,10 +214,86 @@ class Trasloco_REST_API {
     public static function preview_backup( $request ) {
         try {
             $path = trasloco_backup_path( array( 'archive' => $request->get_param( 'archive' ) ) );
-            return rest_ensure_response( Trasloco_Archive_Inspector::inspect( $path, 30 ) );
+            $report = Trasloco_Archive_Inspector::inspect( $path, 30 );
+            $report['database_preview'] = self::database_preview( $path );
+            return rest_ensure_response( $report );
         } catch ( Exception $e ) {
             return new WP_Error( 'trasloco_invalid_preview', 'The archive could not be inspected.', array( 'status' => 400 ) );
         }
+    }
+
+    /** Compare recognized archive table operations to destination table names only. */
+    private static function database_preview( $archive ) {
+        require_once TRASLOCO_LIB_PATH . '/vendor/core/archiver/class-trasloco-integrity.php';
+        if ( Trasloco_Integrity::verify( $archive )['status'] !== 'verified' ) {
+            return array(
+                'status' => 'unverified',
+                'table_operations' => array(),
+                'warning' => 'A valid SHA-256 manifest is required for the SQL operation preview.',
+            );
+        }
+        require_once TRASLOCO_LIB_PATH . '/vendor/core/archiver/class-trasloco-offline-sql-preview.php';
+        try {
+            $inventory = Trasloco_Offline_SQL_Preview::preview( $archive );
+        } catch ( Throwable $error ) {
+            return array(
+                'status' => 'unavailable',
+                'table_operations' => array(),
+                'warning' => 'The SQL operation inventory could not be safely produced.',
+            );
+        }
+        global $wpdb;
+        $destination_tables = $wpdb->get_col( 'SHOW TABLES' );
+        if ( ! is_array( $destination_tables ) ) {
+            return array(
+                'status' => 'destination_unavailable',
+                'table_operations' => array(),
+                'warning' => 'Destination table names could not be read.',
+            );
+        }
+        $operations = array();
+        foreach ( $inventory['tables'] as $source_table => $actions ) {
+            $destination_table = self::preview_destination_table( $source_table );
+            $exists = $destination_table === null ? null : in_array( $destination_table, $destination_tables, true );
+            if ( $exists === null ) {
+                $expected_effect = 'unknown_mapping';
+            } elseif ( $actions['drop'] > 0 && $actions['create'] > 0 ) {
+                $expected_effect = 'replace_existing_table';
+            } elseif ( ! $exists && $actions['create'] > 0 ) {
+                $expected_effect = 'create_table';
+            } elseif ( $exists ) {
+                $expected_effect = 'modify_existing_table';
+            } else {
+                $expected_effect = 'unknown_effect';
+            }
+            $operations[] = array(
+                'source_table' => $source_table,
+                'destination_table' => $destination_table,
+                'destination_exists' => $exists,
+                'expected_effect' => $expected_effect,
+                'actions' => $actions,
+            );
+        }
+        return array(
+            'status' => 'available',
+            'tables_seen' => $inventory['tables_seen'],
+            'table_operations' => $operations,
+            'warning' => 'Table-level operation preview only. It does not compare row values or counts, validate arbitrary SQL, or predict plugin/application behavior. Import may replace the listed destination tables. This is advisory, not restore approval.',
+        );
+    }
+
+    /** Predict table names only for the single-site placeholder mapping. */
+    private static function preview_destination_table( $source_table ) {
+        global $wpdb;
+        $placeholder = 'SERVMASK_PREFIX_';
+        if ( ! is_string( $source_table ) || strpos( $source_table, $placeholder ) !== 0 || is_multisite() ) {
+            return null;
+        }
+        $suffix = substr( $source_table, strlen( $placeholder ) );
+        if ( $suffix === '' || strpos( $suffix, 'basesite_' ) === 0 || preg_match( '/^[0-9]+_/', $suffix ) ) {
+            return null;
+        }
+        return $wpdb->prefix . $suffix;
     }
 
     public static function preflight( $request ) {
