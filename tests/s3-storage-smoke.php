@@ -142,13 +142,15 @@ foreach ( $bad_prefixes as $prefix ) {
         s3_assert( strpos( $error->getMessage(), 'prefix' ) !== false, 'Unsafe S3 prefix returned an unexpected error.' );
     }
 }
-try {
-    new Trasloco_S3_Storage( array(
-        'bucket' => 'trasloco-backups', 'region' => 'us-east-1', 'endpoint' => 'http://storage.example',
-    ), $client );
-    throw new RuntimeException( 'Insecure S3 endpoint was accepted.' );
-} catch ( InvalidArgumentException $error ) {
-    s3_assert( strpos( $error->getMessage(), 'HTTPS' ) !== false, 'Insecure endpoint returned an unexpected error.' );
+foreach ( array( 'http://storage.example', 'https://storage.example\\path', 'https://storage.example/path?query=1' ) as $endpoint ) {
+    try {
+        new Trasloco_S3_Storage( array(
+            'bucket' => 'trasloco-backups', 'region' => 'us-east-1', 'endpoint' => $endpoint,
+        ), $client );
+        throw new RuntimeException( 'Unsafe S3 endpoint was accepted.' );
+    } catch ( InvalidArgumentException $error ) {
+        s3_assert( strpos( $error->getMessage(), 'HTTPS' ) !== false, 'Unsafe endpoint returned an unexpected error.' );
+    }
 }
 
 $bounded_commands = array();

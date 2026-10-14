@@ -54,7 +54,8 @@ class Trasloco_S3_Storage implements Trasloco_Storage_Adapter {
             $parts = is_string( $endpoint ) ? parse_url( $endpoint ) : false;
             if ( ! is_array( $parts ) || empty( $parts['scheme'] ) || strtolower( $parts['scheme'] ) !== 'https' ||
                 empty( $parts['host'] ) || isset( $parts['user'] ) || isset( $parts['pass'] ) ||
-                isset( $parts['query'] ) || isset( $parts['fragment'] ) || preg_match( '/[\\\x00-\x20\x7f]/', $endpoint ) ) {
+                isset( $parts['query'] ) || isset( $parts['fragment'] ) || strpos( $endpoint, '\\' ) !== false ||
+                preg_match( '/[\x00-\x20\x7f]/', $endpoint ) ) {
                 throw new InvalidArgumentException( 'S3-compatible endpoints must be safe HTTPS URLs without embedded credentials.' );
             }
             $sdk_config['endpoint'] = $endpoint;
