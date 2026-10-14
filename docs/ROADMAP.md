@@ -1,6 +1,6 @@
 # Production readiness roadmap
 
-Updated 2026-10-14. Version 1.5.0 adds opt-in resumable local snapshots to scheduled backups. The complete local WordPress integration passes on PHP 7.4, 8.2, 8.4 and 8.5 with WordPress 6.9.10 and MariaDB 13.0.2; the full standalone quality suite also passes locally. GitHub Actions was skipped because the account's free minutes are exhausted; these local tests are not production certification. [The 2.0 execution plan](TRASLOCO_2_0_PLAN.md) contains the remaining feature increments; [branch reconciliation](BRANCH_RECONCILIATION.md) records how the separate draft implementation will be ported.
+Updated 2026-10-14. Version 1.5.0 adds opt-in resumable local snapshots to scheduled backups. The complete local WordPress integration passes on PHP 7.4, 8.2, 8.4 and 8.5 with WordPress 6.9.10 and MariaDB 13.0.2; the full standalone quality suite also passes locally. GitHub Actions was skipped because the account's free minutes are exhausted; these local tests are not production certification. See the [session handoff](SESSION_HANDOFF.md) for the latest repository state and resumption steps. [The 2.0 execution plan](TRASLOCO_2_0_PLAN.md) contains the remaining feature increments; [branch reconciliation](BRANCH_RECONCILIATION.md) records how the separate draft implementation will be ported.
 
 ## Verified baseline
 
