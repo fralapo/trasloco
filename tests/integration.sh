@@ -33,17 +33,28 @@ WC_REFUND_ID=""
 WC_PRODUCT_ID=""
 if [ "${TRASLOCO_TEST_WOOCOMMERCE:-0}" = 1 ]; then
   TRASLOCO_TEST_WOOCOMMERCE_VERSION="${TRASLOCO_TEST_WOOCOMMERCE_VERSION:-11.2.1}"
+  TRASLOCO_TEST_WOOCOMMERCE_HPOS="${TRASLOCO_TEST_WOOCOMMERCE_HPOS:-1}"
+  if [ "$TRASLOCO_TEST_WOOCOMMERCE_HPOS" = 1 ]; then
+    WC_ORDER_STORE=hpos
+    WC_ORDER_STORE_COMMAND=enable
+  elif [ "$TRASLOCO_TEST_WOOCOMMERCE_HPOS" = 0 ]; then
+    WC_ORDER_STORE=legacy
+    WC_ORDER_STORE_COMMAND=disable
+  else
+    echo "TRASLOCO_TEST_WOOCOMMERCE_HPOS must be 0 or 1" >&2
+    exit 1
+  fi
   for ROLE in source target; do
     $WP plugin install woocommerce --version="$TRASLOCO_TEST_WOOCOMMERCE_VERSION" \
       --activate --path="$ROOT/$ROLE"
-    $WP wc hpos enable --path="$ROOT/$ROLE"
+    $WP wc hpos "$WC_ORDER_STORE_COMMAND" --path="$ROOT/$ROLE"
   done
-  WC_FIXTURE=$($WP eval-file "$GITHUB_WORKSPACE/tests/woocommerce-fixture.php" seed --path="$ROOT/source" | tail -n 1)
+  WC_FIXTURE=$($WP eval-file "$GITHUB_WORKSPACE/tests/woocommerce-fixture.php" seed "$WC_ORDER_STORE" --path="$ROOT/source" | tail -n 1)
   WC_ORDER_ID=$(printf '%s' "$WC_FIXTURE" | php -r '$v=json_decode(stream_get_contents(STDIN),true); if(!is_array($v)||empty($v["order_id"])) exit(1); echo (int)$v["order_id"];')
   WC_REFUND_ID=$(printf '%s' "$WC_FIXTURE" | php -r '$v=json_decode(stream_get_contents(STDIN),true); if(!is_array($v)||empty($v["refund_id"])) exit(1); echo (int)$v["refund_id"];')
   WC_PRODUCT_ID=$(printf '%s' "$WC_FIXTURE" | php -r '$v=json_decode(stream_get_contents(STDIN),true); if(!is_array($v)||empty($v["product_id"])) exit(1); echo (int)$v["product_id"];')
   $WP eval-file "$GITHUB_WORKSPACE/tests/woocommerce-fixture.php" verify \
-    "$WC_ORDER_ID" "$WC_REFUND_ID" "$WC_PRODUCT_ID" --path="$ROOT/source"
+    "$WC_ORDER_ID" "$WC_REFUND_ID" "$WC_PRODUCT_ID" "$WC_ORDER_STORE" --path="$ROOT/source"
 fi
 EXPECTED_HOME=$($WP option get home --path="$ROOT/target")
 EXPECTED_SITE=$($WP option get siteurl --path="$ROOT/target")
@@ -450,7 +461,9 @@ $WP plugin activate trasloco --path="$ROOT/target"
 $WP trasloco restore "$(basename "$CRASH_ARCHIVE")" --path="$ROOT/target" > "$ROOT/crash-restore.log" 2>&1 &
 CRASH_PID=$!
 SLEEP_QUERY_SEEN=0
-for attempt in $(seq 1 600); do
+# HPOS introduces more tables, so allow up to three minutes for the importer
+# to reach the deliberately slow statement on slower local/CI database hosts.
+for attempt in $(seq 1 1800); do
   if "${MYSQL[@]}" -N -e 'SHOW FULL PROCESSLIST' 2>/dev/null | grep -Fq 'SELECT SLEEP(30)'; then
     SLEEP_QUERY_SEEN=1
     break
@@ -507,8 +520,8 @@ $WP user get oldadmin --path="$ROOT/target" --field=user_login | grep -Fx oldadm
 echo "PASS: SIGKILL after post-DDL SQL preserved its pending receipt; a successful replay completed with a separate receipt."
 if [ -n "$WC_ORDER_ID" ]; then
   $WP eval-file "$GITHUB_WORKSPACE/tests/woocommerce-fixture.php" verify \
-    "$WC_ORDER_ID" "$WC_REFUND_ID" "$WC_PRODUCT_ID" --path="$ROOT/target"
-  echo "PASS: WooCommerce HPOS order, refund, product line, metadata and note survived backup and restore."
+    "$WC_ORDER_ID" "$WC_REFUND_ID" "$WC_PRODUCT_ID" "$WC_ORDER_STORE" --path="$ROOT/target"
+  echo "PASS: WooCommerce $WC_ORDER_STORE order, refund, product line, metadata and note survived backup and restore."
 fi
 
 echo "Destination tables:"

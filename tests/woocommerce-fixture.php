@@ -1,15 +1,22 @@
 <?php
 /**
- * WP-CLI fixture for real WooCommerce CRUD checks against the HPOS datastore.
- * Usage: wp eval-file tests/woocommerce-fixture.php seed
- *        wp eval-file tests/woocommerce-fixture.php verify ORDER REFUND PRODUCT
+ * WP-CLI fixture for real WooCommerce CRUD checks against both order stores.
+ * Usage: wp eval-file tests/woocommerce-fixture.php seed hpos|legacy
+ *        wp eval-file tests/woocommerce-fixture.php verify ORDER REFUND PRODUCT hpos|legacy
  */
-if ( ! isset( $args[0] ) || ! function_exists( 'wc_get_order' ) ||
-     ! Automattic\WooCommerce\Utilities\OrderUtil::custom_orders_table_usage_is_enabled() ) {
-    throw new RuntimeException( 'WooCommerce HPOS must be active for this fixture.' );
+if ( ! isset( $args[0] ) || ! function_exists( 'wc_get_order' ) ) {
+    throw new RuntimeException( 'WooCommerce must be active for this fixture.' );
 }
 
 if ( $args[0] === 'seed' ) {
+    if ( count( $args ) !== 2 || ! in_array( $args[1], array( 'hpos', 'legacy' ), true ) ) {
+        throw new InvalidArgumentException( 'Expected seed hpos|legacy.' );
+    }
+    $expected_hpos = $args[1] === 'hpos';
+    if ( Automattic\WooCommerce\Utilities\OrderUtil::custom_orders_table_usage_is_enabled() !== $expected_hpos ) {
+        throw new RuntimeException( 'WooCommerce is using an unexpected order store.' );
+    }
+
     $product = new WC_Product_Simple();
     $product->set_name( 'Trasloco HPOS fixture product' );
     $product->set_regular_price( '12.50' );
@@ -53,9 +60,10 @@ if ( $args[0] === 'seed' ) {
     return;
 }
 
-if ( $args[0] !== 'verify' || count( $args ) !== 4 ) {
-    throw new InvalidArgumentException( 'Expected seed or verify ORDER REFUND PRODUCT.' );
+if ( $args[0] !== 'verify' || count( $args ) !== 5 || ! in_array( $args[4], array( 'hpos', 'legacy' ), true ) ) {
+    throw new InvalidArgumentException( 'Expected seed hpos|legacy or verify ORDER REFUND PRODUCT hpos|legacy.' );
 }
+$expected_hpos = $args[4] === 'hpos';
 
 $order = wc_get_order( (int) $args[1] );
 $refund = wc_get_order( (int) $args[2] );
@@ -63,7 +71,7 @@ $items = $order ? $order->get_items() : array();
 $item = reset( $items );
 $notes = $order ? wc_get_order_notes( array( 'order_id' => $order->get_id() ) ) : array();
 $checks = array(
-    'HPOS remains enabled' => Automattic\WooCommerce\Utilities\OrderUtil::custom_orders_table_usage_is_enabled(),
+    'expected order store remains active' => Automattic\WooCommerce\Utilities\OrderUtil::custom_orders_table_usage_is_enabled() === $expected_hpos,
     'order type and status' => $order && $order->get_type() === 'shop_order' && $order->get_status() === 'processing',
     'order total and currency' => $order && (float) $order->get_total() === 25.0 && $order->get_currency() === 'EUR',
     'billing email' => $order && $order->get_billing_email() === 'woo-fixture@example.test',
