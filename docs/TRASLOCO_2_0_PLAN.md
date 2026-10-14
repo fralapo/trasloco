@@ -1,6 +1,6 @@
 # Trasloco 2.0 — execution plan (15 features)
 
-Updated 2026-10-13. This plan is an implementation dependency map, not a claim that unfinished capabilities exist.
+Updated 2026-10-14. This plan is an implementation dependency map, not a claim that unfinished capabilities exist.
 
 ## Ground rules and non-negotiable release gates
 
@@ -83,7 +83,7 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 - [ ] Validate scheduled operation timeouts on real hosting; WAF and server cron support.
 
 - [x] Phase 6A: standalone versioned streaming libsodium encrypted envelope with wrong-key/corruption tests.
-- [ ] Phase 6B: CLI and UI workflows, storage protection and recovery integration.
+- [x] Phase 6B encryption workflows: CLI encryption/decryption, administrator encryption of verified manual backups, and scheduled encrypted offsite delivery. In-app decryption, resumable handling for large archives and complete recovery UX remain open.
 
 - [x] Optional encryption via wp trasloco encrypt/decrypt with Argon2id and XChaCha20 secretstream (CLI and test).
 - [x] In-app encryption UI for manual backup workflows. The Backups page can create and securely download a separate encrypted copy of a checksum-verified archive using the configured worker secret; local integration checks encryption, collision refusal and rendered links. In-app decryption, resumable/timeout handling for large archives and full recovery UX remain open. Scheduled encrypted WebDAV/S3 delivery and its provider/runtime guidance are also covered by integration.

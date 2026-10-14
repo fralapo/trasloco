@@ -17,10 +17,10 @@ Run the optional previous-major WordPress fixture with `TRASLOCO_TEST_WORDPRESS_
 - [x] SHA-256 v1/v2 sidecars and resumable chunk-verification jobs.
 - [x] Verification and offline-rescue compatibility for schema-1 SHA-256 sidecars from the preserved 2.0 feature branch; new archives continue to use the hardening v2 chunk format.
 - [x] Persistent job ledger and leases, automatic backup settings, calendar-month scheduling, verified retention and failure notification hook.
-- [x] CLI streaming encryption/decryption and independent encrypted rescue.
+- [x] CLI streaming encryption/decryption and independent encrypted rescue; administrators can also create and securely download a separate encrypted copy of a verified backup. In-app decryption and resumable handling for large archives remain open.
 - [x] Read-only decryption compatibility for the preserved 2.0 branch's authenticated `TRLENC01` envelope; new encrypted backups keep the hardening `TRASENC1` format.
 - [x] Verified pre-import recovery snapshots, independent receipts, clean-WordPress disaster rehearsal and manual database rollback after a real post-DDL SQL failure.
-- [x] Independent two-phase file recovery with preserved originals; unknown destination files are not deleted.
+- [x] Independent two-phase file recovery with preserved originals; unknown destination files are not deleted. The read-only recovery comparison supports exact relative path/subtree exclusions without skipping archive validation or changing imports.
 - [x] Administrator preflight/dashboard, archive preview and permission-scoped REST inventory/status; the archive preview now maps recognized SQL table operations to destination names for supported single-site prefixes and reports whether a destination table exists. This is advisory only and does not compare rows or predict application behavior. WordPress 6.9+ also exposes the same bounded preflight as a read-only admin-only Abilities API ability.
 - [x] WooCommerce live-export consistency warning with translation parity and rendering regressions for active/inactive WooCommerce. It advises pausing order writes; it does not create a database snapshot.
 - [x] Authenticated WordPress-to-WordPress pull transfer with private resumable staging, bounded chunks, full-digest verification and no-overwrite archive/manifest publication. Local integration tests cover permissions, resume boundaries, idempotent completion and conflicting files; a standalone transport smoke test also runs in the quality workflow. See [peer transfer operations](PEER_TRANSFER.md).
