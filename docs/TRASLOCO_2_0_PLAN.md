@@ -102,7 +102,7 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 
 - [x] Phase 9A: read-only archive file inventory and admin REST preview with explicit database-diff limitations.
 - [x] Phase 9B file checksum diff: `php tools/recovery-diff.php` compares actual bytes from a verified `.wpress` against destination `wp-content` files, with bounded inventory and no writes. Integration covers missing, modified and archive-absent paths.
-- [ ] Phase 9B SQL changeset preview and selective preflight exclusions.
+- [ ] Phase 9B semantic SQL changeset preview and selective preflight exclusions. A bounded offline inventory of recognized table operations is available via `php tools/recovery-sql-preview.php`; it does not compare row values or the live destination database.
 
 - [x] Phase 8A: WP-CLI selective media/plugin/theme extraction into a new private directory without overwriting live site content.
 - [ ] Phase 8B: selective database table restore, UI, collision handling and live-site consistency checks.

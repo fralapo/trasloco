@@ -37,3 +37,15 @@ This independently inventories the `uploads/`, `plugins/`, `themes/` and `mu-plu
 **Important:** `not_in_snapshot` means only that the file is not represented in the recovery archive. It is **not** proof that the failed import created it; cache files, excluded plugin files and subsequent uploads may also appear. Do not automatically delete these files. Complete rollback still requires an operator-reviewed, isolated restore rehearsal and database consistency checks.
 
 Destination filesystem names containing ASCII terminal control characters are escaped as printable `\\xHH` sequences in the untracked sample. Non-UTF-8 byte sequences are also escaped rather than breaking the JSON report. Those are display strings, **not safe copy/delete paths**.
+
+## Read-only SQL operation inventory
+
+To see the table operations encoded in a recovery archive without starting WordPress or connecting to MySQL:
+
+```bash
+php tools/recovery-sql-preview.php /private/trasloco-backups/recovery-example.wpress --json
+```
+
+The command requires a valid SHA-256 sidecar and scans at most 1 GiB of `database.sql` in bounded chunks. It reports the `DROP`, `CREATE`, `INSERT`, `REPLACE`, `ALTER` and `TRUNCATE` statements recognized in Trasloco-generated exports, grouped by table. It never executes SQL or emits row contents.
+
+This is an operation inventory, **not a semantic database changeset**: it does not validate arbitrary SQL syntax, count affected rows, compare values, inspect the destination database or approve a restore. Treat the archive as authoritative input and rehearse a restore against an isolated copy before production use.
