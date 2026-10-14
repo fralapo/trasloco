@@ -23,7 +23,7 @@ Run the optional previous-major WordPress fixture with `TRASLOCO_TEST_WORDPRESS_
 - [x] Independent two-phase file recovery with preserved originals; unknown destination files are not deleted.
 - [x] Administrator preflight/dashboard, archive preview and permission-scoped REST inventory/status; WordPress 6.9+ also exposes the same bounded preflight as a read-only admin-only Abilities API ability.
 - [x] WooCommerce live-export consistency warning with translation parity and rendering regressions for active/inactive WooCommerce. It advises pausing order writes; it does not create a database snapshot.
-- [x] Authenticated WordPress-to-WordPress pull transfer with private resumable staging, bounded chunks, full-digest verification and no-overwrite archive/manifest publication. Local integration tests cover permissions, resume boundaries, idempotent completion and conflicting files. See [peer transfer operations](PEER_TRANSFER.md).
+- [x] Authenticated WordPress-to-WordPress pull transfer with private resumable staging, bounded chunks, full-digest verification and no-overwrite archive/manifest publication. Local integration tests cover permissions, resume boundaries, idempotent completion and conflicting files; a standalone transport smoke test also runs in the quality workflow. See [peer transfer operations](PEER_TRANSFER.md).
 
 ## Recovery safety increment
 

@@ -34,3 +34,5 @@ jobs:
         run: php tests/webdav-storage-smoke.php
       - name: Offsite transfer integrity and collision checks
         run: php tests/offsite-transfer-smoke.php
+      - name: Resumable peer transfer and collision checks
+        run: php tests/peer-pull-smoke.php

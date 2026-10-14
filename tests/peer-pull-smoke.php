@@ -1,5 +1,78 @@
 <?php
 /** Local transport simulation for the resumable peer downloader. */
+// The same test runs under WordPress integration and as a standalone quality
+// check. Supply only the small WordPress surface used by the HTTP filter when
+// Core has not already been bootstrapped.
+if ( ! defined( 'TRASLOCO_LIB_PATH' ) ) {
+	define( 'TRASLOCO_LIB_PATH', dirname( __DIR__ ) . '/lib' );
+}
+
+$standalone_root = null;
+if ( ! defined( 'TRASLOCO_BACKUPS_PATH' ) ) {
+	$standalone_root = sys_get_temp_dir() . '/trasloco-peer-smoke-' . bin2hex( random_bytes( 8 ) );
+	$standalone_backups = $standalone_root . '/wp-content/trasloco-backups';
+	if ( ! mkdir( $standalone_backups, 0700, true ) ) {
+		throw new RuntimeException( 'Could not create standalone peer test directory.' );
+	}
+	define( 'WP_CONTENT_DIR', $standalone_root . '/wp-content' );
+	define( 'ABSPATH', $standalone_root . '/' );
+	define( 'TRASLOCO_BACKUPS_PATH', $standalone_backups );
+
+	function trasloco_backup_path( $params ) {
+		return TRASLOCO_BACKUPS_PATH . DIRECTORY_SEPARATOR . $params['archive'];
+	}
+	function wp_json_encode( $value, $flags = 0 ) {
+		return json_encode( $value, $flags );
+	}
+	function wp_parse_url( $url ) {
+		return parse_url( $url );
+	}
+	function wp_http_validate_url( $url ) {
+		return is_string( $url ) && (bool) filter_var( $url, FILTER_VALIDATE_URL ) &&
+			strtolower( (string) parse_url( $url, PHP_URL_SCHEME ) ) === 'https';
+	}
+	function wp_mkdir_p( $directory ) {
+		return is_dir( $directory ) || mkdir( $directory, 0700, true );
+	}
+	function add_filter( $hook, $callback, $priority = 10, $accepted_args = 1 ) {
+		$GLOBALS['trasloco_peer_smoke_filters'][ $hook ][ $priority ][] = array( $callback, $accepted_args );
+	}
+	function remove_filter( $hook, $callback, $priority = 10 ) {
+		if ( empty( $GLOBALS['trasloco_peer_smoke_filters'][ $hook ][ $priority ] ) ) {
+			return false;
+		}
+		foreach ( $GLOBALS['trasloco_peer_smoke_filters'][ $hook ][ $priority ] as $index => $filter ) {
+			if ( $filter[0] === $callback ) {
+				unset( $GLOBALS['trasloco_peer_smoke_filters'][ $hook ][ $priority ][ $index ] );
+				return true;
+			}
+		}
+		return false;
+	}
+	function wp_safe_remote_get( $url, $args = array() ) {
+		$pre = false;
+		$filters = isset( $GLOBALS['trasloco_peer_smoke_filters']['pre_http_request'] )
+			? $GLOBALS['trasloco_peer_smoke_filters']['pre_http_request'] : array();
+		ksort( $filters );
+		foreach ( $filters as $callbacks ) {
+			foreach ( $callbacks as $filter ) {
+				$pre = call_user_func_array( $filter[0], array_slice( array( $pre, $args, $url ), 0, $filter[1] ) );
+			}
+		}
+		return $pre;
+	}
+	function is_wp_error( $value ) {
+		return false;
+	}
+	function wp_remote_retrieve_response_code( $response ) {
+		return isset( $response['response']['code'] ) ? $response['response']['code'] : 0;
+	}
+	function wp_remote_retrieve_body( $response ) {
+		return isset( $response['body'] ) ? $response['body'] : '';
+	}
+}
+
+require_once TRASLOCO_LIB_PATH . '/model/class-trasloco-peer.php';
 require_once TRASLOCO_LIB_PATH . '/vendor/core/archiver/class-trasloco-integrity.php';
 $base = 'https://example.com';
 $name = 'peer-smoke-fixture.wpress';
@@ -87,5 +160,10 @@ try {
     @unlink( $folder . DIRECTORY_SEPARATOR . 'download.part' );
     @unlink( $folder . DIRECTORY_SEPARATOR . 'transfer.json' );
     @rmdir( $folder );
+    if ( $standalone_root !== null ) {
+		@rmdir( TRASLOCO_BACKUPS_PATH );
+		@rmdir( WP_CONTENT_DIR );
+		@rmdir( $standalone_root );
+	}
 }
 echo "Resumable WordPress peer transfer smoke test passed.\n";
