@@ -70,7 +70,7 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 - [x] Phase 0B-1: persistent job ledger, idempotent insertion and atomic owner leases, tested on MySQL.
 - [x] Phase 0B-2A: queued verification worker with leases, checkpoint, REST status/cancel and scheduled execution.
 - [x] Phase 0B-2B-1: common stream adapter with tested local atomic writer and path/symlink defenses.
-- [ ] Phase 0B-2B-2: bounded-time chunk hashing, remote adapters, durable retries.
+- [ ] Phase 0B-2B-2: bounded-time chunk hashing, remote adapters, durable retries. WebDAV now retries temporary transfer errors up to three times; persisted retry state and resume after process exit remain unimplemented.
 - [ ] Remote storage increment: a bounded WebDAV adapter implements the stream contract with HTTPS/DNS pinning, conditional create-only upload, no redirects/proxies and bounded inventory parsing. Manual WP-CLI upload/download stages files privately, verifies remote/local SHA-256 sidecars, refuses replacement, requires explicit consent for plaintext uploads and retries temporary errors up to three times. `wp trasloco offsite status` checks provider reachability and archive/manifest pairing. Local protocol mocks and a local-provider round-trip pass; live-provider tests, durable resume, automated scheduling and S3/other providers remain pending.
 - [x] Phase 1A: create local SHA-256 sidecar manifests and add WP-CLI verification with WordPress integration test.
 - [ ] Phase 1B: verified UI, restore rehearsals and full archive content checks.
