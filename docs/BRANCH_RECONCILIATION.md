@@ -1,8 +1,8 @@
-# Branch reconciliation — 2026-10-13
+# Branch reconciliation — reviewed 2026-10-14
 
 ## Decision
 
-Use `hardening/production-readiness-2026-10` as the integration baseline. Keep `feature/trasloco-2-core` and draft PR #2 as preserved source material until its distinct features have been ported and tested individually. This document is a reconciliation plan, not a completed merge. No historical feature commits are discarded or marked delivered on hardening.
+Use `hardening/production-readiness-2026-10` as the integration baseline. Keep `feature/trasloco-2-core` and draft PR #2 as preserved source material; port safe features individually and keep deferred features documented. This review compared all 30 feature-only commits and changed source files against the current implementation. It records module disposition, not a branch merge. No historical feature commits are discarded or marked delivered on hardening.
 
 At the audited heads (`7eb0d24` and `5fe3ab8`) the branches have 107 and 30 exclusive commits respectively. A `git merge-tree --write-tree` rehearsal found eight textual conflicts: security documentation, translations, main controller, backup model, Apache and IIS access rules, integration tests and smoke tests. Automatic merges also combine loaders and CLI commands; resolving textual conflicts alone would not establish runtime compatibility.
 
@@ -25,9 +25,9 @@ The two branches register overlapping `/trasloco/v1/health`, `/jobs`, `/backups`
 
 ## Next integration gates
 
-1. Land the isolated recovery permission/payload fixes with the complete PHP/database matrix green.
-2. Keep one distinct feature port at a time; peer transfer now follows the remote adapter increment.
-3. For each port, test WordPress permissions and legacy artifacts, update this table and the 2.0 plan, and keep draft status until host-level checks pass.
-4. Close or supersede PR #2 only after every distinct module has an explicit disposition supported by code/tests; leaving its source preserved is intentional.
+1. [x] Land the isolated recovery permission/payload fixes; local PHP/database integration passed.
+2. [x] Port peer transfer and remote storage in separate increments on the current storage/job contracts.
+3. [x] Record local WordPress permission and legacy-artifact coverage for ported modules; host certification remains separately open below.
+4. [x] Give every distinct module an explicit port, compatibility, retain or defer disposition. Keep PR #2 as preserved source; do not merge its competing controllers, scheduler or storage layer wholesale.
 
 Production blockers remain automatic/global full-site rollback, cross-host and power-loss recovery, production HTTP/server/WAF coverage, WooCommerce consistency during concurrent writes and multisite fidelity. Local SQL-import crash replay and staged same-site recovery have been rehearsed; they do not certify those remaining capabilities. A branch reconciliation does not certify production readiness.
