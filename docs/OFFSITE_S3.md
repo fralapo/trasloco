@@ -45,10 +45,13 @@ The adapter verifies TLS certificates, uses Signature Version 4, rejects HTTP en
 
 Normal WP-CLI `offsite upload`, `offsite download`, `offsite status`, and queued downloads can use S3. Transfers verify the local integrity manifest and read the completed remote object back before reporting success. Writes use conditional create-only requests for both single-part upload and multipart completion; if the provider does not implement those conditions, uploads fail closed. Existing objects are never replaced by Trasloco.
 
-The adapter does not implement `Trasloco_Resumable_Storage_Adapter`. A stopped S3 multipart upload is not resumed by a later Trasloco worker, and the plugin does not yet persist multipart upload IDs or part checkpoints. Abandoned parts therefore need the provider's multipart lifecycle cleanup. S3 queue-upload jobs and scheduled encrypted S3 delivery are unavailable until durable replay is implemented. The current local fixtures validate SDK command construction and response handling; a real AWS/S3-compatible provider, deployment ZIP assembly, permission policies, failure replay and durability still need separate validation.
+The adapter does not implement `Trasloco_Resumable_Storage_Adapter`. A stopped S3 multipart upload is not resumed by a later Trasloco worker, and the plugin does not yet persist multipart upload IDs or part checkpoints. Abandoned parts therefore need the provider's multipart lifecycle cleanup. S3 queue-upload jobs and scheduled encrypted S3 delivery are unavailable until durable replay is implemented. Local SDK and HTTP wire fixtures exercise signed S3 requests, create-only writes, downloads, ranges, inventory, deletion and error handling. A real AWS/S3-compatible provider, permission policies, failure replay and durability still need separate validation.
 
 Run the local SDK fixtures with:
 
 ```sh
 php tests/s3-storage-smoke.php
+tests/s3-wire-smoke.sh
 ```
+
+The wire fixture starts a loopback-only PHP server and exercises the real AWS SDK request signer and XML/HTTP response parser. It does not contact AWS or certify a third-party S3 service.
