@@ -7,7 +7,7 @@
 **Trasloco is a free, open source WordPress plugin that backs up and migrates a whole WordPress site.** It exports the database, media library, themes and plugins into a single `.wpress` file, then imports that file on any other WordPress install, with no file size limit, no paid add-ons and no account. It is tested with a real 1.64 GB site.
 
 [![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
-![Version](https://img.shields.io/badge/version-1.2.0-informational.svg)
+![Version](https://img.shields.io/badge/version-1.3.0-informational.svg)
 ![Languages](https://img.shields.io/badge/languages-en%20it%20es%20fr%20de-success.svg)
 ![Tested on PHP 8.2](https://img.shields.io/badge/tested_on-PHP_8.2-777bb4.svg)
 
@@ -131,9 +131,9 @@ English, Italian, Spanish, French and German. The language follows the WordPress
 
 ## Known limits
 
-As of version 1.2.0 (October 2026):
+As of version 1.3.0 (October 2026):
 
-- **Not yet tried on a real host behind a firewall.** So far it has been tested on local WordPress installs, including an import of a real 1.64 GB site (12 pages, 73 media files, 19 plugins). The base64 upload was built for hosting firewalls, but it has not been seen working behind one yet. The published PHP 7.4/8.2/8.4 CLI integration matrix is historical evidence for the last release; the current source has now passed the same six PHP/database combinations locally, while real-host HTTP tests remain pending.
+- **Not yet tried on a real host behind a firewall.** So far it has been tested on local WordPress installs, including an import of a real 1.64 GB site (12 pages, 73 media files, 19 plugins). The base64 upload was built for hosting firewalls, but it has not been seen working behind one yet. The current source passes complete local CLI integration on PHP 7.4, 8.2 and 8.4 with MariaDB 13; the six PHP/database combinations recorded in the roadmap were run before the latest backup-resume changes. Real-host HTTP tests remain pending.
 - **Full-site rollback is not yet automatic.** File recovery restores planned files in two phases and preserves unrelated destination files; it does not make the entire site restore globally atomic.
 - **Single sites only.** Importing a multisite network is not supported.
 - **PHP's built-in web server is slow with big sites.** This is not a plugin problem, but if you use `php -S` for testing, each import step can take tens of seconds.

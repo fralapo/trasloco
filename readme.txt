@@ -3,7 +3,7 @@ Tags: backup, migration, migrate, export, import
 Requires at least: 5.5
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.2.0
+Stable tag: 1.3.0
 License: AGPL-3.0-or-later
 License URI: https://www.gnu.org/licenses/agpl-3.0.html
 
@@ -35,6 +35,13 @@ Trasloco exports a whole WordPress site (database, media, themes and plugins) to
 The new address is set by the import: there is nothing to type. Trasloco > Guide explains every option.
 
 == Changelog ==
+
+= 1.3.0 =
+* Interrupted local backup jobs resume from flushed export checkpoints, discard uncommitted trailing bytes and avoid duplicate archives during finalization.
+* Administrators can queue backups and inspect a bounded audit log through the REST API; backup and offsite alerts support retried email and signed HTTPS webhooks.
+* Scheduled encrypted offsite delivery supports local WebDAV and S3 adapters, resumable transfer jobs and provider health checks. Real provider certification remains open.
+* File recovery supports reviewed path exclusions; progress windows reflow on narrow screens and honor reduced-motion preferences.
+* Local PHP 7.4/8.2/8.4 integration passes with MariaDB 13. Cross-host/NFS, real-host HTTP, real provider, multisite and independent security certification remain open.
 
 = 1.2.0 =
 * Scheduled backups with verified retention, resumable SHA-256 verification and authenticated backup downloads.
