@@ -283,15 +283,15 @@ class Trasloco_REST_API {
         try {
             $path = trasloco_backup_path( array( 'archive' => $request->get_param( 'archive' ) ) );
             $report = Trasloco_Archive_Inspector::inspect( $path, 30 );
-            $report['database_preview'] = self::database_preview( $path );
+            $report['database_preview'] = self::database_preview( $path, $request->get_param( 'tables' ) );
             return rest_ensure_response( $report );
         } catch ( Exception $e ) {
             return new WP_Error( 'trasloco_invalid_preview', 'The archive could not be inspected.', array( 'status' => 400 ) );
         }
     }
 
-    /** Compare recognized archive table operations to destination table names only. */
-    private static function database_preview( $archive ) {
+    /** Compare recognized archive table operations, with an optional bounded raw-row comparison. */
+    private static function database_preview( $archive, $selected_tables = null ) {
         require_once TRASLOCO_LIB_PATH . '/vendor/core/archiver/class-trasloco-integrity.php';
         if ( Trasloco_Integrity::verify( $archive )['status'] !== 'verified' ) {
             return array(
@@ -342,12 +342,32 @@ class Trasloco_REST_API {
                 'actions' => $actions,
             );
         }
-        return array(
+        $preview = array(
             'status' => 'available',
             'tables_seen' => $inventory['tables_seen'],
             'table_operations' => $operations,
-            'warning' => 'Table-level operation preview only. It does not compare row values or counts, validate arbitrary SQL, or predict plugin/application behavior. Import may replace the listed destination tables. This is advisory, not restore approval.',
+            'warning' => 'The default preview reports table-level operations only and does not validate arbitrary SQL or predict plugin/application behavior. An optional selected-table report compares bounded raw archive rows to live rows, but the importer may transform those values. Import may replace the listed destination tables. This is advisory, not restore approval.',
         );
+        if ( $selected_tables !== null ) {
+            if ( is_string( $selected_tables ) ) {
+                $selected_tables = explode( ',', $selected_tables );
+            }
+            if ( ! is_array( $selected_tables ) || empty( $selected_tables ) || count( $selected_tables ) > 50 ) {
+                $preview['row_changes'] = array( 'status' => 'unavailable', 'tables' => array() );
+                return $preview;
+            }
+            require_once TRASLOCO_LIB_PATH . '/vendor/core/archiver/class-trasloco-sql-changeset-preview.php';
+            try {
+                $preview['row_changes'] = Trasloco_SQL_Changeset_Preview::compare( $archive, $selected_tables );
+            } catch ( Throwable $error ) {
+                $preview['row_changes'] = array(
+                    'status' => 'unavailable',
+                    'tables' => array(),
+                    'warning' => 'Row comparison could not be produced within the supported data limits.',
+                );
+            }
+        }
+        return $preview;
     }
 
     /** Predict table names only for the single-site placeholder mapping. */

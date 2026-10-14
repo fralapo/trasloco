@@ -95,8 +95,9 @@ $WP post create --path="$ROOT/source" --post_type=post --post_status=publish --p
 $WP eval '
 global $wpdb;
 $table = $wpdb->prefix . "trasloco_selective_probe";
+$backup_value = "from-backup, " . chr( 39 ) . "quoted, slash\\path\nnext";
 if ( $wpdb->query( "CREATE TABLE `" . $table . "` (id bigint NOT NULL PRIMARY KEY, value varchar(64) NOT NULL)" ) === false ||
-     $wpdb->insert( $table, array( "id" => 1, "value" => "from-backup" ) ) !== 1 ) {
+     $wpdb->insert( $table, array( "id" => 1, "value" => $backup_value ) ) !== 1 ) {
     throw new Exception( "Could not prepare selective database restore fixture" );
 }
 update_option( "trasloco_selective_restore_guard", "keep-live-value" );
@@ -134,10 +135,35 @@ $WP trasloco verify "$(basename "$ARCHIVE")" --path="$ROOT/source"
 # the explicitly selected table while preserving site settings and files.
 TRASLOCO_SELECTIVE_EXPECTED_HOME=$($WP option get home --path="$ROOT/source")
 export TRASLOCO_SELECTIVE_EXPECTED_HOME
+export TRASLOCO_SELECTIVE_ARCHIVE="$ARCHIVE"
 $WP eval '
 global $wpdb;
 $wpdb->update( $wpdb->prefix . "trasloco_selective_probe", array( "value" => "changed-live-value" ), array( "id" => 1 ) );
+if ( $wpdb->insert( $wpdb->prefix . "trasloco_selective_probe", array( "id" => 2, "value" => "live-only" ) ) !== 1 ) {
+    throw new Exception( "Could not add the live-only changeset row" );
+}
 update_option( "trasloco_selective_restore_guard", "keep-live-value" );
+require_once TRASLOCO_LIB_PATH . "/vendor/core/archiver/class-trasloco-sql-changeset-preview.php";
+$changeset = Trasloco_SQL_Changeset_Preview::compare( getenv( "TRASLOCO_SELECTIVE_ARCHIVE" ), array( "trasloco_selective_probe" ) );
+$table = $changeset["tables"][0];
+if ( $changeset["status"] !== "available" || $table["status"] !== "compared" ||
+     $table["source_rows"] !== 1 || $table["destination_rows"] !== 2 ||
+     $table["changed"] !== 1 || $table["removed"] !== 1 || $table["added"] !== 0 ) {
+    throw new Exception( "Row changeset did not report the changed and live-only rows: " . wp_json_encode( $changeset ) );
+}
+$admins = get_users( array( "role" => "administrator", "number" => 1 ) );
+if ( empty( $admins ) ) { throw new Exception( "Could not load an administrator for row-preview REST test" ); }
+wp_set_current_user( $admins[0]->ID );
+$preview_request = new WP_REST_Request( "GET", "/trasloco/v1/backups/" . basename( getenv( "TRASLOCO_SELECTIVE_ARCHIVE" ) ) . "/preview" );
+$preview_request->set_param( "tables", "trasloco_selective_probe" );
+$preview_response = rest_do_request( $preview_request );
+$preview_data = $preview_response->get_data();
+$rest_changes = isset( $preview_data["database_preview"]["row_changes"]["tables"][0] ) ?
+    $preview_data["database_preview"]["row_changes"]["tables"][0] : array();
+if ( $preview_response->is_error() || ! isset( $rest_changes["status"], $rest_changes["changed"], $rest_changes["removed"] ) ||
+     $rest_changes["status"] !== "compared" || $rest_changes["changed"] !== 1 || $rest_changes["removed"] !== 1 ) {
+    throw new Exception( "Admin preview REST route did not return the selected row changeset: " . wp_json_encode( $preview_data ) );
+}
 ' --path="$ROOT/source"
 $WP trasloco restore-tables "$(basename "$ARCHIVE")" --tables=trasloco_selective_probe --path="$ROOT/source"
 $WP eval '
@@ -160,8 +186,11 @@ fi
 $WP trasloco restore-tables "$(basename "$ARCHIVE")" --tables=trasloco_selective_probe --yes --path="$ROOT/source"
 $WP eval '
 global $wpdb;
-if ( $wpdb->get_var( "SELECT value FROM `" . $wpdb->prefix . "trasloco_selective_probe` WHERE id = 1" ) !== "from-backup" ) {
+if ( $wpdb->get_var( "SELECT value FROM `" . $wpdb->prefix . "trasloco_selective_probe` WHERE id = 1" ) !== "from-backup, " . chr( 39 ) . "quoted, slash\\path\nnext" ) {
     throw new Exception( "Selected database table was not restored from the archive" );
+}
+if ( (int) $wpdb->get_var( "SELECT COUNT(*) FROM `" . $wpdb->prefix . "trasloco_selective_probe`" ) !== 1 ) {
+    throw new Exception( "Selected database restore did not remove the live-only row" );
 }
 if ( get_option( "trasloco_selective_restore_guard" ) !== "keep-live-value" ||
      file_get_contents( WP_CONTENT_DIR . "/uploads/test-fixtures/fixture.txt" ) !== "media is preserved\n" ||
@@ -1166,6 +1195,8 @@ if ( strpos( $schedule_html, "Encrypt and upload each scheduled backup to remote
     strpos( $schedule_html, "Verified" ) === false ||
     strpos( $schedule_html, "trasloco-backup-selective-restore" ) === false ||
     strpos( $schedule_html, "Restore selected database tables" ) === false ||
+    strpos( $schedule_html, "Row changes (raw)" ) === false ||
+    strpos( $schedule_html, "does not predict the imported result" ) === false ||
     strpos( $schedule_html, "have paused writes to them" ) === false ||
     strpos( $schedule_html, "Encrypt backup" ) === false ||
     strpos( $schedule_html, "action=trasloco_encrypt_backup" ) === false ||
