@@ -42,6 +42,7 @@
 				( $incremental_stats['net_saved_bytes'] < 0 ? '-' : '' ) . size_format( abs( $incremental_stats['net_saved_bytes'] ), 2 ) ) ); ?></p>
 			<p class="tr-hint"><?php esc_html_e( 'Net space saved compares snapshot logical bytes with measured object, catalog, pending, remaining archive and manifest file sizes. It can be negative while original archives remain.', TRASLOCO_PLUGIN_NAME ); ?></p>
 			<?php if ( $snapshots ) : ?>
+				<div class="tr-snapshot-table-wrap" role="region" aria-labelledby="tr-incremental-snapshots" tabindex="0">
 				<table class="trasloco-backups tr-table">
 					<caption class="screen-reader-text"><?php esc_html_e( 'Incremental snapshot catalog', TRASLOCO_PLUGIN_NAME ); ?></caption>
 					<thead><tr><th scope="col"><?php esc_html_e( 'Snapshot', TRASLOCO_PLUGIN_NAME ); ?></th><th scope="col"><?php esc_html_e( 'Date', TRASLOCO_PLUGIN_NAME ); ?></th><th scope="col"><?php esc_html_e( 'Logical size', TRASLOCO_PLUGIN_NAME ); ?></th><th scope="col"><?php esc_html_e( 'Integrity', TRASLOCO_PLUGIN_NAME ); ?></th><th scope="col"><?php esc_html_e( 'Restore command', TRASLOCO_PLUGIN_NAME ); ?></th></tr></thead>
@@ -57,6 +58,7 @@
 					<?php endforeach; ?>
 					</tbody>
 				</table>
+				</div>
 			<?php else : ?>
 				<p><?php esc_html_e( 'No incremental snapshots are available.', TRASLOCO_PLUGIN_NAME ); ?></p>
 			<?php endif; ?>

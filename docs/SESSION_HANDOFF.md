@@ -26,7 +26,7 @@ cd trasloco
 git checkout main
 ```
 
-The incremental workflow is implemented and covered by local smoke and WordPress integration tests. Full archives remain by default; administrators can explicitly compact one after integrity-manifest, archive-structure, catalog and whole-file verification. Restore reconstructs to a non-existing path, verifies the archive structure, and invokes the existing importer. Storage figures measure file lengths and do not claim filesystem block allocation or broad real-archive benchmark results. The remaining roadmap audits include keyboard/screen-reader/contrast review and independent security review; real screen-reader coverage and provider/hosting certifications still require separate environments.
+The incremental workflow is implemented and covered by local smoke and WordPress integration tests. Full archives remain by default; administrators can explicitly compact one after integrity-manifest, archive-structure, catalog and whole-file verification. Restore reconstructs to a non-existing path, verifies the archive structure, and invokes the existing importer. The snapshot table has a screen-reader caption, scoped column headings and keyboard-accessible horizontal scrolling. Storage figures measure file lengths and do not claim filesystem block allocation or broad real-archive benchmark results. Full keyboard, screen-reader and contrast audits and independent security review remain open; real screen-reader coverage and provider/hosting certifications still require separate environments.
 
 Real AWS/S3 or WebDAV certification, cross-host/NFS locking and production Apache/Nginx/IIS/WAF testing require external environments and should remain clearly marked as unverified until tested there.
 

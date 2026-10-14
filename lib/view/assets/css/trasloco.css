@@ -598,3 +598,7 @@
 .tr-dashboard-guide { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 24px 0; }
 .tr-dashboard a:focus-visible { outline: 3px solid var(--tr-accent-dark); outline-offset: 3px; }
 @media (max-width: 782px) { .tr-dashboard-grid { grid-template-columns: 1fr; } }
+
+/* Wide snapshot tables remain usable at narrow widths and through keyboard scroll. */
+.tr-snapshot-table-wrap { max-width: 100%; overflow-x: auto; }
+.tr-snapshot-table-wrap:focus-visible { outline: 2px solid var(--tr-accent-dark); outline-offset: 2px; }
