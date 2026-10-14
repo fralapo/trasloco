@@ -1,16 +1,20 @@
 <?php
 /**
- * CI-only fixture. Copy a genuine .wpress archive while appending an invalid
- * SQL statement to its root database.sql entry. The archive still has valid
- * headers and trailer, so this tests a true post-DDL database execution fault
- * instead of just malformed archive preflight.
+ * Integration fixture. Copy a genuine .wpress archive while appending either
+ * a failing or deliberately slow SQL statement to its root database.sql
+ * entry. Headers and trailer remain valid so tests reach the SQL importer.
  */
-if ( PHP_SAPI !== 'cli' || $argc !== 3 ) {
-    fwrite( STDERR, "Usage: php tests/inject-sql-failure.php INPUT.wpress OUTPUT.wpress\n" );
+if ( PHP_SAPI !== 'cli' || ( $argc !== 3 && $argc !== 4 ) ) {
+    fwrite( STDERR, "Usage: php tests/inject-sql-failure.php INPUT.wpress OUTPUT.wpress [failure|sleep]\n" );
     exit( 2 );
 }
 $source = $argv[1];
 $target = $argv[2];
+$mode = $argc === 4 ? $argv[3] : 'failure';
+if ( ! in_array( $mode, array( 'failure', 'sleep' ), true ) ) {
+    fwrite( STDERR, "Unsupported SQL fixture mode.\n" );
+    exit( 2 );
+}
 if ( $source === $target || ! is_file( $source ) || ! is_readable( $source ) ||
      is_link( $source ) || file_exists( $target ) || is_link( $target ) ) {
     fwrite( STDERR, "Unsafe SQL failure fixture input or output.\n" );
@@ -38,7 +42,7 @@ $header_bytes = 4377;
 $size = filesize( $source );
 $cursor = 0;
 $injected = 0;
-$extra = "\nSELECT * FROM trasloco_ci_forced_sql_failure_2026;\n";
+$extra = $mode === 'sleep' ? "\nSELECT SLEEP(30);\n" : "\nSELECT * FROM trasloco_ci_forced_sql_failure_2026;\n";
 try {
     while ( $cursor < $size - $header_bytes ) {
         if ( fseek( $input, $cursor, SEEK_SET ) !== 0 ) {
@@ -101,4 +105,4 @@ try {
 }
 fclose( $input );
 fclose( $output );
-echo "Valid archive with a post-DDL SQL execution error created.\n";
+echo $mode === 'sleep' ? "Valid archive with a post-DDL SQL pause created.\n" : "Valid archive with a post-DDL SQL execution error created.\n";

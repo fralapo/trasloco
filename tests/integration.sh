@@ -415,6 +415,72 @@ test -s "$RECOVERY_STAGE/database.sql"
 test -s "$RECOVERY_STAGE/package.json"
 cmp -s "$ROOT/target-safety-marker.expected" "$RECOVERY_STAGE/content/uploads/target-before-import/safety-marker.txt"
 
+# Kill an actual WP-CLI import while MySQL is executing a deliberately slow
+# statement after the archive's DDL/DML, then replay the same operation. This
+# verifies process-crash receipt durability and restart behavior, not atomic
+# rollback of changes already committed by MySQL DDL.
+CRASH_ARCHIVE="$ROOT/target/wp-content/trasloco-backups/crash-replay.wpress"
+php "$GITHUB_WORKSPACE/tests/inject-sql-failure.php" "$ARCHIVE" "$CRASH_ARCHIVE" sleep
+$WP plugin activate trasloco --path="$ROOT/target"
+$WP trasloco restore "$(basename "$CRASH_ARCHIVE")" --path="$ROOT/target" > "$ROOT/crash-restore.log" 2>&1 &
+CRASH_PID=$!
+SLEEP_QUERY_SEEN=0
+for attempt in $(seq 1 600); do
+  if mysql --protocol=TCP -h 127.0.0.1 -u root -proot -N -e 'SHOW FULL PROCESSLIST' 2>/dev/null | grep -Fq 'SELECT SLEEP(30)'; then
+    SLEEP_QUERY_SEEN=1
+    break
+  fi
+  if ! kill -0 "$CRASH_PID" 2>/dev/null; then
+    break
+  fi
+  sleep 0.1
+done
+if [ "$SLEEP_QUERY_SEEN" != 1 ]; then
+  kill -KILL "$CRASH_PID" 2>/dev/null || true
+  wait "$CRASH_PID" 2>/dev/null || true
+  /usr/bin/sed -n '1,120p' "$ROOT/crash-restore.log"
+  echo "ERROR: importer never reached the post-DDL crash point" >&2
+  exit 1
+fi
+kill -KILL "$CRASH_PID"
+wait "$CRASH_PID" 2>/dev/null || true
+CRASH_RECEIPT=$(find "$ROOT/target/wp-content/trasloco-backups" -maxdepth 1 \
+  -type f -name '.trasloco-recovery-*.json' -exec grep -q 'crash-replay.wpress' {} \; -print -quit)
+test -s "$CRASH_RECEIPT"
+php -r '
+  $receipt = json_decode(file_get_contents($argv[1]), true);
+  if (!is_array($receipt) || $receipt["status"] !== "pending" ||
+      $receipt["source_archive"] !== "crash-replay.wpress") {
+      fwrite(STDERR, "SIGKILL during SQL import did not preserve a pending receipt\n"); exit(1);
+  }
+' "$CRASH_RECEIPT"
+# Replace only the test archive's trailing pause with the original fixture
+# bytes, retaining the archive name for the successful replay attempt.
+cp "$ARCHIVE" "$CRASH_ARCHIVE"
+$WP plugin activate trasloco --path="$ROOT/target"
+$WP trasloco restore "$(basename "$CRASH_ARCHIVE")" --path="$ROOT/target"
+php -r '
+  require $argv[2];
+  $crashed = json_decode(file_get_contents($argv[1]), true);
+  if (!is_array($crashed) || !isset($crashed["id"]) ||
+      $crashed["status"] !== "pending" || $crashed["source_archive"] !== "crash-replay.wpress") {
+    fwrite(STDERR, "Original SIGKILL receipt was not preserved as pending\n"); exit(1);
+  }
+  $completed = false;
+  foreach (glob(dirname($argv[1]) . "/.trasloco-recovery-*.json") as $path) {
+    $entry = json_decode(file_get_contents($path), true);
+    if (is_array($entry) && $entry["source_archive"] === "crash-replay.wpress" &&
+        $entry["status"] === "completed" && $entry["id"] !== $crashed["id"]) {
+      $completed = true;
+    }
+  }
+  if (!$completed) {
+      fwrite(STDERR, "Restarted import did not complete while preserving the crash receipt\n"); exit(1);
+  }
+' "$CRASH_RECEIPT" "$GITHUB_WORKSPACE/lib/model/import/class-trasloco-recovery-journal.php"
+$WP user get oldadmin --path="$ROOT/target" --field=user_login | grep -Fx oldadmin
+echo "PASS: SIGKILL after post-DDL SQL preserved its pending receipt; a successful replay completed with a separate receipt."
+
 echo "Destination tables:"
 $WP db tables --path="$ROOT/target" || true
 HOME_URL=$($WP option get home --path="$ROOT/target" || true)

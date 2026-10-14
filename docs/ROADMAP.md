@@ -1,10 +1,12 @@
 # Production readiness roadmap
 
-Updated 2026-10-13. Version 1.2.0 ships the reviewed hardening work on `main`; it is a maintenance release, not production certification. [The 2.0 execution plan](TRASLOCO_2_0_PLAN.md) contains the next feature increments; [branch reconciliation](BRANCH_RECONCILIATION.md) records how the separate draft implementation will be ported.
+Updated 2026-10-14. Version 1.2.0 ships the reviewed hardening work on `main`; it is a maintenance release, not production certification. [The 2.0 execution plan](TRASLOCO_2_0_PLAN.md) contains the next feature increments; [branch reconciliation](BRANCH_RECONCILIATION.md) records how the separate draft implementation will be ported.
 
 ## Verified baseline
 
 Release candidate `d9581af` passed [quality checks](https://github.com/fralapo/trasloco/actions/runs/38417080300) on PHP 7.4/8.2/8.4 and [six CLI integration jobs](https://github.com/fralapo/trasloco/actions/runs/38417080326) across those PHP versions with MySQL 8.0 and MariaDB 11.4. The integration downloads WordPress at execution time; this is not a pinned current/previous-major WordPress matrix or an HTTP hosting test.
+
+On 2026-10-14, the complete CLI integration and same-site staged rollback rehearsal passed locally on PHP 8.5.4, WordPress 7.1.3 and MariaDB 13.0.2. Separate anonymous HTTP fixtures returned 200 for a public page and 403 for an archive, its manifest, an arbitrary temporary file and plugin storage on Apache 2.4.67 and Nginx 1.31.6. The Nginx fixture used the rules documented in [security guidance](SECURITY.md); this does not certify a hosting provider, reverse proxy, WAF, IIS or production virtual host.
 
 - [x] Expiring operation-scoped tokens, administrator permissions and authenticated backup downloads.
 - [x] Apache/IIS access rules for archives and private staging; Nginx configuration documented.
@@ -25,9 +27,9 @@ Release candidate `d9581af` passed [quality checks](https://github.com/fralapo/t
 
 ## Remaining production certification work
 
-- [ ] Full independently rehearsed site rollback, including archive-absent paths; overlay recovery is not globally atomic.
-- [ ] Multi-process locking, durable fsync/power-failure and true interrupted-PHP crash/replay tests.
-- [ ] Apache/Nginx/IIS HTTP denial and restore tests; sessions replaced mid-import, WAF, disconnected uploads and large-host stress.
+- [x] Local operator-driven full-site rollback rehearsal, including reviewed archive-absent paths. Production portability remains open and overlay recovery is not globally atomic.
+- [ ] Multi-process locking and storage-device power-failure behavior. A local integration now sends SIGKILL to WP-CLI while MySQL is executing the imported SQL, confirms the crash receipt remains pending, then successfully repeats the restore; the original pending receipt remains as a forensic record.
+- [ ] Real-host Apache/Nginx/IIS HTTP denial and authenticated restore tests; sessions replaced mid-import, WAF, disconnected uploads and large-host stress. Local Apache and Nginx fixture checks pass as recorded above.
 - [ ] Pinned current/previous-major WordPress compatibility fixtures.
 - [ ] Remote storage/cloud adapters and incremental chain delivery on the canonical job/storage contracts.
 - [ ] WooCommerce order consistency and multisite fidelity.

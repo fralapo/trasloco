@@ -500,6 +500,44 @@ try {
 } catch ( InvalidArgumentException $expected ) {}
 Trasloco_Recovery_Journal::complete( $journal_dir, $id );
 ensure( Trasloco_Recovery_Journal::entries( $journal_dir )[0]['status'] === 'completed', 'successful import closes receipt' );
+$crash_key = 'crash-replay-operation-key-2026';
+$child_code = 'require $argv[1]; $dir = $argv[2]; $id = Trasloco_Recovery_Journal::begin( $dir, "incoming-crash.wpress", "recovery-safe.wpress", "' . $crash_key . '" ); file_put_contents( $dir . "/.crash-ready", $id ); sleep( 30 );';
+$child = proc_open( array( PHP_BINARY, '-r', $child_code,
+    dirname( __DIR__ ) . '/lib/model/import/class-trasloco-recovery-journal.php', $journal_dir ),
+    array( 0 => array( 'pipe', 'r' ), 1 => array( 'pipe', 'w' ), 2 => array( 'pipe', 'w' ) ), $pipes );
+ensure( is_resource( $child ), 'start recovery crash fixture' );
+fclose( $pipes[0] );
+$ready = false;
+for ( $attempt = 0; $attempt < 200; $attempt++ ) {
+    if ( is_file( $journal_dir . '/.crash-ready' ) ) {
+        $ready = true;
+        break;
+    }
+    usleep( 25000 );
+}
+if ( ! $ready ) {
+    proc_terminate( $child, 9 );
+    fclose( $pipes[1] );
+    fclose( $pipes[2] );
+    proc_close( $child );
+    ensure( false, 'child reached durable pending receipt before crash' );
+}
+$crash_id = trim( (string) file_get_contents( $journal_dir . '/.crash-ready' ) );
+proc_terminate( $child, 9 );
+fclose( $pipes[1] );
+fclose( $pipes[2] );
+proc_close( $child );
+unlink( $journal_dir . '/.crash-ready' );
+$after_crash = array_filter( Trasloco_Recovery_Journal::entries( $journal_dir, 100 ), function ( $entry ) use ( $crash_id ) {
+    return $entry['id'] === $crash_id && $entry['status'] === 'pending';
+} );
+ensure( count( $after_crash ) === 1, 'SIGKILL leaves an independently readable pending receipt' );
+$replayed_id = Trasloco_Recovery_Journal::begin( $journal_dir, 'incoming-crash.wpress',
+    'recovery-safe.wpress', $crash_key );
+ensure( $replayed_id === $crash_id, 'replaying the same operation reuses its pending receipt' );
+Trasloco_Recovery_Journal::complete( $journal_dir, $replayed_id );
+ensure( Trasloco_Recovery_Journal::entries( $journal_dir )[0]['status'] === 'completed',
+    'replayed operation can complete the original receipt' );
 $pending = Trasloco_Recovery_Journal::begin( $journal_dir, 'incoming-next.wpress', 'recovery-safe.wpress' );
 $limited = Trasloco_Recovery_Journal::entries( $journal_dir, 1 );
 ensure( count( $limited ) === 1 && $limited[0]['id'] === $pending && $limited[0]['status'] === 'pending',
@@ -508,6 +546,7 @@ unlink( $journal_dir . '/recovery-safe.wpress' );
 unlink( $journal_dir . '/recovery-safe.wpress.manifest.json' );
 unlink( $journal_dir . '/.trasloco-recovery-' . $id . '.json' );
 unlink( $journal_dir . '/.trasloco-recovery-' . $pending . '.json' );
+unlink( $journal_dir . '/.trasloco-recovery-' . $crash_id . '.json' );
 rmdir( $journal_dir );
 
 

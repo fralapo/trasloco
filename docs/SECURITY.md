@@ -18,6 +18,8 @@ location ~* ^/wp-content/trasloco-backups/ { return 403; }
 location ~* ^/wp-content/plugins/trasloco/storage/ { return 403; }
 ```
 
+Local anonymous HTTP fixtures on 2026-10-14 returned 403 for a `.wpress` archive, its JSON manifest, an arbitrary-extension temporary file and plugin storage on Apache 2.4.67 using Trasloco's generated `.htaccess` and on Nginx 1.31.6 using the rules above; a public page returned 200 on both. This validates those local configurations only. Check the effective production vhost and reverse-proxy/WAF behavior from outside the site while logged out.
+
 If WordPress is installed in a subdirectory, update the prefix. If the folder was renamed by a ZIP installation, update the plugin path as well. Prefer keeping backups **outside the document root** when your hosting permits it. On IIS, existing web.config files from older releases may need manual replacement with the new template.
 
 Verify from a logged-out/incognito browser that **all direct archive URLs return 403 or 404**, not 200. Random filenames and directory-listing blocks are not a substitute for download authorization.
@@ -29,6 +31,10 @@ Verify from a logged-out/incognito browser that **all direct archive URLs return
 4. Run the migration and confirm the old account credentials work.
 5. Verify pages, images, plugins, forms, permalinks and WooCommerce data where relevant.
 6. Remove obsolete archives from the server.
+
+## Live WooCommerce and other transactional data
+
+The database exporter reads tables and row batches over multiple queries; it does not hold one transactionally consistent point-in-time snapshot across the entire database. A store accepting orders, payment callbacks, webhooks or background Action Scheduler work can therefore change between related reads. Before exporting a live store, enable maintenance mode and pause checkout, incoming integrations and queued order work until the export finishes. A storage-level database snapshot or a separately tested database-native backup is preferable when the store cannot be quiesced. Trasloco has not yet certified order consistency for WooCommerce High-Performance Order Storage (HPOS) or concurrent order creation; verify orders, refunds, statuses, items, metadata and scheduled actions on an isolated staging restore before production use.
 
 ## Limitations
 - Stopping a failed SQL import cannot automatically reverse MySQL DDL such as DROP TABLE.
