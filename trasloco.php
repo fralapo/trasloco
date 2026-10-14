@@ -111,6 +111,7 @@ require_once dirname( __FILE__ ) . DIRECTORY_SEPARATOR . 'exceptions.php';
 require_once dirname( __FILE__ ) . '/lib/model/storage/interface-trasloco-storage-adapter.php';
 require_once dirname( __FILE__ ) . '/lib/model/storage/class-trasloco-local-storage.php';
 require_once dirname( __FILE__ ) . '/lib/model/storage/class-trasloco-webdav-storage.php';
+require_once dirname( __FILE__ ) . '/lib/model/storage/class-trasloco-s3-storage.php';
 require_once dirname( __FILE__ ) . '/lib/model/storage/class-trasloco-storage-factory.php';
 require_once dirname( __FILE__ ) . '/lib/model/storage/class-trasloco-offsite-transfer.php';
 

@@ -1,0 +1,14 @@
+{
+  "name": "fralapo/trasloco-s3-runtime",
+  "description": "Optional S3-compatible storage runtime for Trasloco",
+  "license": "AGPL-3.0-or-later",
+  "type": "project",
+  "require": {
+    "php": ">=8.1",
+    "aws/aws-sdk-php": "^3.338"
+  },
+  "config": {
+    "vendor-dir": "vendor-s3",
+    "sort-packages": true
+  }
+}
