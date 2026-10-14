@@ -3,12 +3,17 @@
 class Trasloco_Scheduled_Backups {
     const OPTION = 'trasloco_automatic_backup_settings';
     const HOOK = 'trasloco_scheduled_backup_tick';
+    const HEALTH_HOOK = 'trasloco_offsite_health_check';
+    const HEALTH_OPTION = 'trasloco_offsite_health_state';
 
     public static function register() {
         add_action( 'init', array( __CLASS__, 'sync' ), 30 );
         add_action( 'admin_post_trasloco_save_schedule', array( __CLASS__, 'save' ) );
         add_action( self::HOOK, array( __CLASS__, 'enqueue' ) );
         add_action( 'trasloco_scheduled_backup_failed', array( __CLASS__, 'notify_failure' ) );
+        add_action( 'trasloco_offsite_transfer_failed', array( __CLASS__, 'notify_offsite_failure' ) );
+        add_action( 'init', array( __CLASS__, 'sync_health_check' ), 31 );
+        add_action( self::HEALTH_HOOK, array( __CLASS__, 'health_check' ) );
     }
 
 
@@ -27,6 +32,69 @@ class Trasloco_Scheduled_Backups {
         );
     }
 
+    /** Notify only on a health-state transition; never include credentials or endpoints. */
+    private static function set_health_state( $state ) {
+        $previous = get_option( self::HEALTH_OPTION, 'unknown' );
+        if ( $previous === $state ) {
+            return;
+        }
+        update_option( self::HEALTH_OPTION, $state, false );
+        $email = get_option( 'admin_email' );
+        if ( ! is_email( $email ) ) {
+            return;
+        }
+        if ( $state === 'attention' ) {
+            wp_mail( $email,
+                __( 'Trasloco offsite storage needs attention', TRASLOCO_PLUGIN_NAME ),
+                __( 'Trasloco could not confirm that offsite storage is healthy. Check the provider configuration and recent transfer jobs in WordPress administration.', TRASLOCO_PLUGIN_NAME )
+            );
+        } elseif ( $state === 'healthy' && $previous === 'attention' ) {
+            wp_mail( $email,
+                __( 'Trasloco offsite storage recovered', TRASLOCO_PLUGIN_NAME ),
+                __( 'Trasloco can reach offsite storage again and its archive inventory is complete.', TRASLOCO_PLUGIN_NAME )
+            );
+        }
+    }
+
+    public static function notify_offsite_failure( $job_id ) {
+        self::set_health_state( 'attention' );
+    }
+
+    /** Schedule a bounded daily inventory check only when offsite delivery is enabled. */
+    public static function sync_health_check() {
+        $next = wp_next_scheduled( self::HEALTH_HOOK );
+        if ( ! self::settings()['upload_offsite'] ) {
+            if ( $next !== false ) {
+                wp_clear_scheduled_hook( self::HEALTH_HOOK );
+            }
+            return;
+        }
+        if ( $next === false ) {
+            wp_schedule_event( time() + DAY_IN_SECONDS, 'daily', self::HEALTH_HOOK );
+        }
+    }
+
+    /** Probe provider reachability and archive/manifest pairing without reading archive data. */
+    public static function health_check() {
+        if ( ! self::settings()['upload_offsite'] ) {
+            return false;
+        }
+        try {
+            if ( ! wp_mkdir_p( TRASLOCO_BACKUPS_PATH ) ) {
+                throw new RuntimeException( 'Backup directory is unavailable.' );
+            }
+            require_once TRASLOCO_LIB_PATH . '/vendor/core/archiver/class-trasloco-integrity.php';
+            $adapter = Trasloco_Storage_Factory::configured();
+            $transfer = new Trasloco_Offsite_Transfer( $adapter, TRASLOCO_BACKUPS_PATH );
+            $report = $transfer->inventory_status();
+            self::set_health_state( $report['status'] === 'healthy' ? 'healthy' : 'attention' );
+            return $report;
+        } catch ( Throwable $error ) {
+            self::set_health_state( 'attention' );
+            return false;
+        }
+    }
+
     public static function settings() {
         $value = get_option( self::OPTION, array() );
         $value = is_array( $value ) ? $value : array();
@@ -35,7 +103,12 @@ class Trasloco_Scheduled_Backups {
         if ( ! in_array( $frequency, array( 'off', 'hourly', 'daily', 'weekly', 'monthly' ), true ) ) {
             $frequency = 'off';
         }
-        return array( 'frequency' => $frequency, 'keep' => max( 1, min( 100, $keep ) ), 'before_updates' => ! empty( $value['before_updates'] ) );
+        return array(
+            'frequency' => $frequency,
+            'keep' => max( 1, min( 100, $keep ) ),
+            'before_updates' => ! empty( $value['before_updates'] ),
+            'upload_offsite' => ! empty( $value['upload_offsite'] ),
+        );
     }
 
     public static function sync() {
@@ -79,7 +152,13 @@ class Trasloco_Scheduled_Backups {
             wp_die( 'Invalid schedule configuration.', '', array( 'response' => 400 ) );
         }
         $before_updates = isset( $_POST['before_updates'] ) && $_POST['before_updates'] === '1';
-        update_option( self::OPTION, array( 'frequency' => $frequency, 'keep' => $keep, 'before_updates' => $before_updates ), false );
+        $upload_offsite = isset( $_POST['upload_offsite'] ) && $_POST['upload_offsite'] === '1';
+        update_option( self::OPTION, array(
+            'frequency' => $frequency,
+            'keep' => $keep,
+            'before_updates' => $before_updates,
+            'upload_offsite' => $upload_offsite,
+        ), false );
         wp_clear_scheduled_hook( self::HOOK );
         self::sync();
         wp_safe_redirect( admin_url( 'admin.php?page=trasloco_backups&schedule_saved=1' ) );
@@ -100,7 +179,10 @@ class Trasloco_Scheduled_Backups {
             $bucket = (int) floor( time() / $seconds[ $settings['frequency'] ] );
         }
         $key = hash( 'sha256', 'scheduled-backup|' . $settings['frequency'] . '|' . $bucket );
-        $id = Trasloco_Job_Store::create( 'backup', array( 'retention' => $settings['keep'] ), $key );
+        $id = Trasloco_Job_Store::create( 'backup', array(
+            'retention' => $settings['keep'],
+            'upload_offsite' => $settings['upload_offsite'],
+        ), $key );
         if ( is_wp_error( $id ) || ! $id ) {
             return false;
         }

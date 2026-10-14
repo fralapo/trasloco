@@ -855,6 +855,59 @@ if ( $result["status"] !== "completed" ) { throw new Exception( "Scheduled expor
 $archive = trasloco_backup_path( array( "archive" => $result["archive"] ) );
 if ( Trasloco_Integrity::verify( $archive )["status"] !== "verified" ) { throw new Exception( "Scheduled archive is corrupt" ); }
 if ( count( (new Trasloco_Backups())->get_files() ) > 2 ) { throw new Exception( "Retention failed" ); }
+update_option( Trasloco_Scheduled_Backups::OPTION, array( "frequency" => "weekly", "keep" => 2, "upload_offsite" => true ) );
+wp_clear_scheduled_hook( Trasloco_Scheduled_Backups::HOOK );
+Trasloco_Scheduled_Backups::sync();
+$offsite_id = Trasloco_Scheduled_Backups::enqueue();
+$offsite_job = is_int( $offsite_id ) ? Trasloco_Job_Store::workload( $offsite_id ) : null;
+if ( ! is_array( $offsite_job ) || $offsite_job["payload"] !== array( "retention" => 2, "upload_offsite" => true ) ) {
+    throw new Exception( "Scheduled encrypted offsite delivery was not represented by a credential-free backup job" );
+}
+Trasloco_Job_Store::cancel( $offsite_id );
+Trasloco_Scheduled_Backups::sync_health_check();
+if ( ! wp_next_scheduled( Trasloco_Scheduled_Backups::HEALTH_HOOK ) ) {
+    throw new Exception( "Offsite health check was not scheduled when delivery was enabled" );
+}
+update_option( Trasloco_Scheduled_Backups::HEALTH_OPTION, "healthy", false );
+$health_mail = array();
+$health_mail_filter = function ( $short_circuit, $atts ) use ( &$health_mail ) {
+    $health_mail[] = $atts;
+    return true;
+};
+add_filter( "pre_wp_mail", $health_mail_filter, 10, 2 );
+$offsite_paused = TRASLOCO_REMOTE_DIRECTORY . ".paused";
+if ( ! rename( TRASLOCO_REMOTE_DIRECTORY, $offsite_paused ) ) { throw new Exception( "Could not pause local offsite fixture" ); }
+$health_down = Trasloco_Scheduled_Backups::health_check();
+if ( $health_down !== false || get_option( Trasloco_Scheduled_Backups::HEALTH_OPTION ) !== "attention" ||
+    count( $health_mail ) !== 1 || strpos( $health_mail[0]["subject"], "needs attention" ) === false ) {
+    rename( $offsite_paused, TRASLOCO_REMOTE_DIRECTORY );
+    throw new Exception( "Offsite outage did not raise one transition notice" );
+}
+if ( ! rename( $offsite_paused, TRASLOCO_REMOTE_DIRECTORY ) ) { throw new Exception( "Could not restore local offsite fixture" ); }
+$health_report = Trasloco_Scheduled_Backups::health_check();
+remove_filter( "pre_wp_mail", $health_mail_filter, 10 );
+if ( ! is_array( $health_report ) || $health_report["status"] !== "healthy" ||
+    get_option( Trasloco_Scheduled_Backups::HEALTH_OPTION ) !== "healthy" ||
+    count( $health_mail ) !== 2 || strpos( $health_mail[1]["subject"], "recovered" ) === false ) {
+    throw new Exception( "Offsite health recovery did not update status and send a recovery notice" );
+}
+putenv( "TRASLOCO_ARCHIVE_PASSPHRASE=" );
+if ( ! defined( "TRASLOCO_ARCHIVE_PASSPHRASE" ) ) { define( "TRASLOCO_ARCHIVE_PASSPHRASE", "" ); }
+$fail_closed_id = Trasloco_Job_Store::create( "backup", array( "retention" => 2, "upload_offsite" => true ),
+    wp_generate_password( 32, false, false ) );
+if ( is_wp_error( $fail_closed_id ) ) { throw new Exception( "Could not create fail-closed offsite backup fixture" ); }
+$fail_closed = Trasloco_Job_Worker::run( $fail_closed_id );
+$failed_record = Trasloco_Job_Store::get( $fail_closed_id );
+$failed_archive = isset( $failed_record["checkpoint"]["archive"] ) ? TRASLOCO_BACKUPS_PATH . DIRECTORY_SEPARATOR . $failed_record["checkpoint"]["archive"] : "";
+if ( $fail_closed["status"] !== "failed" || $failed_record["state"] !== "failed" ||
+    ! is_file( $failed_archive ) || is_file( $failed_archive . ".enc" ) || is_file( $failed_archive . ".enc.manifest.json" ) ) {
+    throw new Exception( "Scheduled offsite backup did not fail closed without a passphrase" );
+}
+update_option( Trasloco_Scheduled_Backups::OPTION, array( "frequency" => "daily", "keep" => 2, "upload_offsite" => false ) );
+wp_clear_scheduled_hook( Trasloco_Scheduled_Backups::HOOK );
+Trasloco_Scheduled_Backups::sync();
+Trasloco_Scheduled_Backups::sync_health_check();
+if ( wp_next_scheduled( Trasloco_Scheduled_Backups::HEALTH_HOOK ) ) { throw new Exception( "Offsite health polling remained enabled after opt-out" ); }
 // Calendar-month scheduling follows WordPress timezone and is one-shot.
 update_option( "timezone_string", "Europe/Rome" );
 update_option( Trasloco_Scheduled_Backups::OPTION, array( "frequency" => "monthly", "keep" => 2 ) );

@@ -1,6 +1,8 @@
 # Automated backups and offsite storage
 
-Trasloco includes a visual backup scheduler with hourly, daily, weekly and calendar-month frequencies, verified retention and an optional recovery point before WordPress updates. These scheduled jobs use Action Scheduler when available and otherwise rely on WP-Cron. WP-Cron needs site traffic to run on time; a system cron can invoke `wp cron event run --due-now` for low-traffic sites. Incremental archives and cloud connectors are still open.
+Trasloco includes a visual backup scheduler with hourly, daily, weekly and calendar-month frequencies, verified retention, an optional recovery point before WordPress updates, and optional encrypted offsite upload to resumable WebDAV. These scheduled jobs use Action Scheduler when available and otherwise rely on WP-Cron. WP-Cron needs site traffic to run on time; a system cron can invoke `wp cron event run --due-now` for low-traffic sites. Incremental archives and cloud connectors are still open.
+
+To enable offsite delivery, configure WebDAV as described below, make `TRASLOCO_ARCHIVE_PASSPHRASE` available to every WordPress worker (prefer the process environment; a private `wp-config.php` constant is also supported), then enable **Encrypt and upload each scheduled backup to WebDAV** on the Backups page. Use a passphrase of at least 12 characters and keep a copy in a separate secret manager. The setting is off by default. Trasloco encrypts the verified local `.wpress` archive, writes a SHA-256 manifest, and queues an immutable-part upload. The passphrase is read when the backup job runs; it is never persisted in the schedule option or job payload. Only the encrypted `.enc` archive is uploaded, and its temporary local copy is removed after the upload job completes. If the passphrase is absent or the configured driver is not resumable WebDAV, the scheduled backup reports failure and does not fall back to plaintext upload. With this option enabled, Trasloco checks provider reachability and archive/manifest pairing once per day, emails the site administrator when health changes, and sends a transition alert when a queued transfer fails. WP-Cron timing still depends on site traffic.
 
 ## Daily WP-CLI backup
 
@@ -50,5 +52,5 @@ For a direct transfer between two WordPress sites, the destination can run [`wp 
 Each month, download a random backup from the offsite destination and restore it on an isolated staging WordPress installation. Confirm database, user accounts, media, forms, URLs, and themes. Also verify backup age and available storage.
 
 ## Still to implement
-- S3 and other cloud connectors, automatic backup-to-remote scheduling, provider health checks and alerts, and live tests against real WebDAV services.
+- S3 and other cloud connectors, live tests against real WebDAV services and provider-side durability tests.
 - Incremental/differential backup chains and retention dependency management.

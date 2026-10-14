@@ -233,6 +233,42 @@ return array(
 		'fr' => 'Créez des sauvegardes vérifiées et ne conservez automatiquement que les dernières.',
 		'de' => 'Erstellen Sie überprüfte Backups nach Zeitplan und behalten Sie nur die neuesten.',
 	),
+	'Encrypt and upload each scheduled backup to WebDAV' => array(
+		'it' => 'Cifra e carica ogni backup pianificato su WebDAV',
+		'es' => 'Cifra y sube cada copia programada a WebDAV',
+		'fr' => 'Chiffrer et envoyer chaque sauvegarde planifiée vers WebDAV',
+		'de' => 'Jedes geplante Backup verschlüsseln und zu WebDAV hochladen',
+	),
+	'Requires a resumable WebDAV provider and TRASLOCO_ARCHIVE_PASSPHRASE in the worker environment or wp-config.php. The passphrase is never stored in WordPress options or job records.' => array(
+		'it' => 'Richiede un provider WebDAV con upload riprendibili e TRASLOCO_ARCHIVE_PASSPHRASE nell’ambiente del worker o in wp-config.php. La passphrase non viene salvata nelle opzioni WordPress né nei job.',
+		'es' => 'Requiere un proveedor WebDAV con cargas reanudables y TRASLOCO_ARCHIVE_PASSPHRASE en el entorno del worker o en wp-config.php. La frase de contraseña nunca se guarda en las opciones de WordPress ni en los trabajos.',
+		'fr' => 'Nécessite un fournisseur WebDAV prenant en charge la reprise et TRASLOCO_ARCHIVE_PASSPHRASE dans l’environnement du worker ou dans wp-config.php. La phrase secrète n’est jamais enregistrée dans les options WordPress ni dans les tâches.',
+		'de' => 'Erfordert einen WebDAV-Anbieter mit fortsetzbaren Uploads und TRASLOCO_ARCHIVE_PASSPHRASE in der Worker-Umgebung oder in wp-config.php. Die Passphrase wird weder in WordPress-Optionen noch in Job-Datensätzen gespeichert.',
+	),
+	'Trasloco offsite storage needs attention' => array(
+		'it' => 'Lo storage offsite di Trasloco richiede attenzione',
+		'es' => 'El almacenamiento externo de Trasloco requiere atención',
+		'fr' => 'Le stockage distant de Trasloco nécessite votre attention',
+		'de' => 'Der externe Speicher von Trasloco erfordert Aufmerksamkeit',
+	),
+	'Trasloco could not confirm that offsite storage is healthy. Check the provider configuration and recent transfer jobs in WordPress administration.' => array(
+		'it' => 'Trasloco non è riuscito a verificare che lo storage offsite funzioni. Controlla la configurazione del provider e i job di trasferimento recenti nell’amministrazione WordPress.',
+		'es' => 'Trasloco no pudo confirmar que el almacenamiento externo funcione correctamente. Comprueba la configuración del proveedor y los trabajos de transferencia recientes en la administración de WordPress.',
+		'fr' => 'Trasloco n’a pas pu confirmer le bon fonctionnement du stockage distant. Vérifiez la configuration du fournisseur et les tâches de transfert récentes dans l’administration WordPress.',
+		'de' => 'Trasloco konnte den ordnungsgemäßen Zustand des externen Speichers nicht bestätigen. Prüfen Sie die Anbieter-Konfiguration und die letzten Übertragungsjobs in der WordPress-Verwaltung.',
+	),
+	'Trasloco offsite storage recovered' => array(
+		'it' => 'Lo storage offsite di Trasloco è di nuovo disponibile',
+		'es' => 'El almacenamiento externo de Trasloco se ha recuperado',
+		'fr' => 'Le stockage distant de Trasloco est rétabli',
+		'de' => 'Der externe Speicher von Trasloco ist wieder verfügbar',
+	),
+	'Trasloco can reach offsite storage again and its archive inventory is complete.' => array(
+		'it' => 'Trasloco riesce di nuovo a raggiungere lo storage offsite e l’inventario degli archivi è completo.',
+		'es' => 'Trasloco puede volver a acceder al almacenamiento externo y el inventario de archivos está completo.',
+		'fr' => 'Trasloco peut de nouveau accéder au stockage distant et l’inventaire des archives est complet.',
+		'de' => 'Trasloco kann den externen Speicher wieder erreichen und das Archivverzeichnis ist vollständig.',
+	),
 	'Backup schedule saved.' => array(
 		'it' => 'Pianificazione dei backup salvata.',
 		'es' => 'Programación guardada.',

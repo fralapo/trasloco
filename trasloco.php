@@ -137,6 +137,7 @@ Trasloco_Job_Worker::register();
 // Keep backup archives and job history intact for future reactivation.
 register_deactivation_hook( __FILE__, function () {
     wp_clear_scheduled_hook( Trasloco_Scheduled_Backups::HOOK );
+    wp_clear_scheduled_hook( Trasloco_Scheduled_Backups::HEALTH_HOOK );
     wp_clear_scheduled_hook( 'trasloco_reconcile_jobs' );
     wp_unschedule_hook( Trasloco_Job_Worker::HOOK );
 } );

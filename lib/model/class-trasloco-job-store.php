@@ -64,9 +64,12 @@ class Trasloco_Job_Store {
                 strpos( $payload['archive'], '..' ) === false;
             $download_valid = isset( $payload['operation'] ) && $payload['operation'] === 'download' &&
                 count( $payload ) === 2;
-            $upload_valid = isset( $payload['operation'], $payload['allow_unencrypted'] ) &&
+            $upload_valid = isset( $payload['operation'], $payload['archive'], $payload['allow_unencrypted'] ) &&
                 $payload['operation'] === 'upload' && is_bool( $payload['allow_unencrypted'] ) &&
-                count( $payload ) === 3;
+                ( count( $payload ) === 3 ||
+                    ( count( $payload ) === 4 && isset( $payload['delete_after_upload'] ) &&
+                        $payload['delete_after_upload'] === true && $payload['allow_unencrypted'] === false &&
+                        substr( $payload['archive'], -4 ) === '.enc' ) );
             if ( ! $archive_valid || ( ! $download_valid && ! $upload_valid ) ) {
                 return new WP_Error( 'trasloco_invalid_job', 'Invalid or unsupported offsite transfer job.' );
             }

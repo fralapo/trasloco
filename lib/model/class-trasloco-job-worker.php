@@ -96,10 +96,11 @@ class Trasloco_Job_Worker {
     }
 
     /** Persist an upload request only when its provider supports replayable parts. */
-    public static function enqueue_offsite_upload( $archive, $allow_unencrypted = false ) {
+    public static function enqueue_offsite_upload( $archive, $allow_unencrypted = false, $delete_after_upload = false ) {
         if ( ! is_string( $archive ) || strlen( $archive ) > 206 ||
             ! preg_match( '/^[A-Za-z0-9][A-Za-z0-9_.-]*\.wpress(?:\.enc)?$/D', $archive ) ||
-            strpos( $archive, '..' ) !== false || ! is_bool( $allow_unencrypted ) ) {
+            strpos( $archive, '..' ) !== false || ! is_bool( $allow_unencrypted ) ||
+            ! is_bool( $delete_after_upload ) || ( $delete_after_upload && substr( $archive, -4 ) !== '.enc' ) ) {
             return new WP_Error( 'trasloco_invalid_archive', 'Invalid backup archive name.' );
         }
         if ( substr( $archive, -4 ) !== '.enc' && ! $allow_unencrypted ) {
@@ -113,10 +114,14 @@ class Trasloco_Job_Worker {
         } catch ( Throwable $error ) {
             return new WP_Error( 'trasloco_storage_unavailable', 'The configured storage provider is unavailable.' );
         }
-        $id = Trasloco_Job_Store::create( 'transfer', array(
+        $payload = array(
             'operation' => 'upload', 'archive' => $archive,
             'allow_unencrypted' => $allow_unencrypted,
-        ), wp_generate_password( 32, false, false ) );
+        );
+        if ( $delete_after_upload ) {
+            $payload['delete_after_upload'] = true;
+        }
+        $id = Trasloco_Job_Store::create( 'transfer', $payload, wp_generate_password( 32, false, false ) );
         if ( is_wp_error( $id ) ) {
             return $id;
         }
@@ -173,7 +178,11 @@ class Trasloco_Job_Worker {
             ! is_bool( $payload['allow_unencrypted'] ) ||
             strlen( $payload['archive'] ) > 206 ||
             ! preg_match( '/^[A-Za-z0-9][A-Za-z0-9_.-]*\.wpress(?:\.enc)?$/D', $payload['archive'] ) ||
-            strpos( $payload['archive'], '..' ) !== false || count( $payload ) !== 3 ) {
+            strpos( $payload['archive'], '..' ) !== false ||
+            ( count( $payload ) !== 3 && !( count( $payload ) === 4 &&
+                isset( $payload['delete_after_upload'] ) && $payload['delete_after_upload'] === true &&
+                $payload['allow_unencrypted'] === false &&
+                substr( $payload['archive'], -4 ) === '.enc' ) ) ) {
             throw new RuntimeException( 'Invalid offsite upload request.' );
         }
         if ( ! wp_mkdir_p( TRASLOCO_BACKUPS_PATH ) ) {
@@ -316,6 +325,36 @@ class Trasloco_Job_Worker {
         if ( $is_recovery ) {
             return $params['archive'];
         }
+        if ( ! empty( $payload['upload_offsite'] ) ) {
+            $passphrase = defined( 'TRASLOCO_ARCHIVE_PASSPHRASE' )
+                ? TRASLOCO_ARCHIVE_PASSPHRASE : getenv( 'TRASLOCO_ARCHIVE_PASSPHRASE' );
+            if ( ! is_string( $passphrase ) || strlen( $passphrase ) < 12 ) {
+                throw new RuntimeException( 'Automatic offsite backup requires TRASLOCO_ARCHIVE_PASSPHRASE (at least 12 characters).' );
+            }
+            $encrypted_name = $params['archive'] . '.enc';
+            $encrypted_path = TRASLOCO_BACKUPS_PATH . DIRECTORY_SEPARATOR . $encrypted_name;
+            $encrypted_manifest = Trasloco_Integrity::manifest_path( $encrypted_path );
+            $encrypted_created = false;
+            try {
+                if ( file_exists( $encrypted_manifest ) || is_link( $encrypted_manifest ) ) {
+                    throw new RuntimeException( 'Encrypted backup manifest already exists.' );
+                }
+                require_once TRASLOCO_LIB_PATH . '/model/class-trasloco-encryption.php';
+                Trasloco_Encryption::encrypt( $archive, $encrypted_path, $passphrase );
+                $encrypted_created = true;
+                Trasloco_Integrity::create_chunked( $encrypted_path );
+                $upload_id = self::enqueue_offsite_upload( $encrypted_name, false, true );
+                if ( is_wp_error( $upload_id ) || ! $upload_id ) {
+                    throw new RuntimeException( 'Unable to queue encrypted offsite backup.' );
+                }
+            } catch ( Throwable $error ) {
+                if ( $encrypted_created ) {
+                    @unlink( $encrypted_path );
+                    @unlink( $encrypted_manifest );
+                }
+                throw $error;
+            }
+        }
         $model = new Trasloco_Backups();
         $prior = array_values( array_filter( $model->get_retention_files(), function ( $entry ) use ( $params ) {
             return $entry['filename'] !== $params['archive'];
@@ -442,6 +481,13 @@ class Trasloco_Job_Worker {
                 if ( ! Trasloco_Job_Store::finish( $id, $owner ) ) {
                     return array( 'status' => 'not_claimed' );
                 }
+                if ( $record['payload']['operation'] === 'upload' && ! empty( $record['payload']['delete_after_upload'] ) ) {
+                    $uploaded = TRASLOCO_BACKUPS_PATH . DIRECTORY_SEPARATOR . $record['payload']['archive'];
+                    if ( is_file( $uploaded ) && ! is_link( $uploaded ) ) {
+                        @unlink( $uploaded );
+                        @unlink( Trasloco_Integrity::manifest_path( $uploaded ) );
+                    }
+                }
                 return array( 'status' => 'completed', 'archive' => $name );
             }
             $filename = isset( $record['payload']['archive'] ) ? $record['payload']['archive'] : null;
@@ -472,9 +518,11 @@ class Trasloco_Job_Worker {
             // Provider exceptions can include URLs or request details. Keep
             // the durable record secret-free and useful without those values.
             $failure = $record['kind'] === 'transfer' ? 'Offsite transfer failed; inspect provider availability and job history.' : $e->getMessage();
-            Trasloco_Job_Store::fail( $id, $owner, $failure );
+            $failed = Trasloco_Job_Store::fail( $id, $owner, $failure );
             if ( $record['kind'] === 'backup' && empty( $record['payload']['recovery_point'] ) ) {
                 do_action( 'trasloco_scheduled_backup_failed', $id );
+            } elseif ( $record['kind'] === 'transfer' && $failed ) {
+                do_action( 'trasloco_offsite_transfer_failed', $id );
             }
             return array( 'status' => 'failed' );
         }

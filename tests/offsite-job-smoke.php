@@ -48,6 +48,24 @@ if ( is_wp_error( $safe_upload_job ) ||
 	throw new RuntimeException( 'Credential-free resumable upload payload was not persisted correctly.' );
 }
 Trasloco_Job_Store::cancel( $safe_upload_job );
+$ephemeral_upload_payload = array(
+	'operation' => 'upload', 'archive' => 'scheduled-fixture.wpress.enc',
+	'allow_unencrypted' => false, 'delete_after_upload' => true,
+);
+$ephemeral_upload_job = Trasloco_Job_Store::create( 'transfer', $ephemeral_upload_payload,
+	wp_generate_password( 32, false, false ) );
+if ( is_wp_error( $ephemeral_upload_job ) ||
+	Trasloco_Job_Store::workload( $ephemeral_upload_job )['payload'] !== $ephemeral_upload_payload ) {
+	throw new RuntimeException( 'Encrypted scheduled upload cleanup flag was not persisted safely.' );
+}
+Trasloco_Job_Store::cancel( $ephemeral_upload_job );
+$unsafe_ephemeral = Trasloco_Job_Store::create( 'transfer', array(
+	'operation' => 'upload', 'archive' => 'fixture.wpress',
+	'allow_unencrypted' => true, 'delete_after_upload' => true,
+), wp_generate_password( 32, false, false ) );
+if ( ! is_wp_error( $unsafe_ephemeral ) ) {
+	throw new RuntimeException( 'Plaintext upload accepted the ephemeral cleanup flag.' );
+}
 
 $test_owner = 'worker-restart-test';
 if ( ! Trasloco_Job_Store::claim( $job_id, $test_owner, 30 ) ) {
