@@ -31,6 +31,20 @@ Use a private content-addressed object store and independently complete snapshot
 
 The storage layer should expose bounded operations for catalog validation, object insertion, snapshot verification, materialization, and pruning. It should not change the generic `StorageAdapter` until local crash and retention semantics are proven. A later adapter change can transfer missing objects and publish catalogs last.
 
+## Local WP-CLI workflow
+
+The local content-addressed store is available through `wp trasloco incremental` and lives in the private `.trasloco-incremental` directory inside the configured backup directory. It does not replace or remove ordinary `.wpress` files. Capture accepts only a structurally verified archive. The snapshot can then be checked, listed, reconstructed into a new `.wpress` file, or pruned while retaining an explicit comma-separated set:
+
+```sh
+wp trasloco incremental capture backup.wpress
+wp trasloco incremental verify backup.wpress
+wp trasloco incremental materialize backup.wpress --output=restored.wpress
+wp trasloco incremental list
+wp trasloco incremental prune --keep=backup.wpress,newer.wpress
+```
+
+The reconstructed file is compatible with the existing importer. Local snapshots have their own retention policy, separate from deletion of ordinary archives, so pruning requires at least one explicitly retained snapshot.
+
 ## Acceptance tests
 
 - Two archives with shared content reuse verified objects while both catalogs reconstruct their exact original bytes.

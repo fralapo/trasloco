@@ -247,6 +247,100 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 		}
 
 		/**
+		 * Manage local content-addressed snapshots of verified .wpress archives.
+		 *
+		 * ## OPTIONS
+		 * <capture|verify|materialize|prune|list>
+		 * [<archive>]
+		 *
+		 * [--keep=<archives>]
+		 * Comma-separated .wpress names to retain when pruning.
+		 *
+		 * [--output=<filename>]
+		 * New .wpress filename for materialize (created in the backup directory).
+		 *
+		 * ## EXAMPLES
+		 *     wp trasloco incremental capture backup.wpress
+		 *     wp trasloco incremental verify backup.wpress
+		 *     wp trasloco incremental materialize backup.wpress --output=restored.wpress
+		 *     wp trasloco incremental prune --keep=backup.wpress,newer.wpress
+		 *     wp trasloco incremental list
+		 *
+		 * Captured snapshots are stored privately under the backup directory. They
+		 * remain independently reconstructible and do not depend on source files.
+		 *
+		 * @subcommand incremental
+		 */
+		public function incremental( array $args, array $assoc_args ) {
+			$action = isset( $args[0] ) ? $args[0] : '';
+			$store_root = rtrim( TRASLOCO_BACKUPS_PATH, DIRECTORY_SEPARATOR ) . DIRECTORY_SEPARATOR . '.trasloco-incremental';
+			require_once TRASLOCO_LIB_PATH . '/model/class-trasloco-incremental-store.php';
+			$store = new Trasloco_Incremental_Store( $store_root );
+			try {
+				if ( $action === 'list' ) {
+					$rows = new cli\Table;
+					$rows->setHeaders( array( 'archive' => 'Archive', 'size' => 'Size', 'objects' => 'Chunks',
+						'unique' => 'Unique chunks', 'sha256' => 'SHA-256' ) );
+					foreach ( $store->list_snapshots() as $snapshot ) {
+						$rows->addRow( array( 'archive' => $snapshot['archive'], 'size' => size_format( $snapshot['size_bytes'], 2 ),
+							'objects' => $snapshot['objects'], 'unique' => $snapshot['unique_objects'], 'sha256' => $snapshot['sha256'] ) );
+					}
+					$rows->display();
+					return;
+				}
+				if ( $action === 'capture' || $action === 'verify' || $action === 'materialize' ) {
+					$name = isset( $args[1] ) ? $args[1] : '';
+					if ( ! is_string( $name ) || basename( $name ) !== $name ||
+						! preg_match( '/^[A-Za-z0-9][A-Za-z0-9_.-]*\.wpress$/D', $name ) || strpos( $name, '..' ) !== false ) {
+						WP_CLI::error( 'Specify a valid backup filename ending in .wpress.' );
+					}
+					if ( $action === 'capture' ) {
+						$source = rtrim( TRASLOCO_BACKUPS_PATH, DIRECTORY_SEPARATOR ) . DIRECTORY_SEPARATOR . $name;
+						if ( ! is_file( $source ) || is_link( $source ) ) { WP_CLI::error( 'Backup file is missing or unsafe.' ); }
+						require_once TRASLOCO_LIB_PATH . '/vendor/core/archiver/class-trasloco-integrity.php';
+						$integrity = Trasloco_Integrity::verify( $source );
+						if ( $integrity['status'] !== 'verified' ) {
+							WP_CLI::error( 'Only a verified backup can be captured.' );
+						}
+						$result = $store->capture( $source, $integrity['sha256'] );
+						WP_CLI::success( sprintf( 'Captured %s (%s, %d chunks; SHA-256 %s).', $name,
+							size_format( $result['size_bytes'], 2 ), $result['objects'], $result['sha256'] ) );
+						return;
+					}
+					if ( $action === 'verify' ) {
+						$result = $store->verify( $name );
+						WP_CLI::success( sprintf( 'Verified %s (%s; SHA-256 %s).', $name,
+							size_format( $result['size_bytes'], 2 ), $result['sha256'] ) );
+						return;
+					}
+					$output = isset( $assoc_args['output'] ) ? $assoc_args['output'] : 'restored-' . $name;
+					if ( ! is_string( $output ) || basename( $output ) !== $output ||
+						! preg_match( '/^[A-Za-z0-9][A-Za-z0-9_.-]*\.wpress$/D', $output ) || strpos( $output, '..' ) !== false ) {
+						WP_CLI::error( 'Output must be a new .wpress filename.' );
+					}
+					$destination = rtrim( TRASLOCO_BACKUPS_PATH, DIRECTORY_SEPARATOR ) . DIRECTORY_SEPARATOR . $output;
+					$result = $store->materialize( $name, $destination );
+					WP_CLI::success( sprintf( 'Reconstructed %s (%s; SHA-256 %s).', $output,
+						size_format( $result['size_bytes'], 2 ), $result['sha256'] ) );
+					return;
+				}
+				if ( $action === 'prune' ) {
+					if ( empty( $assoc_args['keep'] ) ) {
+						WP_CLI::error( 'Use --keep with at least one comma-separated snapshot filename.' );
+					}
+					$keep = array_values( array_filter( array_map( 'trim', explode( ',', $assoc_args['keep'] ) ), 'strlen' ) );
+					$result = $store->prune( $keep );
+					WP_CLI::success( sprintf( 'Retained %d snapshots; removed %d snapshots and %d unreferenced chunks.',
+						count( $result['retained_snapshots'] ), count( $result['removed_snapshots'] ), count( $result['removed_objects'] ) ) );
+					return;
+				}
+				WP_CLI::error( 'Use capture, verify, materialize, prune, or list.' );
+			} catch ( Throwable $error ) {
+				WP_CLI::error( $error->getMessage() );
+			}
+		}
+
+		/**
 		 * Transfer a verified archive through a configured private storage adapter.
 		 *
 		 * ## OPTIONS

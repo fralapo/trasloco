@@ -21,9 +21,13 @@ class Trasloco_Incremental_Store {
     }
 
     /** Publish a catalog only after all immutable objects have been verified. */
-    public function capture( $archive ) {
+    public function capture( $archive, $expected_sha256 = null ) {
+        if ( $expected_sha256 !== null && ( ! is_string( $expected_sha256 ) ||
+            ! preg_match( '/^[a-f0-9]{64}$/D', $expected_sha256 ) ) ) {
+            throw new InvalidArgumentException( 'Expected archive checksum is invalid.' );
+        }
         $this->ensure_root();
-        return $this->locked( function () use ( $archive ) {
+        return $this->locked( function () use ( $archive, $expected_sha256 ) {
             $source = $this->source( $archive );
             $catalog_path = $this->catalog_path( $source['name'] );
             if ( file_exists( $catalog_path ) || is_link( $catalog_path ) ) {
@@ -68,6 +72,9 @@ class Trasloco_Incremental_Store {
                 'chunk_bytes' => self::CHUNK_BYTES,
                 'chunks' => $chunks,
             );
+            if ( $expected_sha256 !== null && ! hash_equals( $expected_sha256, $catalog['sha256'] ) ) {
+                throw new RuntimeException( 'Archive bytes do not match the expected integrity manifest.' );
+            }
             $this->publish_json( $catalog_path, $catalog );
             return array(
                 'archive' => $source['name'],
@@ -91,6 +98,27 @@ class Trasloco_Incremental_Store {
                 'sha256' => $catalog['sha256'],
                 'objects' => count( $catalog['chunks'] ),
             );
+        } );
+    }
+
+    /** Return validated catalog metadata without reading all object contents. */
+    public function list_snapshots() {
+        $this->ensure_root();
+        return $this->locked( function () {
+            $snapshots = array();
+            foreach ( new DirectoryIterator( $this->catalog_dir() ) as $entry ) {
+                if ( $entry->isDot() ) { continue; }
+                if ( $entry->isLink() || ! $entry->isFile() || substr( $entry->getFilename(), -5 ) !== '.json' ) {
+                    throw new RuntimeException( 'Incremental catalog directory contains an unsafe entry.' );
+                }
+                $name = substr( $entry->getFilename(), 0, -5 );
+                $catalog = $this->read_catalog( $name );
+                $snapshots[] = array( 'archive' => $name, 'size_bytes' => $catalog['size_bytes'],
+                    'sha256' => $catalog['sha256'], 'objects' => count( $catalog['chunks'] ),
+                    'unique_objects' => $this->unique_object_count( $catalog['chunks'] ) );
+            }
+            usort( $snapshots, function ( $a, $b ) { return strcmp( $a['archive'], $b['archive'] ); } );
+            return $snapshots;
         } );
     }
 

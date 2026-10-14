@@ -29,6 +29,10 @@ $second = $source_dir . '/second.wpress';
 file_put_contents( $first, $first_bytes ); file_put_contents( $second, $second_bytes );
 
 try {
+    $failed = false;
+    try { $store->capture( $first, hash( 'sha256', $second_bytes ) ); } catch ( RuntimeException $error ) { $failed = true; }
+    incremental_assert( $failed && is_file( $first ) && ! is_file( $store_dir . '/catalogs/first.wpress.json' ),
+        'Capture published a catalog when the source did not match the verified manifest digest.' );
     $one = $store->capture( $first );
     incremental_assert( $one['archive'] === 'first.wpress' && $one['objects'] === 2 && $one['unique_objects'] === 2,
         'First snapshot catalog was not created with two bounded objects.' );
