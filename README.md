@@ -7,9 +7,9 @@
 **Trasloco is a free, open source WordPress plugin that backs up and migrates a whole WordPress site.** It exports the database, media library, themes and plugins into a single `.wpress` file, then imports that file on any other WordPress install, with no file size limit, no paid add-ons and no account. It is tested with a real 1.64 GB site.
 
 [![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
-![Version](https://img.shields.io/badge/version-1.5.0-informational.svg)
+![Version](https://img.shields.io/badge/version-1.6.0-informational.svg)
 ![Languages](https://img.shields.io/badge/languages-en%20it%20es%20fr%20de-success.svg)
-![Tested on PHP 8.2](https://img.shields.io/badge/tested_on-PHP_8.2-777bb4.svg)
+![Tested on PHP 8.4](https://img.shields.io/badge/tested_on-PHP_8.4-777bb4.svg)
 
 I wrote it to move a 1.6 GB site to shared hosting without paying for a "remove the size limit" add-on, and without an admin screen full of upsell buttons. Everything is in the plugin. There are no paid tiers, no accounts and no calls home. ("Trasloco" is Italian for "house move".)
 
@@ -34,6 +34,7 @@ I wrote it to move a 1.6 GB site to shared hosting without paying for a "remove 
 - **Five languages:** English, Italian, Spanish, French and German, all in one file. See [Languages](#languages).
 - **PHP 8.2 clean.** The iterators carry `#[\ReturnTypeWillChange]`, so the log is free of deprecation notices.
 - **WP-CLI:** `wp trasloco backup` and `wp trasloco restore <file>`. For scheduled jobs, `wp trasloco backup --keep=7` keeps only the latest seven backups. See [automation](docs/AUTOMATION.md) for cron and offsite storage.
+- **Incremental snapshots:** optional content-addressed snapshots deduplicate matching 4-MiB chunks. List and measure them in **Backups** or with `wp trasloco incremental stats`; reconstruct a missing archive with `wp trasloco restore <file>`. Full archives are kept unless you explicitly run the verified `wp trasloco incremental compact <file>` command. See the [snapshot design and operations](docs/INCREMENTAL_BACKUP_DESIGN.md).
 - **Verified backups and recovery.** SHA-256 manifests, resumable verification and offsite jobs, scheduled backups with verified retention, configurable email and signed webhook alerts with bounded delivery retries, and optional encrypted WebDAV/S3 delivery, in-app and standalone encrypted rescue, and a two-phase offline file recovery workflow. See [webhook notifications](docs/WEBHOOK_NOTIFICATIONS.md). Full-site rollback is not yet automatic.
 - **Admin API.** Authenticated clients can queue durable backups and inspect bounded job and audit history. See the [REST API guide](docs/REST_API.md).
 - **Optional S3-compatible storage.** Verified uploads and resumable downloads for AWS S3 and compatible providers, including queued multipart uploads that recover after worker interruption; requires the optional PHP 8.1+ SDK runtime. See [S3 offsite storage](docs/OFFSITE_S3.md) for installation and setup.
@@ -69,6 +70,8 @@ You do not need to type the new address anywhere: the import changes it.
 3. When it finishes, save the permalink settings twice and log in with the source site's username and password. The users table was replaced too.
 
 The uploaded archive stays under **Trasloco → Backups**, where you can download, restore or delete it.
+
+For repeat backups, the Backups page can also show local incremental snapshots. WP-CLI users can inspect their measured storage with `wp trasloco incremental stats`, restore a snapshot with `wp trasloco restore <archive.wpress>`, or explicitly reclaim the original archive with `wp trasloco incremental compact <archive.wpress>`. Compaction verifies the archive and snapshot before removing the original; ordinary backups are never compacted automatically. See [incremental backup operations](docs/INCREMENTAL_BACKUP_DESIGN.md).
 
 ## Languages
 
@@ -116,7 +119,7 @@ At the end it switches on the theme and the plugins that were active on the old 
 By default archives sit in `wp-content/trasloco-backups`. In the hardened branch the Backups screen downloads them via an authenticated WordPress endpoint. Apache and IIS rules block direct archive requests; Nginx requires a separate server rule. For stronger protection, configure an absolute private directory outside the document root with `TRASLOCO_BACKUPS_DIR` in `wp-config.php`. See [security](docs/SECURITY.md).
 
 ### Can I restore a site from the command line?
-Yes, with WP-CLI: `wp trasloco backup` creates a backup (it takes the same options as the Export page, such as `--exclude-media` or `--replace "old" "new"`), `wp trasloco backup --list` lists the backups, and `wp trasloco restore <file>` restores one from the `wp-content/trasloco-backups` folder. To preserve generated or environment-specific files, pass comma-separated wp-content-relative paths such as `wp trasloco restore <file> --exclude-paths=uploads/cache,plugins/example/generated`; exclusions may target uploads, plugins, themes or must-use plugins and never bypass archive security checks.
+Yes, with WP-CLI: `wp trasloco backup` creates a backup (it takes the same options as the Export page, such as `--exclude-media` or `--replace "old" "new"`), `wp trasloco backup --list` lists the backups, and `wp trasloco restore <file>` restores one from the `wp-content/trasloco-backups` folder. If that archive has been explicitly compacted, restore reconstructs it from its verified local snapshot first and never overwrites an existing file. To preserve generated or environment-specific files, pass comma-separated wp-content-relative paths such as `wp trasloco restore <file> --exclude-paths=uploads/cache,plugins/example/generated`; exclusions may target uploads, plugins, themes or must-use plugins and never bypass archive security checks.
 
 ### What does a Trasloco backup contain?
 One `.wpress` file holds the database dump, the `wp-content` uploads, themes, plugins and must-use plugins. Spam comments, post revisions, media, themes, plugins, cache or the database can each be left out on the Export page.
@@ -131,9 +134,10 @@ English, Italian, Spanish, French and German. The language follows the WordPress
 
 ## Known limits
 
-As of version 1.3.0 (October 2026):
+As of version 1.6.0 (October 2026):
 
-- **Not yet tried on a real host behind a firewall.** So far it has been tested on local WordPress installs, including an import of a real 1.64 GB site (12 pages, 73 media files, 19 plugins). The base64 upload was built for hosting firewalls, but it has not been seen working behind one yet. The current source passes complete local CLI integration on PHP 7.4, 8.2 and 8.4 with MariaDB 13; the six PHP/database combinations recorded in the roadmap were run before the latest backup-resume changes. Real-host HTTP tests remain pending.
+- **Not yet tried on a real host behind a firewall.** So far it has been tested on local WordPress installs, including an import of a real 1.64 GB site (12 pages, 73 media files, 19 plugins). The base64 upload was built for hosting firewalls, but it has not been seen working behind one yet. Local CLI and recovery fixtures pass as recorded in the [roadmap](docs/ROADMAP.md); real-host HTTP tests remain pending.
+- **Incremental storage savings depend on repeated data.** Snapshots share identical chunks, but a single archive with no repeated chunks can use slightly more storage because of catalog overhead. Compaction reports measured file lengths; it does not measure filesystem block allocation or prove savings for other sites.
 - **Full-site rollback is not yet automatic.** File recovery restores planned files in two phases and preserves unrelated destination files; it does not make the entire site restore globally atomic.
 - **Single sites only.** Importing a multisite network is not supported.
 - **PHP's built-in web server is slow with big sites.** This is not a plugin problem, but if you use `php -S` for testing, each import step can take tens of seconds.

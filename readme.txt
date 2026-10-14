@@ -3,7 +3,7 @@ Tags: backup, migration, migrate, export, import
 Requires at least: 5.5
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.5.0
+Stable tag: 1.6.0
 License: AGPL-3.0-or-later
 License URI: https://www.gnu.org/licenses/agpl-3.0.html
 
@@ -35,6 +35,13 @@ Trasloco exports a whole WordPress site (database, media, themes and plugins) to
 The new address is set by the import: there is nothing to type. Trasloco > Guide explains every option.
 
 == Changelog ==
+
+= 1.6.0 =
+* Snapshot catalogs, capture dates, logical sizes, integrity information and restore commands are visible on the Backups page; the storage summary reports measured file bytes and net savings.
+* `wp trasloco restore <snapshot.wpress>` reconstructs an explicitly compacted archive from its verified catalog without overwriting an existing file, then uses the standard restore workflow.
+* `wp trasloco incremental compact <archive.wpress>` safely removes an ordinary archive only after manifest, archive structure, catalog and whole-file verification. Recovery points cannot be compacted, and full archives remain the default.
+* CLI and scheduled retention count full archives and snapshot-only catalogs together while protecting recovery points.
+* Local PHP 8.4 syntax, translation, standalone and WordPress integration checks passed, including compaction and snapshot-only restore. GitHub Actions and external provider or hosting certifications were not run.
 
 = 1.5.0 =
 * Scheduled backups can opt into private content-addressed snapshots. Workers capture at most eight 4-MiB chunks per request and resume from a durable journal after interruption.

@@ -2,18 +2,20 @@
 
 ## Current state
 
-Trasloco 1.5.0 is on the public `main` branch. Release [`v1.5.0`](https://github.com/fralapo/trasloco/releases/tag/v1.5.0) includes the base and S3-enabled plugin ZIPs. The source release commit is `578e71e`; the branch was pushed with `[skip ci]` because the account's free GitHub Actions minutes are exhausted. No Actions run was started for this release.
+Trasloco 1.6.0 completes the local snapshot workflow developed after release 1.5.0. The snapshot inventory is visible and keyboard-scrollable in the Backups page, compacted snapshots restore through the ordinary WP-CLI command, explicit compaction verifies before removing an archive, and storage/retention accounting includes snapshot-only catalogs. Full archives remain the default. The local PHP 8.4 release suite, including all standalone checks and a full PHP syntax scan, passes. The account's free GitHub Actions minutes are exhausted, so no Actions run should be started.
 
-The release adds opt-in scheduled local content-addressed snapshots. Capture uses batches of eight 4-MiB chunks, resumes from a private journal after interruption, and coordinates catalog retention with scheduled archive retention. The follow-up local increment adds snapshot inventory to the Backups page, snapshot-only reconstruction through the ordinary WP-CLI restore command, explicit verified compaction, retention across full archives and compacted catalogs, and measured file-byte savings. Compaction is opt-in and recovery points are protected. Remote content-addressed delivery remains open.
+The snapshot store uses batches of eight 4-MiB chunks, resumes from a private journal after interruption, and coordinates catalog retention with scheduled archive retention. Compaction is opt-in and recovery points are protected. Remote content-addressed delivery remains open.
 
 ## Local validation
 
 - Full WordPress 6.9.10 integration and recovery rehearsal passed on PHP 7.4, 8.2, 8.4 and 8.5 with local MariaDB 13.0.2.
 - The standalone quality suite and full PHP syntax scan passed locally on PHP 8.5.11.
 - Incremental store and WP-CLI smoke tests passed on PHP 7.4, 8.2, 8.4 and 8.5.
-- On this host, PHP 8.4 in a local Docker container passed the complete standalone CI suite, full PHP syntax scan, translation parity (440 strings in Italian, Spanish, French and German), and the updated incremental store/CLI tests. The focused store tests verify measured archive and manifest bytes removed, positive savings after deduplication, negative savings while originals remain, preservation of a tampered source, recovery-point protection and retention of snapshot-only catalogs. The full WordPress 6.9.10 integration and disaster/recovery fixture also passed on local MariaDB 11.4, including a real archive compaction followed by snapshot-only reconstruction and restore. GitHub Actions was not started.
+- On this host, PHP 8.4 in a local Docker container passed the complete standalone quality suite, full PHP syntax scan, translation parity (440 strings in Italian, Spanish, French and German), and the incremental store/CLI tests. The focused store tests verify measured archive and manifest bytes removed, positive savings after deduplication, negative savings while originals remain, preservation of a tampered source, recovery-point protection and retention of snapshot-only catalogs. The full WordPress 6.9.10 integration and disaster/recovery fixture also passed on local MariaDB 11.4, including a real archive compaction followed by snapshot-only reconstruction and restore. GitHub Actions was not started.
+- The release verification on this checkout repeated the PHP 8.4 full syntax scan, 440-string translation check and every standalone test from `.github/workflows/ci.yml`; all passed. The offline file recovery test emits three non-fatal `rmdir` cleanup warnings for its symlink fixture, and the offsite transfer test prints `Killed` while simulating an interrupted worker before reporting success. GitHub Actions was not started.
 - Translation parity at the 1.5.0 release was 431 strings; the latest local check passes all 440 strings across Italian, Spanish, French and German.
-- Base and S3-enabled release ZIPs were built locally and passed archive integrity checks.
+- The v1.5.0 base and S3-enabled release ZIPs passed local archive integrity checks.
+- The v1.6.0 base and S3-enabled packages are built from the tagged source with `tools/build-release.sh`; both pass ZIP integrity checks, and the S3 package contains the pinned runtime autoloader.
 - These checks use local fixtures. GitHub Actions, real remote providers, real hosting environments and production durability were not tested.
 
 ## Resume on another computer
