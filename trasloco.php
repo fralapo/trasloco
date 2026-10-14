@@ -147,6 +147,9 @@ require_once dirname( __FILE__ ) . '/lib/model/class-trasloco-preflight.php';
 // Non-destructive archive inventory for restore planning.
 require_once dirname( __FILE__ ) . '/lib/model/class-trasloco-archive-inspector.php';
 
+// Authenticated resumable transfers between WordPress installations.
+require_once dirname( __FILE__ ) . '/lib/model/class-trasloco-peer.php';
+
 // Read-only automation API: WordPress enforces user authentication and permissions.
 require_once dirname( __FILE__ ) . '/lib/controller/class-trasloco-rest-api.php';
 add_action( 'rest_api_init', array( 'Trasloco_REST_API', 'register' ) );

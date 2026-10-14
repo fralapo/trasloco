@@ -468,6 +468,34 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
         }
 
 		/**
+		 * Pull a verified backup from another Trasloco WordPress site.
+		 *
+		 * ## OPTIONS
+		 * <source-url>
+		 * HTTPS URL of the source WordPress site.
+		 * <archive>
+		 * Verified .wpress archive basename on the source site.
+		 *
+		 * Set TRASLOCO_PEER_USER and TRASLOCO_PEER_APP_PASSWORD in the process
+		 * environment to a dedicated WordPress Application Password.
+		 *
+		 * @subcommand pull-site
+		 */
+		public function pull_site( array $args, array $assoc_args ) {
+			if ( count( $args ) < 2 ) {
+				WP_CLI::error( 'Usage: wp trasloco pull-site <https://source.example> <archive.wpress>' );
+			}
+			$user = getenv( 'TRASLOCO_PEER_USER' );
+			$password = getenv( 'TRASLOCO_PEER_APP_PASSWORD' );
+			try {
+				$path = Trasloco_Peer::pull( $args[0], $args[1], $user, $password );
+				WP_CLI::success( 'Verified remote backup saved as ' . basename( $path ) . '.' );
+			} catch ( Throwable $error ) {
+				WP_CLI::error( $error->getMessage() );
+			}
+		}
+
+		/**
 		 * Verify a backup against its SHA-256 manifest.
 		 *
 		 * ## OPTIONS

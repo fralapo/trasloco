@@ -82,6 +82,17 @@ class Trasloco_REST_API {
             'callback' => array( __CLASS__, 'preview_backup' ),
             'permission_callback' => array( __CLASS__, 'can_manage' ),
         ) );
+        register_rest_route( 'trasloco/v1', '/backups/(?P<archive>[A-Za-z0-9_.-]+\.wpress)/manifest', array(
+            'methods' => 'GET',
+            'callback' => array( __CLASS__, 'transfer_manifest' ),
+            'permission_callback' => array( __CLASS__, 'can_manage' ),
+        ) );
+        register_rest_route( 'trasloco/v1', '/backups/(?P<archive>[A-Za-z0-9_.-]+\.wpress)/chunk', array(
+            'methods' => 'GET',
+            'callback' => array( __CLASS__, 'transfer_chunk' ),
+            'permission_callback' => array( __CLASS__, 'can_manage' ),
+            'args' => array( 'offset' => array( 'required' => true, 'type' => 'integer', 'minimum' => 0 ) ),
+        ) );
         register_rest_route( 'trasloco/v1', '/backups/(?P<archive>[A-Za-z0-9_.-]+)/verify', array(
             'methods' => 'POST',
             'callback' => array( __CLASS__, 'queue_verification' ),
@@ -234,6 +245,115 @@ class Trasloco_REST_API {
 
     public static function can_manage() {
         return current_user_can( 'manage_options' );
+    }
+
+    /** Return bounded sidecar metadata; the receiver verifies every archive byte. */
+    public static function transfer_manifest( $request ) {
+        require_once TRASLOCO_LIB_PATH . '/vendor/core/archiver/class-trasloco-integrity.php';
+        try {
+            $name = (string) $request->get_param( 'archive' );
+            if ( ! preg_match( '/^[A-Za-z0-9][A-Za-z0-9_.-]*\.wpress$/D', $name ) || strpos( $name, '..' ) !== false ) {
+                return new WP_Error( 'trasloco_invalid_archive', 'Invalid archive filename.', array( 'status' => 400 ) );
+            }
+            $path = trasloco_backup_path( array( 'archive' => $name ) );
+            if ( is_link( $path ) || ! is_file( $path ) || ! is_readable( $path ) ) {
+                return new WP_Error( 'trasloco_not_found', 'Backup not found.', array( 'status' => 404 ) );
+            }
+            $sidecar_path = Trasloco_Integrity::manifest_path( $path );
+            if ( is_link( $sidecar_path ) || ! is_file( $sidecar_path ) || ! is_readable( $sidecar_path ) ||
+                filesize( $sidecar_path ) > Trasloco_Integrity::MAX_MANIFEST_BYTES ) {
+                return new WP_Error( 'trasloco_unverified_backup', 'Backup manifest is unavailable.', array( 'status' => 409 ) );
+            }
+            $sidecar = json_decode( (string) file_get_contents( $sidecar_path ), true );
+            if ( ! is_array( $sidecar ) ) {
+                return new WP_Error( 'trasloco_unverified_backup', 'Backup manifest is invalid.', array( 'status' => 409 ) );
+            }
+            if ( isset( $sidecar['manifest_version'] ) && in_array( $sidecar['manifest_version'], array( 1, 2 ), true ) &&
+                isset( $sidecar['algorithm'], $sidecar['size_bytes'], $sidecar['sha256'] ) && $sidecar['algorithm'] === 'sha256' ) {
+                $expected_bytes = $sidecar['size_bytes'];
+                $expected_digest = $sidecar['sha256'];
+            } elseif ( isset( $sidecar['schema'], $sidecar['format'], $sidecar['archive'], $sidecar['bytes'], $sidecar['sha256'] ) &&
+                $sidecar['schema'] === 1 && $sidecar['format'] === 'wpress' && $sidecar['archive'] === $name ) {
+                $expected_bytes = $sidecar['bytes'];
+                $expected_digest = $sidecar['sha256'];
+            } else {
+                return new WP_Error( 'trasloco_unverified_backup', 'Backup manifest is unsupported.', array( 'status' => 409 ) );
+            }
+            if ( ! is_int( $expected_bytes ) || $expected_bytes <= 0 || $expected_bytes !== filesize( $path ) ||
+                ! is_string( $expected_digest ) || ! preg_match( '/^[a-f0-9]{64}$/D', $expected_digest ) ) {
+                return new WP_Error( 'trasloco_unverified_backup', 'Backup manifest does not match archive metadata.', array( 'status' => 409 ) );
+            }
+            $response = new WP_REST_Response( array(
+                'archive' => $name,
+                'bytes' => $expected_bytes,
+                'sha256' => $expected_digest,
+            ), 200 );
+            $response->header( 'Cache-Control', 'private, no-store' );
+            return $response;
+        } catch ( Throwable $error ) {
+            return new WP_Error( 'trasloco_transfer_error', 'Backup transfer refused.', array( 'status' => 400 ) );
+        }
+    }
+
+    /** Return one bounded fragment from an archive with a valid sidecar. */
+    public static function transfer_chunk( $request ) {
+        require_once TRASLOCO_LIB_PATH . '/vendor/core/archiver/class-trasloco-integrity.php';
+        try {
+            $name = (string) $request->get_param( 'archive' );
+            $offset = filter_var( $request->get_param( 'offset' ), FILTER_VALIDATE_INT,
+                array( 'options' => array( 'min_range' => 0 ) ) );
+            if ( ! preg_match( '/^[A-Za-z0-9][A-Za-z0-9_.-]*\.wpress$/D', $name ) ||
+                strpos( $name, '..' ) !== false || $offset === false ) {
+                return new WP_Error( 'trasloco_invalid_transfer', 'Invalid archive or transfer offset.', array( 'status' => 400 ) );
+            }
+            $path = trasloco_backup_path( array( 'archive' => $name ) );
+            $manifest = Trasloco_Integrity::manifest_path( $path );
+            if ( is_link( $path ) || is_link( $manifest ) || ! is_file( $path ) || ! is_readable( $path ) ||
+                ! is_file( $manifest ) || ! is_readable( $manifest ) ) {
+                return new WP_Error( 'trasloco_unverified_backup', 'Backup manifest unavailable.', array( 'status' => 409 ) );
+            }
+            $manifest_data = json_decode( (string) file_get_contents( $manifest ), true );
+            $manifest_bytes = is_array( $manifest_data ) && isset( $manifest_data['size_bytes'] )
+                ? $manifest_data['size_bytes']
+                : ( is_array( $manifest_data ) && isset( $manifest_data['bytes'] ) ? $manifest_data['bytes'] : null );
+            if ( ! is_array( $manifest_data ) || ! is_int( $manifest_bytes ) || $manifest_bytes !== filesize( $path ) ||
+                ! isset( $manifest_data['sha256'] ) || ! is_string( $manifest_data['sha256'] ) ||
+                ! preg_match( '/^[a-f0-9]{64}$/D', $manifest_data['sha256'] ) ) {
+                return new WP_Error( 'trasloco_unverified_backup', 'Backup manifest is invalid.', array( 'status' => 409 ) );
+            }
+            $total = $manifest_bytes;
+            if ( $offset >= $total || $offset % Trasloco_Peer::CHUNK_BYTES !== 0 ) {
+                return new WP_Error( 'trasloco_range_error', 'Invalid archive offset.', array( 'status' => 416 ) );
+            }
+            $length = min( Trasloco_Peer::CHUNK_BYTES, $total - $offset );
+            $stream = @fopen( $path, 'rb' );
+            if ( $stream === false ) {
+                return new WP_Error( 'trasloco_transfer_error', 'Unable to read archive fragment.', array( 'status' => 503 ) );
+            }
+            try {
+                if ( fseek( $stream, $offset, SEEK_SET ) !== 0 ) {
+                    throw new RuntimeException( 'Unable to seek archive fragment.' );
+                }
+                $data = '';
+                while ( strlen( $data ) < $length ) {
+                    $part = fread( $stream, $length - strlen( $data ) );
+                    if ( $part === false || $part === '' ) {
+                        throw new RuntimeException( 'Archive changed during transfer.' );
+                    }
+                    $data .= $part;
+                }
+            } finally {
+                fclose( $stream );
+            }
+            $response = new WP_REST_Response( array(
+                'offset' => $offset, 'length' => strlen( $data ),
+                'sha256' => hash( 'sha256', $data ), 'data' => base64_encode( $data ),
+            ), 200 );
+            $response->header( 'Cache-Control', 'private, no-store' );
+            return $response;
+        } catch ( Throwable $error ) {
+            return new WP_Error( 'trasloco_transfer_error', 'Unable to transfer this archive fragment.', array( 'status' => 400 ) );
+        }
     }
 
     public static function metadata( $filename ) {

@@ -114,6 +114,34 @@ if [ ! -s "$ARCHIVE" ]; then
   exit 1
 fi
 $WP trasloco verify "$(basename "$ARCHIVE")" --path="$ROOT/source"
+# Exercise a real source-side manifest/chunk REST request and the local
+# resumable downloader against an intercepted HTTPS peer.
+$WP eval '
+$files = (new Trasloco_Backups())->get_files();
+$archive = basename( $files[0]["filename"] );
+wp_set_current_user( 0 );
+$denied = rest_do_request( new WP_REST_Request( "GET", "/trasloco/v1/backups/" . $archive . "/manifest" ) );
+if ( $denied->get_status() < 400 ) { throw new Exception( "Anonymous user read a peer manifest" ); }
+$admins = get_users( array( "role" => "administrator", "number" => 1 ) );
+wp_set_current_user( $admins[0]->ID );
+$manifest = rest_do_request( new WP_REST_Request( "GET", "/trasloco/v1/backups/" . $archive . "/manifest" ) );
+if ( $manifest->get_status() !== 200 || $manifest->get_data()["archive"] !== $archive ||
+     $manifest->get_data()["sha256"] !== hash_file( "sha256", trasloco_backup_path( array( "archive" => $archive ) ) ) ) {
+    throw new Exception( "Peer manifest endpoint returned invalid metadata" );
+}
+$fragment_request = new WP_REST_Request( "GET", "/trasloco/v1/backups/" . $archive . "/chunk" );
+$fragment_request->set_param( "offset", 0 );
+$fragment = rest_do_request( $fragment_request );
+if ( $fragment->get_status() !== 200 || $fragment->get_data()["length"] < 1 ||
+     ! hash_equals( $fragment->get_data()["sha256"], hash( "sha256", base64_decode( $fragment->get_data()["data"], true ) ) ) ) {
+    throw new Exception( "Peer chunk endpoint returned invalid bytes: " . $fragment->get_status() . " " . wp_json_encode( $fragment->get_data() ) );
+}
+$bad_request = new WP_REST_Request( "GET", "/trasloco/v1/backups/" . $archive . "/chunk" );
+$bad_request->set_param( "offset", 1 );
+$bad_offset = rest_do_request( $bad_request );
+if ( $bad_offset->get_status() < 400 ) { throw new Exception( "Peer chunk endpoint accepted an unaligned offset" ); }
+' --path="$ROOT/source"
+$WP eval-file "$GITHUB_WORKSPACE/tests/peer-pull-smoke.php" --path="$ROOT/source"
 # Exercise the configured offsite CLI against an isolated private local remote.
 # The source and destination sites are separate WordPress/MySQL installations.
 OFFSITE_NAME="offsite-transfer-fixture.wpress"

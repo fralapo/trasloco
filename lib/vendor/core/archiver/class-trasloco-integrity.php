@@ -296,6 +296,11 @@ class Trasloco_Integrity {
         if ( ! is_string( $hash ) || ! hash_equals( $data['sha256'], $hash ) ) {
             return array( 'status' => 'corrupt', 'message' => 'Archive SHA-256 does not match manifest.' );
         }
-        return array( 'status' => 'verified', 'message' => 'Archive size and SHA-256 match.' );
+        return array(
+            'status' => 'verified',
+            'message' => 'Archive size and SHA-256 match.',
+            'size_bytes' => $size,
+            'sha256' => $hash,
+        );
     }
 }

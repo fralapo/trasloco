@@ -41,10 +41,12 @@ The encrypted archive carries a SHA-256 sidecar. Upload publishes the sidecar la
 
 Never commit storage credentials or plaintext database passwords into the repository. Rehearse a download and isolated restore before relying on a provider for disaster recovery.
 
+For a direct transfer between two WordPress sites, the destination can run [`wp trasloco pull-site`](PEER_TRANSFER.md). This path requires an administrator Application Password on the source and verifies the complete archive before it becomes available locally. It is a manual transfer; it does not restore the archive or replace cloud offsite storage.
+
 ## Recovery rehearsal
 
 Each month, download a random backup from the offsite destination and restore it on an isolated staging WordPress installation. Confirm database, user accounts, media, forms, URLs, and themes. Also verify backup age and available storage.
 
 ## Still to implement
-- S3 and other cloud connectors, remote retry/resume and provider health checks.
+- S3 and other cloud connectors, durable retry/resume for offsite storage, automated provider health checks and alerts.
 - Incremental/differential backup chains and retention dependency management.
