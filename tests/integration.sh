@@ -9,13 +9,18 @@ TRASLOCO_TEST_DB_PASSWORD="${TRASLOCO_TEST_DB_PASSWORD:-root}"
 export TRASLOCO_TEST_DB_HOST TRASLOCO_TEST_DB_PORT TRASLOCO_TEST_DB_USER TRASLOCO_TEST_DB_PASSWORD
 MYSQL=(mysql --protocol=TCP -h "$TRASLOCO_TEST_DB_HOST" -P "$TRASLOCO_TEST_DB_PORT" \
   -u "$TRASLOCO_TEST_DB_USER" "-p$TRASLOCO_TEST_DB_PASSWORD")
+WP_CORE_VERSION_ARGS=()
+if [ -n "${TRASLOCO_TEST_WORDPRESS_VERSION:-}" ]; then
+  WP_CORE_VERSION_ARGS+=(--version="$TRASLOCO_TEST_WORDPRESS_VERSION")
+  export TRASLOCO_TEST_WORDPRESS_VERSION
+fi
 ROOT="$(mktemp -d)"
 trap 'rm -rf "$ROOT"' EXIT
 
 "${MYSQL[@]}" -e "CREATE DATABASE trasloco_source; CREATE DATABASE trasloco_target;"
 for ROLE in source target; do
   SITE="$ROOT/$ROLE"
-  $WP core download --path="$SITE" --skip-content
+  $WP core download --path="$SITE" --skip-content "${WP_CORE_VERSION_ARGS[@]}"
   mkdir -p "$SITE/wp-content/plugins"
   cp -R "$GITHUB_WORKSPACE" "$SITE/wp-content/plugins/trasloco"
   $WP config create --path="$SITE" --dbname="trasloco_$ROLE" --dbuser="$TRASLOCO_TEST_DB_USER" \
