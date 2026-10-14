@@ -119,7 +119,7 @@ if $WP trasloco backup --path="$ROOT/source"; then
 fi
 rm "$ROOT/source/wp-content/uploads/private-file-link.txt"
 rm "$ROOT/source/wp-content/uploads/private-directory-link"
-$WP trasloco backup --path="$ROOT/source"
+$WP trasloco backup --incremental --keep=5 --path="$ROOT/source"
 ARCHIVE=$(find "$ROOT/source/wp-content/trasloco-backups" -maxdepth 1 -type f -name '*.wpress' -print -quit)
 if grep -aFq 'TRASLOCO_OUTSIDE_SECRET_GUARD_20261012' "$ARCHIVE"; then
   echo "ERROR: backup exported data reached through an external symlink" >&2
@@ -130,6 +130,7 @@ if [ ! -s "$ARCHIVE" ]; then
   exit 1
 fi
 $WP trasloco verify "$(basename "$ARCHIVE")" --path="$ROOT/source"
+$WP trasloco incremental verify "$(basename "$ARCHIVE")" --path="$ROOT/source"
 
 # Selective database restore defaults to a read-only plan, then replaces only
 # the explicitly selected table while preserving site settings and files.

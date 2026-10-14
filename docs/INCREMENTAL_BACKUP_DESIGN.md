@@ -43,7 +43,7 @@ wp trasloco incremental list
 wp trasloco incremental prune --keep=backup.wpress,newer.wpress
 ```
 
-The reconstructed file is compatible with the existing importer. Local snapshots have their own retention policy, separate from deletion of ordinary archives, so pruning requires at least one explicitly retained snapshot.
+The reconstructed file is compatible with the existing importer. For a one-shot CLI export, `wp trasloco backup --incremental` captures the new verified archive automatically. Adding the existing `--keep=<count>` option applies the same retention to ordinary archives and their incremental catalogs while preserving recovery-point catalogs. Without `--keep`, no snapshots are pruned. Manual capture and pruning remain available for existing archives.
 
 ## Acceptance tests
 

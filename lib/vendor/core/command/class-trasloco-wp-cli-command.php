@@ -42,6 +42,9 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 		 * After a successful backup, retain only the newest count archives on this site.
 		 * This is opt-in; by default no existing backups are deleted.
 		 *
+		 * [--incremental]
+		 * Also capture the verified archive in the local content-addressed snapshot store.
+		 *
 		 * [--exclude-spam-comments]
 		 * Do not export spam comments
 		 *
@@ -192,6 +195,7 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 					WP_CLI::error( '--keep must be a positive integer.' );
 				}
 			}
+			$incremental = isset( $assoc_args['incremental'] );
 
 			WP_CLI::log( 'Backup in progress...' );
 			$lock_owner = hash( 'sha256', 'trasloco-cli-backup:' . wp_generate_uuid4() );
@@ -232,10 +236,44 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 
 			WP_CLI::log( __( 'Backup complete.', TRASLOCO_PLUGIN_NAME ) );
 			WP_CLI::log( sprintf( __( 'Backup location: %s', TRASLOCO_PLUGIN_NAME ), trasloco_backup_path( $params ) ) );
+			if ( $incremental ) {
+				$archive = trasloco_backup_path( $params );
+				require_once TRASLOCO_LIB_PATH . '/vendor/core/archiver/class-trasloco-integrity.php';
+				require_once TRASLOCO_LIB_PATH . '/model/class-trasloco-incremental-store.php';
+				$integrity = Trasloco_Integrity::verify( $archive );
+				if ( $integrity['status'] !== 'verified' ) {
+					WP_CLI::error( 'Backup failed integrity verification before incremental capture.' );
+				}
+				$store_root = rtrim( TRASLOCO_BACKUPS_PATH, DIRECTORY_SEPARATOR ) . DIRECTORY_SEPARATOR . '.trasloco-incremental';
+				$store = new Trasloco_Incremental_Store( $store_root );
+				$result = $store->capture( $archive, $integrity['sha256'] );
+				WP_CLI::success( sprintf( 'Incremental snapshot captured (%d chunks; %d unique chunks).',
+					$result['objects'], $result['unique_objects'] ) );
+			}
 			// Opt-in retention for unattended schedules. Keep newest backups
 			// only after the current archive was successfully created.
 			if ( $keep !== null ) {
 				$archive_list = new Trasloco_Backups;
+				if ( $incremental ) {
+					require_once TRASLOCO_LIB_PATH . '/model/class-trasloco-incremental-store.php';
+					$store = new Trasloco_Incremental_Store(
+						rtrim( TRASLOCO_BACKUPS_PATH, DIRECTORY_SEPARATOR ) . DIRECTORY_SEPARATOR . '.trasloco-incremental'
+					);
+					$ordinary_keep = array();
+					foreach ( array_slice( $archive_list->get_retention_files(), 0, $keep ) as $retained ) {
+						$ordinary_keep[ basename( $retained['filename'] ) ] = true;
+					}
+					$snapshot_keep = array();
+					foreach ( $store->list_snapshots() as $snapshot ) {
+						if ( Trasloco_Backups::is_recovery_point( $snapshot['archive'] ) || isset( $ordinary_keep[ $snapshot['archive'] ] ) ) {
+							$snapshot_keep[] = $snapshot['archive'];
+						}
+					}
+					if ( empty( $snapshot_keep ) ) {
+						WP_CLI::error( 'Incremental retention would remove the newly captured snapshot.' );
+					}
+					$store->prune( $snapshot_keep );
+				}
 				foreach ( array_slice( $archive_list->get_retention_files(), $keep ) as $old_backup ) {
 					if ( ! $archive_list->delete_file( $old_backup['filename'] ) ) {
 						WP_CLI::warning( 'Unable to remove old backup: ' . $old_backup['filename'] );
