@@ -32,6 +32,36 @@
 	<?php if ( ! empty( $selective_restore_active ) ) : ?>
 		<p role="status" class="notice notice-warning"><?php esc_html_e( 'A selected-table restore is running. Wait for it to finish before starting another import or restore.', TRASLOCO_PLUGIN_NAME ); ?></p>
 	<?php endif; ?>
+	<?php if ( is_array( $incremental_stats ) ) : ?>
+		<section class="tr-card" aria-labelledby="tr-incremental-snapshots">
+			<h2 id="tr-incremental-snapshots"><?php esc_html_e( 'Incremental snapshots', TRASLOCO_PLUGIN_NAME ); ?></h2>
+			<p><?php echo esc_html( sprintf( __( '%1$d snapshots; %2$s of snapshot data; %3$s in chunk objects and catalogs; %4$s in original archives and manifests; net space saved: %5$s.', TRASLOCO_PLUGIN_NAME ),
+				$incremental_stats['snapshots'], size_format( $incremental_stats['logical_bytes'], 2 ),
+				size_format( $incremental_stats['object_bytes'] + $incremental_stats['catalog_bytes'] + $incremental_stats['pending_bytes'], 2 ),
+				size_format( $incremental_stats['source_archive_bytes'], 2 ),
+				( $incremental_stats['net_saved_bytes'] < 0 ? '-' : '' ) . size_format( abs( $incremental_stats['net_saved_bytes'] ), 2 ) ) ); ?></p>
+			<p class="tr-hint"><?php esc_html_e( 'Net space saved compares snapshot logical bytes with measured object, catalog, pending, remaining archive and manifest file sizes. It can be negative while original archives remain.', TRASLOCO_PLUGIN_NAME ); ?></p>
+			<?php if ( $snapshots ) : ?>
+				<table class="trasloco-backups tr-table">
+					<caption class="screen-reader-text"><?php esc_html_e( 'Incremental snapshot catalog', TRASLOCO_PLUGIN_NAME ); ?></caption>
+					<thead><tr><th scope="col"><?php esc_html_e( 'Snapshot', TRASLOCO_PLUGIN_NAME ); ?></th><th scope="col"><?php esc_html_e( 'Date', TRASLOCO_PLUGIN_NAME ); ?></th><th scope="col"><?php esc_html_e( 'Logical size', TRASLOCO_PLUGIN_NAME ); ?></th><th scope="col"><?php esc_html_e( 'Integrity', TRASLOCO_PLUGIN_NAME ); ?></th><th scope="col"><?php esc_html_e( 'Restore command', TRASLOCO_PLUGIN_NAME ); ?></th></tr></thead>
+					<tbody>
+					<?php foreach ( $snapshots as $snapshot ) : ?>
+						<tr>
+							<th scope="row"><?php echo esc_html( $snapshot['archive'] ); ?></th>
+							<td><?php echo esc_html( wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $snapshot['mtime'] ) ); ?></td>
+							<td><?php echo esc_html( size_format( $snapshot['size_bytes'], 2 ) ); ?></td>
+							<td><?php esc_html_e( 'Catalog available; verified during restore', TRASLOCO_PLUGIN_NAME ); ?></td>
+							<td><code><?php echo esc_html( 'wp trasloco restore ' . $snapshot['archive'] ); ?></code></td>
+						</tr>
+					<?php endforeach; ?>
+					</tbody>
+				</table>
+			<?php else : ?>
+				<p><?php esc_html_e( 'No incremental snapshots are available.', TRASLOCO_PLUGIN_NAME ); ?></p>
+			<?php endif; ?>
+		</section>
+	<?php endif; ?>
 
 	<section class="tr-card" aria-labelledby="tr-automatic-backups">
 		<h2 id="tr-automatic-backups"><?php esc_html_e( 'Automatic backups', TRASLOCO_PLUGIN_NAME ); ?></h2>

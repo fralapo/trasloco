@@ -85,6 +85,30 @@ class Trasloco_Backups {
 		return is_string( $filename ) && strpos( basename( $filename ), 'recovery-' ) === 0;
 	}
 
+	/** Select a bounded retention set across full archives and compacted catalogs. */
+	public static function incremental_retention_names( $archives, $snapshots, $keep ) {
+		if ( ! is_array( $archives ) || ! is_array( $snapshots ) || ! is_int( $keep ) || $keep < 1 ) {
+			throw new InvalidArgumentException( 'Invalid incremental retention inputs.' );
+		}
+		$candidates = array();
+		foreach ( $archives as $archive ) {
+			$name = basename( $archive['filename'] );
+			if ( ! self::is_recovery_point( $name ) ) {
+				$candidates[ $name ] = array( 'archive' => $name, 'mtime' => (int) $archive['mtime'] );
+			}
+		}
+		foreach ( $snapshots as $snapshot ) {
+			$name = basename( $snapshot['archive'] );
+			if ( ! self::is_recovery_point( $name ) && ! isset( $candidates[ $name ] ) ) {
+				$candidates[ $name ] = array( 'archive' => $name, 'mtime' => (int) $snapshot['mtime'] );
+			}
+		}
+		usort( $candidates, function ( $a, $b ) {
+			return $a['mtime'] === $b['mtime'] ? strcmp( $a['archive'], $b['archive'] ) : ( $a['mtime'] > $b['mtime'] ? -1 : 1 );
+		} );
+		return array_values( array_map( function ( $candidate ) { return $candidate['archive']; }, array_slice( $candidates, 0, $keep ) ) );
+	}
+
 	/** @return array Automatic retention candidates, newest first. */
 	public function get_retention_files() {
 		return array_values( array_filter( $this->get_files(), function ( $backup ) {

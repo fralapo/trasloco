@@ -12,6 +12,7 @@ namespace {
         public static function add_command( $name, $class, $args = array() ) {}
         public static function success( $message ) {}
         public static function error( $message ) { throw new RuntimeException( $message ); }
+        public static function line( $message ) {}
     }
     function size_format( $size, $decimals = 0 ) { return (string) $size; }
 
@@ -22,6 +23,7 @@ namespace {
     define( 'TRASLOCO_LIB_PATH', dirname( __DIR__ ) . '/lib' );
     require_once TRASLOCO_LIB_PATH . '/vendor/core/archiver/class-trasloco-integrity.php';
     require_once TRASLOCO_LIB_PATH . '/model/class-trasloco-incremental-store.php';
+    require_once TRASLOCO_LIB_PATH . '/model/class-trasloco-backups.php';
     require_once TRASLOCO_LIB_PATH . '/vendor/core/command/class-trasloco-wp-cli-command.php';
 
     function incremental_cli_assert( $condition, $message ) {
@@ -37,6 +39,10 @@ namespace {
         $command->incremental( array( 'capture', $name ), array() );
         $command->incremental( array( 'verify', $name ), array() );
         $command->incremental( array( 'list' ), array() );
+        $command->incremental( array( 'stats' ), array() );
+        $failed = false;
+        try { $command->incremental( array( 'compact', $name ), array() ); } catch ( RuntimeException $error ) { $failed = true; }
+        incremental_cli_assert( $failed && is_file( $path ), 'WP-CLI compact removed an archive without valid restore structure.' );
         $output = 'cli-restored.wpress';
         $command->incremental( array( 'materialize', $name ), array( 'output' => $output ) );
         incremental_cli_assert( hash_file( 'sha256', $path ) === hash_file( 'sha256', $backup_dir . '/' . $output ),
@@ -44,6 +50,12 @@ namespace {
         $command->incremental( array( 'prune' ), array( 'keep' => $name ) );
         incremental_cli_assert( count( ( new Trasloco_Incremental_Store( $backup_dir . '/.trasloco-incremental' ) )->list_snapshots() ) === 1,
             'WP-CLI prune removed the retained snapshot.' );
+        $retained = Trasloco_Backups::incremental_retention_names(
+            array( array( 'filename' => 'newer.wpress', 'mtime' => 30 ), array( 'filename' => 'older.wpress', 'mtime' => 10 ) ),
+            array( array( 'archive' => 'compacted.wpress', 'mtime' => 20 ) ), 2
+        );
+        incremental_cli_assert( $retained === array( 'newer.wpress', 'compacted.wpress' ),
+            'Incremental retention did not count snapshot-only catalogs alongside full archives.' );
 
         $failed = false;
         try { $command->incremental( array( 'materialize', $name ), array( 'output' => '../outside.wpress' ) ); }

@@ -248,10 +248,115 @@ class Trasloco_Incremental_Store {
                 $catalog = $this->read_catalog( $name );
                 $snapshots[] = array( 'archive' => $name, 'size_bytes' => $catalog['size_bytes'],
                     'sha256' => $catalog['sha256'], 'objects' => count( $catalog['chunks'] ),
-                    'unique_objects' => $this->unique_object_count( $catalog['chunks'] ) );
+                    'unique_objects' => $this->unique_object_count( $catalog['chunks'] ),
+                    'mtime' => (int) $entry->getMTime() );
             }
             usort( $snapshots, function ( $a, $b ) { return strcmp( $a['archive'], $b['archive'] ); } );
             return $snapshots;
+        } );
+    }
+
+    /** Measure bytes currently retained by the snapshot store and source archives. */
+    public function storage_stats() {
+        $this->ensure_root();
+        return $this->locked( function () {
+            $logical = 0;
+            $catalog_bytes = 0;
+            $source_bytes = 0;
+            $manifest_bytes = 0;
+            $snapshots = array();
+            foreach ( new DirectoryIterator( $this->catalog_dir() ) as $entry ) {
+                if ( $entry->isDot() ) { continue; }
+                if ( $entry->isLink() || ! $entry->isFile() ) { throw new RuntimeException( 'Incremental catalog directory contains an unsafe entry.' ); }
+                if ( substr( $entry->getFilename(), -5 ) === '.json' ) {
+                    $snapshots[] = $this->read_catalog( substr( $entry->getFilename(), 0, -5 ) );
+                }
+            }
+            foreach ( new DirectoryIterator( $this->catalog_dir() ) as $entry ) {
+                if ( $entry->isDot() ) { continue; }
+                if ( $entry->isLink() || ! $entry->isFile() ) { throw new RuntimeException( 'Incremental catalog directory contains an unsafe entry.' ); }
+                $catalog_bytes += (int) $entry->getSize();
+            }
+            foreach ( $snapshots as $snapshot ) {
+                $logical += (int) $snapshot['size_bytes'];
+                $source = dirname( $this->root ) . DIRECTORY_SEPARATOR . $snapshot['archive'];
+                if ( is_link( $source ) || ( file_exists( $source ) && ! is_file( $source ) ) ) { throw new RuntimeException( 'Snapshot source archive path is unsafe.' ); }
+                if ( is_file( $source ) ) { $source_bytes += (int) filesize( $source ); }
+                $manifest = $source . '.manifest.json';
+                if ( is_link( $manifest ) || ( file_exists( $manifest ) && ! is_file( $manifest ) ) ) { throw new RuntimeException( 'Snapshot integrity manifest path is unsafe.' ); }
+                if ( is_file( $manifest ) ) { $manifest_bytes += (int) filesize( $manifest ); }
+            }
+            $object_bytes = 0;
+            foreach ( new DirectoryIterator( $this->object_dir() ) as $shard ) {
+                if ( $shard->isDot() ) { continue; }
+                if ( $shard->isLink() || ! $shard->isDir() ) { throw new RuntimeException( 'Incremental object directory contains an unsafe entry.' ); }
+                foreach ( new DirectoryIterator( $shard->getPathname() ) as $object ) {
+                    if ( $object->isDot() ) { continue; }
+                    if ( $object->isLink() || ! $object->isFile() ) { throw new RuntimeException( 'Incremental object shard contains an unsafe entry.' ); }
+                    $object_bytes += (int) $object->getSize();
+                }
+            }
+            $pending_bytes = 0;
+            foreach ( new DirectoryIterator( $this->capture_dir() ) as $entry ) {
+                if ( ! $entry->isDot() ) {
+                    if ( $entry->isLink() || ! $entry->isFile() ) { throw new RuntimeException( 'Incremental pending directory contains an unsafe entry.' ); }
+                    $pending_bytes += (int) $entry->getSize();
+                }
+            }
+            $store_bytes = $object_bytes + $catalog_bytes + $pending_bytes;
+            return array( 'snapshots' => count( $snapshots ), 'logical_bytes' => $logical,
+                'object_bytes' => $object_bytes, 'catalog_bytes' => $catalog_bytes,
+                'pending_bytes' => $pending_bytes, 'source_archive_bytes' => $source_bytes,
+                'source_manifest_bytes' => $manifest_bytes,
+                'physical_bytes' => $store_bytes + $source_bytes + $manifest_bytes,
+                'net_saved_bytes' => $logical - $store_bytes - $source_bytes - $manifest_bytes );
+        } );
+    }
+
+    /** Remove a full archive only after its catalog reconstructs the exact bytes. */
+    public function compact( $archive ) {
+        $name = $this->archive_name( $archive );
+        if ( strpos( $name, 'recovery-' ) === 0 ) { throw new InvalidArgumentException( 'Recovery-point archives cannot be compacted.' ); }
+        $this->ensure_root();
+        return $this->locked( function () use ( $name ) {
+            $source = dirname( $this->root ) . DIRECTORY_SEPARATOR . $name;
+            if ( ! is_file( $source ) || is_link( $source ) || ! is_readable( $source ) ) {
+                throw new RuntimeException( 'Source archive is missing or unsafe.' );
+            }
+            $catalog = $this->read_catalog( $name );
+            $this->stream_catalog( $catalog, null );
+            $source_digest = hash_file( 'sha256', $source );
+            if ( $source_digest === false || ! hash_equals( $catalog['sha256'], $source_digest ) ||
+                (int) filesize( $source ) !== (int) $catalog['size_bytes'] ) {
+                throw new RuntimeException( 'Source archive does not match its verified snapshot.' );
+            }
+            $manifest = $source . '.manifest.json';
+            if ( is_link( $manifest ) || ( file_exists( $manifest ) && ! is_file( $manifest ) ) ) {
+                throw new RuntimeException( 'Archive integrity manifest is unsafe.' );
+            }
+            $manifest_bytes = is_file( $manifest ) ? (int) filesize( $manifest ) : 0;
+            $tombstone = dirname( $source ) . DIRECTORY_SEPARATOR . '.trasloco-compacting-' . bin2hex( random_bytes( 8 ) ) . '.wpress';
+            if ( file_exists( $tombstone ) || is_link( $tombstone ) || ! @rename( $source, $tombstone ) ) {
+                throw new RuntimeException( 'Cannot isolate source archive for safe compaction.' );
+            }
+            // Check the moved inode too, so a path swap between the initial
+            // digest check and rename cannot cause a different file to vanish.
+            $moved_digest = hash_file( 'sha256', $tombstone );
+            if ( $moved_digest === false || ! hash_equals( $catalog['sha256'], $moved_digest ) ||
+                (int) filesize( $tombstone ) !== (int) $catalog['size_bytes'] ) {
+                if ( ! file_exists( $source ) && ! is_link( $source ) ) { @rename( $tombstone, $source ); }
+                throw new RuntimeException( 'Source archive changed during compaction; it was retained.' );
+            }
+            if ( ! @unlink( $tombstone ) ) {
+                if ( ! file_exists( $source ) && ! is_link( $source ) ) { @rename( $tombstone, $source ); }
+                throw new RuntimeException( 'Cannot remove verified source archive.' );
+            }
+            if ( is_file( $manifest ) && ! @unlink( $manifest ) ) {
+                throw new RuntimeException( 'Archive was compacted, but its stale integrity manifest could not be removed.' );
+            }
+            return array( 'archive' => $name, 'size_bytes' => $catalog['size_bytes'],
+                'manifest_bytes' => $manifest_bytes, 'sha256' => $catalog['sha256'],
+                'removed_bytes' => (int) $catalog['size_bytes'] + $manifest_bytes );
         } );
     }
 

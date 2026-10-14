@@ -275,6 +275,27 @@ return array(
 		'fr' => 'Sauvegardes automatiques',
 		'de' => 'Automatische Backups',
 	),
+	'Incremental snapshots' => array(
+		'it' => 'Snapshot incrementali', 'es' => 'Instantáneas incrementales', 'fr' => 'Snapshots incrémentiels', 'de' => 'Inkrementelle Snapshots',
+	),
+	'%1$d snapshots; %2$s of snapshot data; %3$s in chunk objects and catalogs; %4$s in original archives and manifests; net space saved: %5$s.' => array(
+		'it' => '%1$d snapshot; %2$s di dati negli snapshot; %3$s in oggetti e cataloghi; %4$s negli archivi originali e nei manifest; spazio netto risparmiato: %5$s.',
+		'es' => '%1$d instantáneas; %2$s de datos; %3$s en objetos y catálogos; %4$s en archivos originales y manifiestos; espacio neto ahorrado: %5$s.',
+		'fr' => '%1$d snapshots ; %2$s de données ; %3$s dans les objets et catalogues ; %4$s dans les archives et manifestes originaux ; espace net économisé : %5$s.',
+		'de' => '%1$d Snapshots; %2$s Snapshotdaten; %3$s in Objekten und Katalogen; %4$s in Originalarchiven und Manifesten; netto eingesparter Speicherplatz: %5$s.',
+	),
+	'Net space saved compares snapshot logical bytes with measured object, catalog, pending, remaining archive and manifest file sizes. It can be negative while original archives remain.' => array(
+		'it' => 'Lo spazio netto risparmiato confronta i byte logici degli snapshot con le dimensioni misurate di oggetti, cataloghi, file in sospeso, archivi e manifest ancora presenti. Può essere negativo finché restano gli archivi originali.',
+		'es' => 'El espacio neto compara los bytes lógicos con el tamaño medido de objetos, catálogos, archivos pendientes y archivos y manifiestos originales restantes. Puede ser negativo mientras queden archivos originales.',
+		'fr' => 'L’espace net compare les octets logiques aux tailles mesurées des objets, catalogues, fichiers en attente, archives et manifestes restants. Il peut être négatif tant que les archives originales sont conservées.',
+		'de' => 'Der netto eingesparte Speicher vergleicht logische Snapshot-Bytes mit den gemessenen Größen von Objekten, Katalogen, ausstehenden Dateien sowie verbliebenen Archiven und Manifesten. Solange Originalarchive verbleiben, kann der Wert negativ sein.',
+	),
+	'Snapshot' => array('it' => 'Snapshot', 'es' => 'Instantánea', 'fr' => 'Snapshot', 'de' => 'Snapshot'),
+	'Incremental snapshot catalog' => array('it' => 'Catalogo degli snapshot incrementali', 'es' => 'Catálogo de instantáneas incrementales', 'fr' => 'Catalogue des snapshots incrémentiels', 'de' => 'Katalog inkrementeller Snapshots'),
+	'Logical size' => array('it' => 'Dimensione logica', 'es' => 'Tamaño lógico', 'fr' => 'Taille logique', 'de' => 'Logische Größe'),
+	'Restore command' => array('it' => 'Comando di ripristino', 'es' => 'Comando de restauración', 'fr' => 'Commande de restauration', 'de' => 'Wiederherstellungsbefehl'),
+	'Catalog available; verified during restore' => array('it' => 'Catalogo disponibile; verifica durante il ripristino', 'es' => 'Catálogo disponible; se verifica al restaurar', 'fr' => 'Catalogue disponible ; vérifié lors de la restauration', 'de' => 'Katalog verfügbar; Prüfung bei der Wiederherstellung'),
+	'No incremental snapshots are available.' => array('it' => 'Nessuno snapshot incrementale disponibile.', 'es' => 'No hay instantáneas incrementales disponibles.', 'fr' => 'Aucun snapshot incrémentiel disponible.', 'de' => 'Keine inkrementellen Snapshots verfügbar.'),
 	'Create verified backups on a schedule and automatically retain the newest copies.' => array(
 		'it' => 'Crea backup verificati a intervalli regolari e conserva automaticamente solo le copie più recenti.',
 		'es' => 'Crea copias verificadas de forma programada y conserva automáticamente las más recientes.',

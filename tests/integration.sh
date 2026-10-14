@@ -1750,6 +1750,38 @@ $count = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$table} WH
 if ( $count < 1 ) { throw new Exception( "Admin POST failed to create verification job" ); }
 ' --path="$ROOT/source"
 
+# Compact a real structurally valid snapshot, then restore it by its original
+# name to exercise reconstruction through the standard importer.
+SNAPSHOT_NAME=$($WP eval '
+require_once TRASLOCO_LIB_PATH . "/model/class-trasloco-incremental-store.php";
+$store = new Trasloco_Incremental_Store( TRASLOCO_BACKUPS_PATH . DIRECTORY_SEPARATOR . ".trasloco-incremental" );
+foreach ( $store->list_snapshots() as $snapshot ) {
+    $path = TRASLOCO_BACKUPS_PATH . DIRECTORY_SEPARATOR . $snapshot["archive"];
+    if ( ! Trasloco_Backups::is_recovery_point( $snapshot["archive"] ) && is_file( $path ) ) {
+        echo $snapshot["archive"];
+        break;
+    }
+}
+' --path="$ROOT/source")
+if [ -z "$SNAPSHOT_NAME" ]; then
+  echo "ERROR: no retained full archive has an incremental catalog" >&2
+  exit 1
+fi
+ARCHIVE="$ROOT/source/wp-content/trasloco-backups/$SNAPSHOT_NAME"
+$WP trasloco incremental stats --path="$ROOT/source"
+$WP trasloco incremental compact "$SNAPSHOT_NAME" --path="$ROOT/source"
+if [ -e "$ARCHIVE" ]; then
+  echo "ERROR: verified compaction left the original archive in place" >&2
+  exit 1
+fi
+$WP trasloco restore "$SNAPSHOT_NAME" --path="$ROOT/source"
+if [ ! -f "$ARCHIVE" ]; then
+  echo "ERROR: snapshot restore did not reconstruct the original archive" >&2
+  exit 1
+fi
+$WP trasloco incremental verify "$SNAPSHOT_NAME" --path="$ROOT/source"
+$WP post list --path="$ROOT/source" --post_type=post --field=post_title | grep -F "Trasloco fixture: source post"
+
 # Plugin deactivation removes recurring timers and queued workers only.
 $WP plugin deactivate trasloco --path="$ROOT/source"
 $WP eval '

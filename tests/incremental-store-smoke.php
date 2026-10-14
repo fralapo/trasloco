@@ -16,7 +16,7 @@ function incremental_remove_tree( $path ) {
 
 $base = rtrim( sys_get_temp_dir(), DIRECTORY_SEPARATOR ) . DIRECTORY_SEPARATOR . 'trasloco-incremental-' . bin2hex( random_bytes( 8 ) );
 $source_dir = $base . DIRECTORY_SEPARATOR . 'source';
-$store_dir = $base . DIRECTORY_SEPARATOR . 'store';
+$store_dir = $source_dir . DIRECTORY_SEPARATOR . '.trasloco-incremental';
 $restore_dir = $base . DIRECTORY_SEPARATOR . 'restore';
 mkdir( $source_dir, 0700, true ); mkdir( $restore_dir, 0700, true );
 $store = new Trasloco_Incremental_Store( $store_dir );
@@ -39,9 +39,43 @@ try {
     $two = $store->capture( $second );
     incremental_assert( $two['archive'] === 'second.wpress' && $two['objects'] === 2 && $two['unique_objects'] === 2,
         'Second snapshot catalog was not created with two bounded objects.' );
+    file_put_contents( $first . '.manifest.json', 'verified-manifest-one' );
+    file_put_contents( $second . '.manifest.json', 'verified-manifest-two' );
     incremental_assert( $store->verify( 'first.wpress' )['sha256'] === hash( 'sha256', $first_bytes ) &&
         $store->verify( 'second.wpress' )['sha256'] === hash( 'sha256', $second_bytes ),
         'A snapshot did not verify against its complete archive digest.' );
+
+    $before_compaction = $store->storage_stats();
+    incremental_assert( $before_compaction['logical_bytes'] === 4 * Trasloco_Incremental_Store::CHUNK_BYTES &&
+        $before_compaction['object_bytes'] === 3 * Trasloco_Incremental_Store::CHUNK_BYTES &&
+        $before_compaction['source_archive_bytes'] === 4 * Trasloco_Incremental_Store::CHUNK_BYTES &&
+        $before_compaction['source_manifest_bytes'] > 0 &&
+        $before_compaction['net_saved_bytes'] < 0,
+        'Storage accounting did not include chunk deduplication and the retained source archives.' );
+
+    file_put_contents( $first, 'tampered source' );
+    $failed = false;
+    try { $store->compact( 'first.wpress' ); } catch ( RuntimeException $error ) { $failed = true; }
+    incremental_assert( $failed && is_file( $first ), 'Compaction removed a source archive that did not match its snapshot.' );
+    file_put_contents( $first, $first_bytes );
+
+	$first_removed = $store->compact( 'first.wpress' );
+	$second_removed = $store->compact( 'second.wpress' );
+    $after_compaction = $store->storage_stats();
+    incremental_assert( ! file_exists( $first ) && ! file_exists( $second ) &&
+        $after_compaction['source_archive_bytes'] === 0 && $after_compaction['source_manifest_bytes'] === 0 && $after_compaction['net_saved_bytes'] > 0,
+        'Verified compaction did not remove source archives or report measured net savings.' );
+	incremental_assert( $first_removed['removed_bytes'] === strlen( $first_bytes ) + strlen( 'verified-manifest-one' ) &&
+		$second_removed['removed_bytes'] === strlen( $second_bytes ) + strlen( 'verified-manifest-two' ),
+		'Compaction did not report the measured archive and manifest file bytes it removed.' );
+
+	$recovery_archive = $source_dir . '/recovery-before-update.wpress';
+	file_put_contents( $recovery_archive, 'protected recovery point' );
+	$recovery_store = new Trasloco_Incremental_Store( $source_dir . '/.trasloco-recovery-store' );
+	$recovery_store->capture( $recovery_archive );
+	$failed = false;
+	try { $recovery_store->compact( basename( $recovery_archive ) ); } catch ( InvalidArgumentException $error ) { $failed = true; }
+	incremental_assert( $failed && is_file( $recovery_archive ), 'Compaction removed a protected recovery point.' );
 
     $materialized = $restore_dir . '/first.wpress';
     $store->materialize( 'first.wpress', $materialized );

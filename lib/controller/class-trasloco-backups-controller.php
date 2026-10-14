@@ -34,11 +34,23 @@ class Trasloco_Backups_Controller {
 		}
 
 		$model = new Trasloco_Backups;
+		$snapshots = array();
+		$incremental_stats = null;
+		try {
+			require_once TRASLOCO_LIB_PATH . '/model/class-trasloco-incremental-store.php';
+			$incremental_store = new Trasloco_Incremental_Store( rtrim( TRASLOCO_BACKUPS_PATH, DIRECTORY_SEPARATOR ) . DIRECTORY_SEPARATOR . '.trasloco-incremental' );
+			$snapshots = $incremental_store->list_snapshots();
+			$incremental_stats = $incremental_store->storage_stats();
+		} catch ( Throwable $error ) {
+			// Keep ordinary backup management available if the optional store is damaged.
+		}
 
 		Trasloco_Template::render(
 			'backups/index',
 			array(
 				'backups'  => $model->get_files(),
+				'snapshots' => $snapshots,
+				'incremental_stats' => $incremental_stats,
 				'selective_restore_active' => $selective_restore_active,
 			)
 		);

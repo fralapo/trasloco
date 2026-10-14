@@ -33,19 +33,26 @@ The local storage layer exposes catalog validation, bounded object insertion, sn
 
 ## Local WP-CLI workflow
 
-The local content-addressed store is available through `wp trasloco incremental` and lives in the private `.trasloco-incremental` directory inside the configured backup directory. It does not replace or remove ordinary `.wpress` files. Capture accepts only a structurally verified archive. The snapshot can then be checked, listed, reconstructed into a new `.wpress` file, or pruned while retaining an explicit comma-separated set:
+The local content-addressed store is available through `wp trasloco incremental` and lives in the private `.trasloco-incremental` directory inside the configured backup directory. Capture accepts only an integrity-verified and structurally valid archive. The snapshot can be checked, listed with its capture date, reconstructed into a new `.wpress` file, measured, or pruned while retaining an explicit comma-separated set:
 
 ```sh
 wp trasloco incremental capture backup.wpress
 wp trasloco incremental verify backup.wpress
 wp trasloco incremental materialize backup.wpress --output=restored.wpress
 wp trasloco incremental list
+wp trasloco incremental stats
 wp trasloco incremental prune --keep=backup.wpress,newer.wpress
 ```
 
-The reconstructed file is compatible with the existing importer. For a one-shot CLI export, `wp trasloco backup --incremental` captures the new verified archive automatically. Adding the existing `--keep=<count>` option applies the same retention to ordinary archives and their incremental catalogs while preserving recovery-point catalogs. Without `--keep`, no snapshots are pruned. Manual capture and pruning remain available for existing archives.
+The reconstructed file is compatible with the existing importer. `wp trasloco restore backup.wpress` also reconstructs a missing archive from its catalog, verifies the full digest and required restore members, then invokes the existing restore workflow. It never overwrites an existing file. The Backups page lists catalogs, logical sizes, capture dates, restore commands and a storage summary.
 
-Scheduled backups can opt into the same local snapshot format from **Trasloco → Backups**. The worker verifies or creates the chunk manifest, then captures at most eight 4-MiB chunks per request. A private append-only journal lets the next leased worker resume after interruption; the catalog is published only after every chunk matches the verified manifest. Scheduled retention prunes snapshot catalogs with their `.wpress` archives and preserves recovery-point catalogs. The full `.wpress` archive remains in place, so this provides a second verified local representation and deduplication across snapshot objects, but does not yet reclaim archive disk space. Materialize the catalog to a separate archive before using the current restore workflow.
+`wp trasloco incremental stats` reports logical snapshot bytes, object/catalog/journal bytes, remaining archive and integrity-manifest bytes, and net savings. This is measured file length, not filesystem block allocation. Positive net savings mean the measured retained files are smaller than the logical archives; the value may be negative while originals remain.
+
+For a one-shot CLI export, `wp trasloco backup --incremental` captures the new verified archive automatically. Adding `--keep=<count>` applies retention across full archives and snapshot-only catalogs using their capture times while preserving recovery-point catalogs. Without `--keep`, no snapshots are pruned. Manual capture and pruning remain available for existing archives.
+
+Scheduled backups can opt into the same local snapshot format from **Trasloco → Backups**. The worker verifies or creates the chunk manifest, then captures at most eight 4-MiB chunks per request. A private append-only journal lets the next leased worker resume after interruption; the catalog is published only after every chunk matches the verified manifest. Scheduled retention counts snapshot-only catalogs and full archives together, preserving recovery-point catalogs.
+
+Full archives are retained by default. To reclaim space for one ordinary archive, run `wp trasloco incremental compact backup.wpress`. Compaction is explicit and refuses recovery points; it checks the existing integrity manifest, archive structure, catalog objects and exact whole-archive digest, then isolates and rechecks the source before removal. The catalog remains available, and `wp trasloco restore backup.wpress` reconstructs the original archive before starting the existing import. Compaction is not enabled automatically for scheduled or manual backups.
 
 ## Acceptance tests
 
@@ -56,8 +63,8 @@ Scheduled backups can opt into the same local snapshot format from **Trasloco �
 - Retention never removes a recovery point and never removes an object referenced by a retained catalog.
 - Concurrent create/prune workers cannot delete objects still being published or referenced.
 - Existing archive verification, encryption, import, peer transfer, WebDAV/S3 transfer and legacy backup tests continue to pass.
-- The implementation measures actual byte savings on representative WordPress archives and reports when changed archive metadata prevents deduplication.
+- Storage reports measured file lengths for catalogs, objects, journals, source archives and manifests; explicit compaction reports the archive and manifest bytes removed. Synthetic shared-chunk tests verify positive net savings. A single real 35.8 MB WordPress archive was reconstructed successfully but contained no repeated chunks, so its one-snapshot store had catalog overhead rather than positive deduplication savings; broader representative backup benchmarks remain open.
 
 ## Release gates and open questions
 
-The archive export still runs in full for each snapshot, so the current implementation can deduplicate repeated chunks across retained local catalogs but does not yet replace the full `.wpress` files or reduce their disk use. Snapshot-only restore and user-visible reclaimed-space accounting remain open. The 4-MiB chunk size and catalog/object limits are enforced but need measurement against real archives. Local tests prove reconstruction, bounded crash replay, and retention on the current filesystem. Cross-host locks, provider-side conditional writes, remote garbage collection, power-loss durability, real-provider testing, and production restore behavior require external environments.
+The archive export still runs in full for each snapshot. Local content-addressed deduplication, explicit verified compaction, snapshot-only restore, administrator visibility and file-byte savings accounting are implemented and covered by standalone and WordPress integration tests. The local integration measured the removed bytes on one 35.8 MB archive; because it had no repeated chunks, this does not establish positive savings for recurring representative backups. Cross-host locks, provider-side conditional writes, remote garbage collection, power-loss durability, real-provider testing, and production restore behavior require external environments.

@@ -657,12 +657,13 @@ class Trasloco_Job_Worker {
             return $entry['filename'] !== $params['archive'];
         } ) );
         if ( $incremental_enabled ) {
-            $retained_archives = array( basename( $params['archive'] ) => true );
-            foreach ( array_slice( $prior, 0, $keep - 1 ) as $entry ) {
-                $retained_archives[ basename( $entry['filename'] ) ] = true;
-            }
+	            $retention_archives = $prior;
+            $new_archive_path = trasloco_backup_path( array( 'archive' => $params['archive'] ) );
+            $retention_archives[] = array( 'filename' => basename( $params['archive'] ), 'mtime' => (int) @filemtime( $new_archive_path ) );
+	            $snapshots = $store->list_snapshots();
+	            $retained_archives = array_fill_keys( Trasloco_Backups::incremental_retention_names( $retention_archives, $snapshots, $keep ), true );
             $snapshot_keep = array();
-            foreach ( $store->list_snapshots() as $snapshot ) {
+	            foreach ( $snapshots as $snapshot ) {
                 if ( Trasloco_Backups::is_recovery_point( $snapshot['archive'] ) || isset( $retained_archives[ $snapshot['archive'] ] ) ) {
                     $snapshot_keep[] = $snapshot['archive'];
                 }
@@ -671,11 +672,12 @@ class Trasloco_Job_Worker {
                 throw new RuntimeException( 'Incremental retention could not preserve the new snapshot.' );
             }
             $store->prune( $snapshot_keep );
-        }
-        // Always protect the newly verified archive, even when creation
-        // timestamps tie and sort order is not deterministic.
-        foreach ( array_slice( $prior, $keep - 1 ) as $entry ) {
-            $model->delete_file( $entry['filename'] );
+	            foreach ( $prior as $entry ) {
+	                if ( ! isset( $retained_archives[ basename( $entry['filename'] ) ] ) ) { $model->delete_file( $entry['filename'] ); }
+	            }
+	        } else {
+	            // Keep the new archive even when timestamps tie and sort order is unstable.
+	            foreach ( array_slice( $prior, $keep - 1 ) as $entry ) { $model->delete_file( $entry['filename'] ); }
         }
         Trasloco_Directory::delete( trasloco_storage_path( $params ) );
         return array( 'status' => 'completed', 'archive' => $params['archive'] );

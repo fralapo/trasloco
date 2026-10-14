@@ -259,12 +259,11 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 					$store = new Trasloco_Incremental_Store(
 						rtrim( TRASLOCO_BACKUPS_PATH, DIRECTORY_SEPARATOR ) . DIRECTORY_SEPARATOR . '.trasloco-incremental'
 					);
-					$ordinary_keep = array();
-					foreach ( array_slice( $archive_list->get_retention_files(), 0, $keep ) as $retained ) {
-						$ordinary_keep[ basename( $retained['filename'] ) ] = true;
-					}
+					$archives = $archive_list->get_retention_files();
+					$snapshots = $store->list_snapshots();
+					$ordinary_keep = array_fill_keys( Trasloco_Backups::incremental_retention_names( $archives, $snapshots, $keep ), true );
 					$snapshot_keep = array();
-					foreach ( $store->list_snapshots() as $snapshot ) {
+					foreach ( $snapshots as $snapshot ) {
 						if ( Trasloco_Backups::is_recovery_point( $snapshot['archive'] ) || isset( $ordinary_keep[ $snapshot['archive'] ] ) ) {
 							$snapshot_keep[] = $snapshot['archive'];
 						}
@@ -273,10 +272,14 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 						WP_CLI::error( 'Incremental retention would remove the newly captured snapshot.' );
 					}
 					$store->prune( $snapshot_keep );
-				}
-				foreach ( array_slice( $archive_list->get_retention_files(), $keep ) as $old_backup ) {
-					if ( ! $archive_list->delete_file( $old_backup['filename'] ) ) {
-						WP_CLI::warning( 'Unable to remove old backup: ' . $old_backup['filename'] );
+					foreach ( $archives as $old_backup ) {
+						if ( ! isset( $ordinary_keep[ basename( $old_backup['filename'] ) ] ) && ! $archive_list->delete_file( $old_backup['filename'] ) ) {
+							WP_CLI::warning( 'Unable to remove old backup: ' . $old_backup['filename'] );
+						}
+					}
+				} else {
+					foreach ( array_slice( $archive_list->get_retention_files(), $keep ) as $old_backup ) {
+						if ( ! $archive_list->delete_file( $old_backup['filename'] ) ) { WP_CLI::warning( 'Unable to remove old backup: ' . $old_backup['filename'] ); }
 					}
 				}
 			}
@@ -288,7 +291,7 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 		 * Manage local content-addressed snapshots of verified .wpress archives.
 		 *
 		 * ## OPTIONS
-		 * <capture|verify|materialize|prune|list>
+		 * <capture|verify|materialize|prune|list|stats|compact>
 		 * [<archive>]
 		 *
 		 * [--keep=<archives>]
@@ -303,6 +306,8 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 		 *     wp trasloco incremental materialize backup.wpress --output=restored.wpress
 		 *     wp trasloco incremental prune --keep=backup.wpress,newer.wpress
 		 *     wp trasloco incremental list
+		 *     wp trasloco incremental stats
+		 *     wp trasloco incremental compact backup.wpress
 		 *
 		 * Captured snapshots are stored privately under the backup directory. They
 		 * remain independently reconstructible and do not depend on source files.
@@ -315,18 +320,25 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 			require_once TRASLOCO_LIB_PATH . '/model/class-trasloco-incremental-store.php';
 			$store = new Trasloco_Incremental_Store( $store_root );
 			try {
+				if ( $action === 'stats' ) {
+					$stats = $store->storage_stats();
+					WP_CLI::line( sprintf( 'Snapshots: %d; logical bytes: %d; object bytes: %d; catalog bytes: %d; source archive bytes: %d; manifest bytes: %d; physical bytes: %d; net saved bytes: %d',
+						$stats['snapshots'], $stats['logical_bytes'], $stats['object_bytes'], $stats['catalog_bytes'],
+						$stats['source_archive_bytes'], $stats['source_manifest_bytes'], $stats['physical_bytes'], $stats['net_saved_bytes'] ) );
+					return;
+				}
 				if ( $action === 'list' ) {
 					$rows = new cli\Table;
-					$rows->setHeaders( array( 'archive' => 'Archive', 'size' => 'Size', 'objects' => 'Chunks',
+					$rows->setHeaders( array( 'archive' => 'Archive', 'date' => 'Captured', 'size' => 'Size', 'objects' => 'Chunks',
 						'unique' => 'Unique chunks', 'sha256' => 'SHA-256' ) );
 					foreach ( $store->list_snapshots() as $snapshot ) {
-						$rows->addRow( array( 'archive' => $snapshot['archive'], 'size' => size_format( $snapshot['size_bytes'], 2 ),
+						$rows->addRow( array( 'archive' => $snapshot['archive'], 'date' => gmdate( 'Y-m-d H:i:s', $snapshot['mtime'] ) . ' UTC', 'size' => size_format( $snapshot['size_bytes'], 2 ),
 							'objects' => $snapshot['objects'], 'unique' => $snapshot['unique_objects'], 'sha256' => $snapshot['sha256'] ) );
 					}
 					$rows->display();
 					return;
 				}
-				if ( $action === 'capture' || $action === 'verify' || $action === 'materialize' ) {
+				if ( $action === 'capture' || $action === 'verify' || $action === 'materialize' || $action === 'compact' ) {
 					$name = isset( $args[1] ) ? $args[1] : '';
 					if ( ! is_string( $name ) || basename( $name ) !== $name ||
 						! preg_match( '/^[A-Za-z0-9][A-Za-z0-9_.-]*\.wpress$/D', $name ) || strpos( $name, '..' ) !== false ) {
@@ -351,6 +363,33 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 							size_format( $result['size_bytes'], 2 ), $result['sha256'] ) );
 						return;
 					}
+					if ( $action === 'compact' ) {
+						$lock_handle = false;
+						try {
+							if ( strpos( $name, 'recovery-' ) === 0 ) { throw new RuntimeException( 'Recovery-point archives cannot be compacted.' ); }
+							require_once TRASLOCO_LIB_PATH . '/model/class-trasloco-export-lock.php';
+							$lock_owner = bin2hex( random_bytes( 32 ) );
+							$lock_handle = Trasloco_Export_Lock::acquire( $lock_owner, HOUR_IN_SECONDS );
+							if ( $lock_handle === false ) { throw new RuntimeException( 'Another export is active; compaction was not started.' ); }
+							$source = rtrim( TRASLOCO_BACKUPS_PATH, DIRECTORY_SEPARATOR ) . DIRECTORY_SEPARATOR . $name;
+							if ( ! is_file( $source ) || is_link( $source ) ) { throw new RuntimeException( 'Source archive is missing or unsafe.' ); }
+							require_once TRASLOCO_LIB_PATH . '/vendor/core/archiver/class-trasloco-integrity.php';
+							require_once TRASLOCO_LIB_PATH . '/model/class-trasloco-archive-inspector.php';
+							if ( Trasloco_Integrity::verify( $source )['status'] !== 'verified' ) { throw new RuntimeException( 'Archive integrity verification failed; source was retained.' ); }
+							$inspection = Trasloco_Archive_Inspector::inspect( $source, 0 );
+							if ( empty( $inspection['restore_inputs']['package.json'] ) || empty( $inspection['restore_inputs']['database.sql'] ) ) {
+								throw new RuntimeException( 'Archive is missing required restore metadata; source was retained.' );
+							}
+							$result = $store->compact( $name );
+						} catch ( Throwable $error ) {
+							if ( is_resource( $lock_handle ) ) { Trasloco_Export_Lock::release( $lock_handle, $lock_owner ); }
+							WP_CLI::error( $error->getMessage() );
+						}
+						if ( is_resource( $lock_handle ) ) { Trasloco_Export_Lock::release( $lock_handle, $lock_owner ); }
+						WP_CLI::success( sprintf( 'Compacted %s after catalog, archive checksum and restore-structure verification; removed %d bytes. Restore with wp trasloco restore %s.',
+							$name, $result['removed_bytes'], $name ) );
+						return;
+					}
 					$output = isset( $assoc_args['output'] ) ? $assoc_args['output'] : 'restored-' . $name;
 					if ( ! is_string( $output ) || basename( $output ) !== $output ||
 						! preg_match( '/^[A-Za-z0-9][A-Za-z0-9_.-]*\.wpress$/D', $output ) || strpos( $output, '..' ) !== false ) {
@@ -372,7 +411,7 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 						count( $result['retained_snapshots'] ), count( $result['removed_snapshots'] ), count( $result['removed_objects'] ) ) );
 					return;
 				}
-				WP_CLI::error( 'Use capture, verify, materialize, prune, or list.' );
+				WP_CLI::error( 'Use capture, verify, materialize, prune, list, stats, or compact.' );
 			} catch ( Throwable $error ) {
 				WP_CLI::error( $error->getMessage() );
 			}
@@ -957,6 +996,49 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 						sprintf( __( 'Trasloco cannot create the folder <strong>%s</strong>. Create it and make it writable by the web server.', TRASLOCO_PLUGIN_NAME ), TRASLOCO_STORAGE_PATH ),
 					) );
 					exit;
+				}
+			}
+
+			// Snapshot catalogs remain usable after the full archive is explicitly
+			// compacted: reconstruct to the original filename without overwriting.
+			if ( isset( $args[0] ) && is_string( $args[0] ) &&
+				preg_match( '/^[A-Za-z0-9][A-Za-z0-9_.-]*\.wpress$/D', $args[0] ) &&
+				strpos( $args[0], '..' ) === false ) {
+				$requested_archive = trasloco_backup_path( array( 'archive' => $args[0] ) );
+				if ( ! file_exists( $requested_archive ) && ! is_link( $requested_archive ) ) {
+					require_once TRASLOCO_LIB_PATH . '/model/class-trasloco-incremental-store.php';
+					require_once TRASLOCO_LIB_PATH . '/vendor/core/archiver/class-trasloco-integrity.php';
+					require_once TRASLOCO_LIB_PATH . '/model/class-trasloco-archive-inspector.php';
+					$reconstructed = false;
+					$manifest_created = false;
+					$reconstructed_stat = null;
+					$manifest_stat = null;
+					try {
+						$store = new Trasloco_Incremental_Store( rtrim( TRASLOCO_BACKUPS_PATH, DIRECTORY_SEPARATOR ) . DIRECTORY_SEPARATOR . '.trasloco-incremental' );
+						$store->verify( $args[0] );
+						$store->materialize( $args[0], $requested_archive );
+						$reconstructed = true;
+						$reconstructed_stat = @lstat( $requested_archive );
+						Trasloco_Integrity::create( $requested_archive );
+						$manifest_created = true;
+						$manifest_stat = @lstat( Trasloco_Integrity::manifest_path( $requested_archive ) );
+						$inspection = Trasloco_Archive_Inspector::inspect( $requested_archive, 0 );
+						if ( empty( $inspection['restore_inputs']['package.json'] ) || empty( $inspection['restore_inputs']['database.sql'] ) ) {
+							throw new RuntimeException( 'Reconstructed archive is missing required restore data.' );
+						}
+					} catch ( Throwable $error ) {
+						$current_archive_stat = @lstat( $requested_archive );
+						if ( $reconstructed && is_array( $reconstructed_stat ) && is_array( $current_archive_stat ) &&
+							! is_link( $requested_archive ) && (int) $current_archive_stat['dev'] === (int) $reconstructed_stat['dev'] &&
+							(int) $current_archive_stat['ino'] === (int) $reconstructed_stat['ino'] ) { @unlink( $requested_archive ); }
+						$manifest_path = Trasloco_Integrity::manifest_path( $requested_archive );
+						$current_manifest_stat = @lstat( $manifest_path );
+						if ( $manifest_created && is_array( $manifest_stat ) && is_array( $current_manifest_stat ) &&
+							! is_link( $manifest_path ) && (int) $current_manifest_stat['dev'] === (int) $manifest_stat['dev'] &&
+							(int) $current_manifest_stat['ino'] === (int) $manifest_stat['ino'] ) { @unlink( $manifest_path ); }
+						WP_CLI::error( 'Snapshot reconstruction or structural verification failed. No restore was started.' );
+					}
+					WP_CLI::log( 'Verified incremental snapshot reconstructed; starting the standard restore workflow.' );
 				}
 			}
 
