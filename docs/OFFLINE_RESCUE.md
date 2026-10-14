@@ -41,8 +41,9 @@ selected file content by default. Never use it for an in-place restore.
 4. Verify users, posts, attachments, permalinks and application behavior.
    Record the test date, target configuration and failures.
 
-The offline CLI is a **data rescue** path, not proof of a bootable WordPress
-restore. Work to support a fully independent isolated restore remains open.
+The offline extractor is a **data rescue** path, not a bootable WordPress
+restore. A separate fresh-site restore is rehearsed below; an automated
+in-place rollback remains a distinct, unfinished workflow.
 
 ## Negative integrity test
 
@@ -91,12 +92,14 @@ Operator procedure (rehearse before production):
    with independent database and content backups, a maintenance window and
    a rollback process proven on the target hosting environment.
 
-**Limits:** CI runs on MySQL 8.0 and MariaDB 11.4 with PHP 7.4/8.2/8.4.
-It does not prove Nginx/Apache anonymous HTTP access controls, WooCommerce
-order consistency, Multisite or automated rollback after a partial SQL import.
-A restored database cannot be treated as an atomic transaction with filesystem
-changes. The private offline extractor remains available when WordPress cannot
-bootstrap at all.
+**Limits:** The historical CI matrix runs on MySQL 8.0 and MariaDB 11.4 with
+PHP 7.4/8.2/8.4. Separate local fixtures cover Apache/Nginx anonymous HTTP
+denials and WooCommerce order restoration in HPOS and legacy modes, but do not
+prove production-host rules or consistency during concurrent order writes.
+Multisite and automated global rollback after a partial SQL import remain
+unsupported. A restored database cannot be treated as an atomic transaction
+with filesystem changes. The private offline extractor remains available when
+WordPress cannot bootstrap at all.
 
 ## Find the pre-import recovery point after a SQL failure
 

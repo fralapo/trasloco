@@ -4,7 +4,7 @@ Updated 2026-10-14. Version 1.2.0 ships the reviewed hardening work on `main`; i
 
 ## Verified baseline
 
-Release candidate `d9581af` passed [quality checks](https://github.com/fralapo/trasloco/actions/runs/38417080300) on PHP 7.4/8.2/8.4 and [six CLI integration jobs](https://github.com/fralapo/trasloco/actions/runs/38417080326) across those PHP versions with MySQL 8.0 and MariaDB 11.4. The integration downloads WordPress at execution time; this is not a pinned current/previous-major WordPress matrix or an HTTP hosting test.
+Release candidate `d9581af` passed [quality checks](https://github.com/fralapo/trasloco/actions/runs/38417080300) on PHP 7.4/8.2/8.4 and [six CLI integration jobs](https://github.com/fralapo/trasloco/actions/runs/38417080326) across those PHP versions with MySQL 8.0 and MariaDB 11.4. Those historical CI jobs downloaded WordPress at execution time and do not validate local changes made afterward.
 
 On 2026-10-14, the complete CLI integration and same-site staged rollback rehearsal passed locally on PHP 8.5.4 with WordPress 7.1.3 and 6.9.10, and MariaDB 13.0.2. Optional WooCommerce 11.2.1 fixtures passed with HPOS enabled and with legacy order storage, preserving an order, refund, product line, custom metadata and order note through backup, SQL-failure recovery and restore replay. Anonymous HTTP fixtures returned 200 for a public page and 403 for an archive, its manifest, an arbitrary temporary file and plugin storage on Apache 2.4.67 and Nginx 1.31.6. These results cover local fixtures only, not production hosting or concurrent store writes.
 

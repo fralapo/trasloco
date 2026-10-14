@@ -133,7 +133,7 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 - [x] Phase 9C: read-only full header preflight before recovery snapshot or destructive import; rejects malformed/unsafe late archive entries and caps file inventory at one million entries, with malicious fixture regression.
 
 - [x] Phase 2B-1: WordPress- and MySQL-independent PHP CLI rescue inspection and private extraction of raw package/database metadata (non-destructive, tested against traversal).
-- [ ] Phase 2B-2: full independently bootable restore + staged SQL/file rollback remains a P0 release blocker.
+- [x] Phase 2B-2: fresh-site bootable restore and operator-driven staged SQL/file rollback are rehearsed locally. Automatic/global atomic rollback and production portability remain P0 blockers.
 
 - [x] CLI backup/restore and SQL-failure recovery integration passes on MySQL 8.0 and MariaDB 11.4 (see [current validation evidence](ROADMAP.md)).
 
@@ -181,7 +181,7 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 - [x] Malformed archive filenames are not included verbatim in restore exceptions or WP-CLI logs; newline/control-character fixture checks the log boundary.
 
 - [x] Phase 2B-2B-1: filesystem recovery receipts survive database replacement, mark pending until import completes, and are testable without WordPress.
-- [ ] Phase 2B-2B-2: provoke real post-DDL SQL import failure and prove manual database rollback using recorded archive on both MySQL and MariaDB.
+- [x] Phase 2B-2B-2: a real post-DDL SQL import failure and manual rollback from the recorded recovery archive are verified on MySQL and MariaDB in the historical CI matrix; a separate local MariaDB 13.0.2 replay also passes.
 
 - [x] Phase 2B-2B-2A: tested independent filesystem recovery journal and offline CLI receipt discovery, requiring no WordPress/MySQL process.
 - [x] Phase 2B-2B-2B: induced real SQL error after DDL/data import, preserved independent pending receipt, and operator-driven database rollback. WordPress integration passed across PHP 7.4/8.2/8.4 × MySQL 8.0/MariaDB 11.4 on commit fdd5dbfe.
@@ -189,7 +189,7 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 - [x] Phase 2B-2C: independent CLI `tools/recovery-status.php`, retry-idempotent recovery receipts, pending-first bounded inventory, administrator-only read-only REST and admin warning panel. Regression includes anonymous permission denial and no server-path leakage.
 - [x] Recovery audit: a failed SQL import can deactivate the Trasloco plugin before import finalization; documented safe WP-CLI reactivation, plus a real recovery rehearsal after failure.
 - [ ] **P0: Globally atomic/automatic full-site rollback is not implemented.** A complete operator-driven database + file rollback is now documented and integration-tested, including reviewed quarantine of archive-absent files. MySQL DDL and filesystem mutations still cannot be committed as one global transaction; unbootable WordPress and other hosting configurations require isolated recovery and operator intervention.
-- [ ] P0: production-host/proxy HTTP denial tests, WooCommerce order consistency and multisite fidelity before production certification. Local anonymous Apache/Nginx fixtures returned 403 for archives, manifests, arbitrary temporary files and plugin storage on 2026-10-14. Local WordPress/MariaDB integration now kills WP-CLI with SIGKILL during SQL import, confirms the independent receipt stays pending, and successfully repeats the restore; that original receipt remains available for forensics.
+- [ ] P0: production-host/proxy HTTP denial tests, WooCommerce consistency during concurrent writes and multisite fidelity before production certification. Local anonymous Apache/Nginx fixtures return 403 for archives, manifests, arbitrary temporary files and plugin storage. The Export page now warns WooCommerce operators to pause order writes; order restore fixtures pass with HPOS and legacy storage. Local WordPress/MariaDB integration kills WP-CLI with SIGKILL during SQL import, confirms the independent receipt stays pending, and successfully repeats the restore; that original receipt remains available as forensic evidence.
 
 - [x] P0 manual recovery aid: standalone, SHA-256-gated, bounded offline comparison of a recovery archive's uploads/themes/plugins/mu-plugins against actual destination bytes. Reports changed/missing/unsafe files without loading WordPress/MySQL or touching content; includes an actual post-DDL SQL error followed by simulated missing/modified-file states and operator-driven recovery.
 - [x] Recovery diff remains read-only and is not itself an automatic rollback. The separate staged file recovery workflow overlays verified snapshot content and can quarantine reviewed archive-absent paths.

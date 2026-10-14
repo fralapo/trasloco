@@ -30,4 +30,4 @@ The two branches register overlapping `/trasloco/v1/health`, `/jobs`, `/backups`
 3. For each port, test WordPress permissions and legacy artifacts, update this table and the 2.0 plan, and keep draft status until host-level checks pass.
 4. Close or supersede PR #2 only after every distinct module has an explicit disposition supported by code/tests; leaving its source preserved is intentional.
 
-Production blockers remain full-site rollback, interrupted-process recovery, HTTP/server/WAF coverage, WooCommerce consistency and multisite fidelity. A branch reconciliation does not certify those capabilities.
+Production blockers remain automatic/global full-site rollback, cross-host and power-loss recovery, production HTTP/server/WAF coverage, WooCommerce consistency during concurrent writes and multisite fidelity. Local SQL-import crash replay and staged same-site recovery have been rehearsed; they do not certify those remaining capabilities. A branch reconciliation does not certify production readiness.
