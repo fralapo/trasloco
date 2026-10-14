@@ -827,6 +827,21 @@ $ok = rest_do_request( new WP_REST_Request( "GET", "/trasloco/v1/health" ) );
 $data = $ok->get_data();
 if ( $ok->get_status() !== 200 || ! array_key_exists( "latest_backup", $data ) ) { throw new Exception( "Health API failed" ); }
 if ( strpos( wp_json_encode( $data ), ABSPATH ) !== false ) { throw new Exception( "Server paths disclosed in health API" ); }
+if ( function_exists( "wp_get_ability" ) ) {
+    $ability = wp_get_ability( "trasloco/site-readiness" );
+    if ( ! $ability ) { throw new Exception( "Trasloco site-readiness ability was not registered" ); }
+    wp_set_current_user( 0 );
+    $denied = $ability->execute();
+    if ( ! is_wp_error( $denied ) ) { throw new Exception( "Anonymous ability execution was allowed" ); }
+    wp_set_current_user( $users[0]->ID );
+    $readiness = $ability->execute();
+    if ( is_wp_error( $readiness ) || ! is_array( $readiness ) ||
+         ! array_key_exists( "ready_for_local_backup", $readiness ) ||
+         ! array_key_exists( "backup_web_access", $readiness ) ||
+         strpos( wp_json_encode( $readiness ), ABSPATH ) !== false ) {
+        throw new Exception( "Admin site-readiness ability failed or disclosed a server path" );
+    }
+}
 ' --path="$ROOT/source"
 
 # An existing export must prevent a second server-side backup from racing.

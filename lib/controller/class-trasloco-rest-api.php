@@ -5,6 +5,57 @@
  * callers; every route independently requires manage_options.
  */
 class Trasloco_REST_API {
+    /** Register the optional WordPress Abilities API category (Core 6.9+). */
+    public static function register_ability_category() {
+        if ( ! function_exists( 'wp_register_ability_category' ) ) {
+            return;
+        }
+        wp_register_ability_category( 'trasloco', array(
+            'label' => __( 'Trasloco', TRASLOCO_PLUGIN_NAME ),
+            'description' => __( 'Read-only backup and recovery readiness information.', TRASLOCO_PLUGIN_NAME ),
+        ) );
+    }
+
+    /** Expose the existing bounded preflight as an admin-only read-only ability. */
+    public static function register_site_readiness_ability() {
+        if ( ! function_exists( 'wp_register_ability' ) ) {
+            return;
+        }
+        wp_register_ability( 'trasloco/site-readiness', array(
+            'category' => 'trasloco',
+            'label' => __( 'Inspect Trasloco site readiness', TRASLOCO_PLUGIN_NAME ),
+            'description' => __( 'Returns advisory backup storage, server capability and cron diagnostics.', TRASLOCO_PLUGIN_NAME ),
+            'output_schema' => array(
+                'type' => 'object',
+                'properties' => array(
+                    'ready_for_local_backup' => array( 'type' => 'boolean' ),
+                    'backup_directory' => array( 'type' => 'string' ),
+                    'backup_web_access' => array( 'type' => 'string' ),
+                    'free_space_bytes' => array( 'anyOf' => array(
+                        array( 'type' => 'integer' ), array( 'type' => 'null' ),
+                    ) ),
+                    'php_64_bit' => array( 'type' => 'boolean' ),
+                    'mysqli_available' => array( 'type' => 'boolean' ),
+                    'sodium_available' => array( 'type' => 'boolean' ),
+                    'wp_cron' => array( 'type' => 'string' ),
+                    'issues' => array( 'type' => 'array', 'items' => array( 'type' => 'string' ) ),
+                    'warning' => array( 'type' => 'string' ),
+                ),
+            ),
+            'execute_callback' => array( __CLASS__, 'site_readiness' ),
+            'permission_callback' => array( __CLASS__, 'can_manage' ),
+            'meta' => array(
+                'show_in_rest' => true,
+                'annotations' => array( 'readonly' => true, 'destructive' => false, 'idempotent' => true ),
+            ),
+        ) );
+    }
+
+    /** Return the same advisory report as /trasloco/v1/preflight. */
+    public static function site_readiness() {
+        return Trasloco_Preflight::report();
+    }
+
     public static function register() {
         register_rest_route( 'trasloco/v1', '/recovery-points', array(
             'methods' => 'GET',

@@ -19,7 +19,7 @@ Run the optional previous-major WordPress fixture with `TRASLOCO_TEST_WORDPRESS_
 - [x] CLI streaming encryption/decryption and independent encrypted rescue.
 - [x] Verified pre-import recovery snapshots, independent receipts, clean-WordPress disaster rehearsal and manual database rollback after a real post-DDL SQL failure.
 - [x] Independent two-phase file recovery with preserved originals; unknown destination files are not deleted.
-- [x] Administrator preflight/dashboard, archive preview and permission-scoped REST inventory/status.
+- [x] Administrator preflight/dashboard, archive preview and permission-scoped REST inventory/status; WordPress 6.9+ also exposes the same bounded preflight as a read-only admin-only Abilities API ability.
 - [x] WooCommerce live-export consistency warning with translation parity and rendering regressions for active/inactive WooCommerce. It advises pausing order writes; it does not create a database snapshot.
 
 ## Recovery safety increment

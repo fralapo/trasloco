@@ -389,6 +389,30 @@ return array(
 		'fr' => 'Avertissement de compatibilité : l’ancien site utilisait PHP %s, ce site utilise PHP %s. Certains thèmes ou extensions pourraient ne pas fonctionner.',
 		'de' => 'Kompatibilitätswarnung: Die alte Website verwendete PHP %s, diese PHP %s. Manche Themes oder Plugins funktionieren möglicherweise nicht.',
 	),
+	'Read-only backup and recovery readiness information.' => array(
+		'it' => 'Informazioni di sola lettura sulla preparazione di backup e ripristino.',
+		'es' => 'Información de solo lectura sobre la preparación de copias y recuperación.',
+		'fr' => 'Informations en lecture seule sur la préparation des sauvegardes et restaurations.',
+		'de' => 'Schreibgeschützte Informationen zur Bereitschaft für Sicherungen und Wiederherstellungen.',
+	),
+	'Trasloco' => array(
+		'it' => 'Trasloco',
+		'es' => 'Trasloco',
+		'fr' => 'Trasloco',
+		'de' => 'Trasloco',
+	),
+	'Inspect Trasloco site readiness' => array(
+		'it' => 'Controlla lo stato di preparazione di Trasloco',
+		'es' => 'Consultar la preparación de Trasloco',
+		'fr' => 'Consulter l’état de préparation de Trasloco',
+		'de' => 'Trasloco-Bereitschaft prüfen',
+	),
+	'Returns advisory backup storage, server capability and cron diagnostics.' => array(
+		'it' => 'Restituisce indicazioni sullo spazio dei backup, sulle capacità del server e su cron.',
+		'es' => 'Devuelve información orientativa sobre el almacenamiento, el servidor y cron.',
+		'fr' => 'Fournit des informations indicatives sur le stockage, le serveur et cron.',
+		'de' => 'Liefert Hinweise zu Backup-Speicher, Serverfunktionen und Cron.',
+	),
 	'Server readiness' => array(
 		'it' => 'Stato del server',
 		'es' => 'Estado del servidor',

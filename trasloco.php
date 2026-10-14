@@ -147,6 +147,9 @@ require_once dirname( __FILE__ ) . '/lib/model/class-trasloco-archive-inspector.
 // Read-only automation API: WordPress enforces user authentication and permissions.
 require_once dirname( __FILE__ ) . '/lib/controller/class-trasloco-rest-api.php';
 add_action( 'rest_api_init', array( 'Trasloco_REST_API', 'register' ) );
+// WordPress 6.9+ Abilities API is optional; callbacks guard older Core versions.
+add_action( 'wp_abilities_api_categories_init', array( 'Trasloco_REST_API', 'register_ability_category' ) );
+add_action( 'wp_abilities_api_init', array( 'Trasloco_REST_API', 'register_site_readiness_ability' ) );
 
 // Include loader
 require_once dirname( __FILE__ ) . DIRECTORY_SEPARATOR . 'loader.php';

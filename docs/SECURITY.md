@@ -73,6 +73,10 @@ Before replacing a site from a **local** backup, Trasloco checks its SHA-256 man
 
 Interactive AJAX exports, WP-CLI backups, scheduled jobs and automatic recovery snapshots share an exclusive `flock` mutex plus a private owner lease in the backups directory. The lease persists across the browser's separate export requests, renews while an export reports progress and expires after inactivity. A competing export is refused before it can write a second archive. The local integration covers lease contention, yielding between requests, same-owner resume, handoff and competing workers; it also rejects symbolic and hard-linked lock files without changing their target permissions. Cross-host fencing is only covered when nodes see the same filesystem and that filesystem correctly honors `flock`; separate private filesystems, NFS behavior and storage power-loss guarantees still need host-level tests.
 
+## Read-only automation visibility
+
+The REST preflight and health routes require an authenticated administrator (`manage_options`). On WordPress 6.9 and later, `trasloco/site-readiness` exposes the same bounded preflight through the Abilities API, with the same capability check and read-only metadata. Its report omits absolute paths and credentials, and remains advisory; it does not prove that HTTP rules or disaster recovery work on the production host.
+
 When Nginx is detected and the backups directory appears to reside under the site's web document root, administrators now receive a translated warning. This is a best-effort heuristic; proxies, container mounts or unusual document roots can bypass detection. A real logged-out HTTP test remains mandatory.
 
 ## Full backups and linked WordPress content
