@@ -881,14 +881,32 @@ if ( $view_verify_result["status"] !== "completed" ||
     $view_status[$view_archive]["proof"]["phase"] !== "verified" ) {
     throw new Exception( "Completed verification did not publish a private archive identity proof" );
 }
+$view_archive_path = trasloco_backup_path( array( "archive" => $view_archive ) );
+$view_archive_sha = hash_file( "sha256", $view_archive_path );
+$manual_encrypted_name = Trasloco_Backups_Controller::encrypt_archive( $view_archive,
+    "integration-manual-encryption-secret-2026" );
+$manual_encrypted_path = trasloco_encrypted_backup_path( $manual_encrypted_name );
+if ( Trasloco_Integrity::verify( $manual_encrypted_path )["status"] !== "verified" ||
+    hash_file( "sha256", $view_archive_path ) !== $view_archive_sha ) {
+    throw new Exception( "Manual UI encryption did not publish a verified sidecar or changed the plaintext source" );
+}
+$manual_encrypt_collision = false;
+try {
+    Trasloco_Backups_Controller::encrypt_archive( $view_archive, "integration-manual-encryption-secret-2026" );
+} catch ( RuntimeException $expected ) { $manual_encrypt_collision = true; }
+if ( ! $manual_encrypt_collision ) { throw new Exception( "Manual UI encryption replaced an existing encrypted backup" ); }
+putenv( "TRASLOCO_ARCHIVE_PASSPHRASE=integration-manual-encryption-secret-2026" );
 ob_start();
 include TRASLOCO_TEMPLATES_PATH . "/backups/index.php";
 $schedule_html = ob_get_clean();
 if ( strpos( $schedule_html, "Encrypt and upload each scheduled backup to remote storage" ) === false ||
     strpos( $schedule_html, "S3 also requires its optional runtime and PHP 8.1 or later" ) === false ||
     strpos( $schedule_html, "Verified" ) === false ||
+    strpos( $schedule_html, "Encrypt backup" ) === false ||
+    strpos( $schedule_html, "action=trasloco_encrypt_backup" ) === false ||
+    strpos( $schedule_html, "Download encrypted backup" ) === false ||
     strpos( $schedule_html, "to WebDAV" ) !== false ) {
-    throw new Exception( "Backup UI does not show verified archive status or describe S3/WebDAV delivery" );
+    throw new Exception( "Backup UI does not show archive verification, manual encryption or remote delivery" );
 }
 $view_archive_path = trasloco_backup_path( array( "archive" => $view_archive ) );
 $view_archive_mtime = filemtime( $view_archive_path );

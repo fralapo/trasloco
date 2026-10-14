@@ -228,6 +228,23 @@ function trasloco_backup_url( $params ) {
 	return current_user_can( 'manage_options' ) ? wp_nonce_url( $url, 'trasloco_download_file' ) : $url;
 }
 
+/** Resolve only a basename produced by encrypting a Trasloco backup. */
+function trasloco_encrypted_backup_path( $archive ) {
+	if ( ! is_string( $archive ) ||
+		! preg_match( '/^[A-Za-z0-9][A-Za-z0-9_.-]*\.wpress\.enc$/D', $archive ) ||
+		strpos( $archive, '..' ) !== false ) {
+		throw new Trasloco_Archive_Exception( __( 'Invalid encrypted archive path.', TRASLOCO_PLUGIN_NAME ) );
+	}
+	return TRASLOCO_BACKUPS_PATH . DIRECTORY_SEPARATOR . $archive;
+}
+
+/** Build an authenticated admin download link for a private encrypted backup. */
+function trasloco_encrypted_backup_url( $archive ) {
+	$path = trasloco_encrypted_backup_path( $archive );
+	$url = admin_url( 'admin-post.php?action=trasloco_download&archive=' . rawurlencode( $archive ) );
+	return current_user_can( 'manage_options' ) ? wp_nonce_url( $url, 'trasloco_download_file' ) : $url;
+}
+
 /**
  * Get archive size in bytes
  *
