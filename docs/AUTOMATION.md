@@ -55,4 +55,4 @@ Each month, download a random backup from the offsite destination and restore it
 
 ## Still to implement
 - Other cloud connectors, live tests against real WebDAV/S3 services and provider-side durability tests.
-- Incremental/differential backup chains and retention dependency management ([design work](INCREMENTAL_BACKUP_DESIGN.md)).
+- Snapshot-only restore, replacement of full `.wpress` files after verified capture, and remote content-addressed object delivery ([design and remaining gates](INCREMENTAL_BACKUP_DESIGN.md)).

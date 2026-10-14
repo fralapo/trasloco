@@ -1,6 +1,6 @@
 # Incremental backup storage design
 
-Status: design in progress. No incremental archive format is enabled by this document.
+Status: local content-addressed snapshots are implemented for WP-CLI, manual CLI backups, and opt-in scheduled backups. Export remains a full `.wpress` operation; these snapshots deduplicate identical 4-MiB chunks across retained archives and remain independently reconstructible.
 
 ## Goal
 
@@ -10,12 +10,12 @@ Reduce the storage and offsite transfer cost of repeated backups without changin
 
 - A backup is a verified, standalone `.wpress` archive with its own SHA-256 sidecar.
 - The importer, offline recovery tools, peer transfer, encryption and existing remote adapters consume that archive and sidecar.
-- Retention currently deletes old `.wpress` files and their sidecars after a new backup has passed integrity verification.
+- Scheduled and manual CLI retention can prune corresponding snapshot catalogs alongside old `.wpress` files after a new backup has passed integrity verification.
 - WordPress export assembles the database and content files into a sequential `.wpress` stream; it does not currently expose a stable per-file snapshot manifest.
 
 ## Required design properties
 
-1. Preserve existing `.wpress` reads and writes. New storage metadata must use a separately versioned format.
+1. Preserve existing `.wpress` reads and writes. Snapshot catalogs use a separately versioned format.
 2. Represent each snapshot as a complete logical catalog. A catalog may reference shared immutable objects, but must not depend on the continued existence of a particular base snapshot. This removes parent-chain ordering from restore and retention.
 3. Identify objects by a cryptographic digest and verify size and digest both when inserting and when reconstructing. A corrupt or missing object must fail closed before the importer receives an archive.
 4. Publish objects before the catalog, and publish the catalog atomically only after every referenced object is durable and verified. A crash may leave unreferenced objects; it must never expose a catalog that references missing data.
@@ -29,7 +29,7 @@ Reduce the storage and offsite transfer cost of repeated backups without changin
 
 Use a private content-addressed object store and independently complete snapshot catalogs. The initial implementation should build a catalog from the exact verified archive bytes, split by a bounded chunking scheme, and retain the original archive until the catalog has been reconstructed and verified byte-for-byte. Only then may the original archive be replaced by the catalog representation. This gives the importer a normal `.wpress` file through an explicit materialization boundary.
 
-The storage layer should expose bounded operations for catalog validation, object insertion, snapshot verification, materialization, and pruning. It should not change the generic `StorageAdapter` until local crash and retention semantics are proven. A later adapter change can transfer missing objects and publish catalogs last.
+The local storage layer exposes catalog validation, bounded object insertion, snapshot verification, materialization, and pruning. It does not change the generic `StorageAdapter`; a later adapter change can transfer missing objects and publish catalogs last.
 
 ## Local WP-CLI workflow
 
@@ -60,4 +60,4 @@ Scheduled backups can opt into the same local snapshot format from **Trasloco â†
 
 ## Release gates and open questions
 
-The archive export still runs in full for each snapshot, so this design first reduces retained and transferred bytes; it does not claim to make WordPress database export incremental. Chunk boundaries must be selected from measurements against real archives. The catalog and object store need explicit size, count and disk-budget limits before implementation. Local tests can prove reconstruction, crash replay, and retention on the current filesystem. Cross-host locks, provider-side conditional writes, remote garbage collection, power-loss durability, and production restore behavior require external environments.
+The archive export still runs in full for each snapshot, so the current implementation can deduplicate repeated chunks across retained local catalogs but does not yet replace the full `.wpress` files or reduce their disk use. Snapshot-only restore and user-visible reclaimed-space accounting remain open. The 4-MiB chunk size and catalog/object limits are enforced but need measurement against real archives. Local tests prove reconstruction, bounded crash replay, and retention on the current filesystem. Cross-host locks, provider-side conditional writes, remote garbage collection, power-loss durability, real-provider testing, and production restore behavior require external environments.

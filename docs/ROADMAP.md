@@ -10,6 +10,8 @@ On 2026-10-14, the complete CLI integration and same-site staged rollback rehear
 
 After adding local incremental WP-CLI commands, the full syntax scan, translation check and all standalone smoke tests passed. The first end-to-end attempt ran out of local disk while copying release artifacts into temporary sites. It was rerun successfully on PHP 8.5.11, WordPress 6.9.10 and local MariaDB 13.0.2 using a temporary source copy without `.git` and `dist`; migration, jobs, SIGKILL replay and the recovery rehearsal all passed. The test workspace and temporary source copy were removed afterward.
 
+Commit `cf4e579` adds opt-in scheduled snapshot capture with eight-chunk worker batches, journal recovery and retention coordination. PHP 7.4, 8.2, 8.4 and 8.5 passed the incremental store/CLI smoke tests; the complete local quality suite and WordPress 6.9.10/MariaDB 13 integration passed on PHP 8.5.11. Base and S3-enabled local ZIPs were built and archive-verified. Snapshot-only restore, replacing full `.wpress` files, and remote content-addressed delivery remain open.
+
 Run the optional previous-major WordPress fixture with `TRASLOCO_TEST_WORDPRESS_VERSION=6.9.10 TRASLOCO_TEST_DB_PORT=3307 GITHUB_WORKSPACE="$PWD" tests/integration.sh` when a disposable MySQL-compatible server and WP-CLI are available. Omit the version variable to use the current Core release (7.1.3 in the local run above). The optional WooCommerce fixtures use `TRASLOCO_TEST_WOOCOMMERCE=1` (HPOS) or `TRASLOCO_TEST_WOOCOMMERCE=1 TRASLOCO_TEST_WOOCOMMERCE_HPOS=0` (legacy order storage); both install WooCommerce 11.2.1 and verify data through WooCommerce APIs.
 
 - [x] Expiring operation-scoped tokens, administrator permissions and authenticated backup downloads.
