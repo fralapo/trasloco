@@ -102,13 +102,12 @@ class Trasloco_Backups_Controller {
 			? sanitize_file_name( wp_unslash( $_POST['archive'] ) ) : '';
 		$redirect = admin_url( 'admin.php?page=trasloco_backups' );
 		try {
-			$passphrase = defined( 'TRASLOCO_ARCHIVE_PASSPHRASE' )
-				? TRASLOCO_ARCHIVE_PASSPHRASE : getenv( 'TRASLOCO_ARCHIVE_PASSPHRASE' );
-			ignore_user_abort( true );
-			$encrypted_name = self::encrypt_archive( $archive, $passphrase );
+			$job = Trasloco_Job_Worker::enqueue_crypto( 'encrypt', $archive );
+			if ( is_wp_error( $job ) ) { throw new RuntimeException( $job->get_error_message() ); }
 			$redirect = add_query_arg( array(
-				'trasloco_encrypt_status' => 'complete',
-				'trasloco_encrypted_archive' => $encrypted_name,
+				'trasloco_encrypt_status' => 'queued',
+				'trasloco_crypto_job' => (int) $job,
+				'trasloco_crypto_output' => $archive . '.enc',
 			), $redirect );
 		} catch ( Throwable $error ) {
 			$redirect = add_query_arg( 'trasloco_encrypt_status', 'error', $redirect );
@@ -127,13 +126,12 @@ class Trasloco_Backups_Controller {
 			? wp_unslash( $_POST['archive'] ) : '';
 		$redirect = admin_url( 'admin.php?page=trasloco_backups' );
 		try {
-			$passphrase = defined( 'TRASLOCO_ARCHIVE_PASSPHRASE' )
-				? TRASLOCO_ARCHIVE_PASSPHRASE : getenv( 'TRASLOCO_ARCHIVE_PASSPHRASE' );
-			ignore_user_abort( true );
-			$decrypted_name = self::decrypt_archive( $archive, $passphrase );
+			$job = Trasloco_Job_Worker::enqueue_crypto( 'decrypt', $archive );
+			if ( is_wp_error( $job ) ) { throw new RuntimeException( $job->get_error_message() ); }
 			$redirect = add_query_arg( array(
-				'trasloco_decrypt_status' => 'complete',
-				'trasloco_decrypted_archive' => $decrypted_name,
+				'trasloco_decrypt_status' => 'queued',
+				'trasloco_crypto_job' => (int) $job,
+				'trasloco_crypto_output' => substr( $archive, 0, -strlen( '.wpress.enc' ) ) . '-decrypted.wpress',
 			), $redirect );
 		} catch ( Throwable $error ) {
 			$redirect = add_query_arg( 'trasloco_decrypt_status', 'error', $redirect );

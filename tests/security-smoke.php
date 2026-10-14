@@ -217,6 +217,35 @@ if ( function_exists( 'sodium_crypto_secretstream_xchacha20poly1305_init_push' )
     ensure( hash_file( 'sha256', $source ) === hash_file( 'sha256', $decrypted ), 'encrypted round trip' );
     unlink( $decrypted );
 
+    $resume_source = tempnam( sys_get_temp_dir(), 'tr-resume-plain-' );
+    $resume_encrypted = $resume_source . '.enc';
+    $resume_decrypted = $resume_source . '.out';
+    $resume_temp = $resume_source . '.part';
+    file_put_contents( $resume_source, random_bytes( Trasloco_Encryption::CHUNK * 2 + 73 ) );
+    $resume_state = null;
+    $resume_calls = 0;
+    do {
+        $resume_state = Trasloco_Encryption::resumable_step( 'encrypt', $resume_source, $resume_temp,
+            'passphrase-with-20chars', $resume_state, 1 );
+        $resume_calls++;
+    } while ( empty( $resume_state['complete'] ) );
+    ensure( $resume_calls >= 3 && strpos( $resume_state['sealed_state'], 'passphrase-with-20chars' ) === false,
+        'bounded resumable encryption keeps stream state sealed' );
+    rename( $resume_temp, $resume_encrypted );
+    $resume_temp = $resume_decrypted . '.part';
+    $resume_state = null;
+    $resume_calls = 0;
+    do {
+        $resume_state = Trasloco_Encryption::resumable_step( 'decrypt', $resume_encrypted, $resume_temp,
+            'passphrase-with-20chars', $resume_state, 1 );
+        $resume_calls++;
+    } while ( empty( $resume_state['complete'] ) );
+    ensure( $resume_calls >= 3, 'bounded resumable decryption continues across checkpoints' );
+    rename( $resume_temp, $resume_decrypted );
+    ensure( hash_file( 'sha256', $resume_source ) === hash_file( 'sha256', $resume_decrypted ),
+        'resumable encryption and decryption preserve exact bytes' );
+    unlink( $resume_source ); unlink( $resume_encrypted ); unlink( $resume_decrypted );
+
     // Generate the original feature-branch envelope (TRLENC01, fixed
     // interactive Argon2id costs, and a final-tagged last payload frame).
     $legacy = $source . '.legacy.enc';
@@ -247,6 +276,18 @@ if ( function_exists( 'sodium_crypto_secretstream_xchacha20poly1305_init_push' )
     $legacy_decrypted = $legacy_plain . '.restored';
     Trasloco_Encryption::decrypt( $legacy, $legacy_decrypted, 'passphrase-with-20chars' );
     ensure( hash_file( 'sha256', $legacy_plain ) === hash_file( 'sha256', $legacy_decrypted ), 'legacy feature-branch envelope decrypt' );
+    $legacy_resumed = $legacy_plain . '.resumed';
+    $legacy_resume_temp = $legacy_resumed . '.part';
+    $legacy_resume_state = null;
+    $legacy_resume_calls = 0;
+    do {
+        $legacy_resume_state = Trasloco_Encryption::resumable_step( 'decrypt', $legacy, $legacy_resume_temp,
+            'passphrase-with-20chars', $legacy_resume_state, 1 );
+        $legacy_resume_calls++;
+    } while ( empty( $legacy_resume_state['complete'] ) );
+    ensure( $legacy_resume_calls >= 2 && hash_file( 'sha256', $legacy_plain ) === hash_file( 'sha256', $legacy_resume_temp ),
+        'resumable decryption preserves legacy feature-branch envelope bytes' );
+    unlink( $legacy_resume_temp );
     $legacy_wrong = $legacy_plain . '.wrong';
     try {
         Trasloco_Encryption::decrypt( $legacy, $legacy_wrong, 'definitely-wrong-passphrase' );

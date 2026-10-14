@@ -1158,6 +1158,53 @@ if ( $view_verify_result["status"] !== "completed" ||
 }
 $view_archive_path = trasloco_backup_path( array( "archive" => $view_archive ) );
 $view_archive_sha = hash_file( "sha256", $view_archive_path );
+$crypto_job_archive = "integration-resumable-crypto.wpress";
+$crypto_job_path = trasloco_backup_path( array( "archive" => $crypto_job_archive ) );
+if ( file_put_contents( $crypto_job_path, random_bytes( 5 * 1024 * 1024 + 73 ) ) === false ) {
+    throw new Exception( "Could not create the large resumable crypto fixture" );
+}
+Trasloco_Integrity::create_chunked( $crypto_job_path );
+$crypto_verify = Trasloco_Job_Store::create( "verify", array( "archive" => $crypto_job_archive ),
+    wp_generate_password( 32, false, false ) );
+for ( $crypto_verify_step = 0; $crypto_verify_step < 256; $crypto_verify_step++ ) {
+    $crypto_verify_result = Trasloco_Job_Worker::run( $crypto_verify );
+    if ( $crypto_verify_result["status"] === "completed" ) { break; }
+    if ( $crypto_verify_result["status"] !== "pending" ) { throw new Exception( "Crypto fixture verification failed" ); }
+}
+if ( ! isset( Trasloco_Job_Store::verification_statuses( array( $crypto_job_archive ) )[$crypto_job_archive]["proof"]["phase"] ) ) {
+    throw new Exception( "Verified crypto fixture did not publish an identity proof" );
+}
+putenv( "TRASLOCO_ARCHIVE_PASSPHRASE=integration-manual-encryption-secret-2026" );
+$crypto_job = Trasloco_Job_Worker::enqueue_crypto( "encrypt", $crypto_job_archive );
+if ( ! is_int( $crypto_job ) ) { throw new Exception( "Could not queue resumable encryption: " . ( is_wp_error( $crypto_job ) ? $crypto_job->get_error_message() : "invalid id" ) ); }
+$crypto_first = Trasloco_Job_Worker::run( $crypto_job );
+$public_crypto_job = Trasloco_Job_Store::get( $crypto_job );
+if ( $crypto_first["status"] !== "pending" || empty( $public_crypto_job["checkpoint"]["phase"] ) ||
+    isset( $public_crypto_job["checkpoint"]["crypto_state"] ) ) {
+    throw new Exception( "Crypto job did not yield a bounded, secret-free public checkpoint" );
+}
+global $wpdb;
+$wpdb->update( Trasloco_Job_Store::table(), array(
+    "state" => "running", "lease_owner" => "interrupted-crypto-worker", "lease_until" => time() - 1, "attempts" => 1,
+), array( "id" => $crypto_job ) );
+if ( ! in_array( $crypto_job, Trasloco_Job_Store::recoverable_crypto(), true ) ) {
+    throw new Exception( "Interrupted encryption job was not recoverable from its durable checkpoint" );
+}
+$crypto_result = Trasloco_Job_Worker::run( $crypto_job );
+$crypto_encrypted_name = $crypto_job_archive . ".enc";
+$crypto_encrypted_path = trasloco_encrypted_backup_path( $crypto_encrypted_name );
+$crypto_decrypted_path = $crypto_job_path . ".resumed";
+if ( $crypto_result["status"] !== "completed" || Trasloco_Integrity::verify( $crypto_encrypted_path )["status"] !== "verified" ) {
+    throw new Exception( "Resumable encryption worker did not publish a verified archive" );
+}
+Trasloco_Encryption::decrypt( $crypto_encrypted_path, $crypto_decrypted_path,
+    "integration-manual-encryption-secret-2026" );
+if ( hash_file( "sha256", $crypto_job_path ) !== hash_file( "sha256", $crypto_decrypted_path ) ) {
+    throw new Exception( "Resumed encryption changed the source bytes" );
+}
+@unlink( $crypto_decrypted_path );
+@unlink( $crypto_encrypted_path ); @unlink( Trasloco_Integrity::manifest_path( $crypto_encrypted_path ) );
+@unlink( $crypto_job_path ); @unlink( Trasloco_Integrity::manifest_path( $crypto_job_path ) );
 $manual_encrypted_name = Trasloco_Backups_Controller::encrypt_archive( $view_archive,
     "integration-manual-encryption-secret-2026" );
 $manual_encrypted_path = trasloco_encrypted_backup_path( $manual_encrypted_name );
@@ -1165,6 +1212,44 @@ if ( Trasloco_Integrity::verify( $manual_encrypted_path )["status"] !== "verifie
     hash_file( "sha256", $view_archive_path ) !== $view_archive_sha ) {
     throw new Exception( "Manual UI encryption did not publish a verified sidecar or changed the plaintext source" );
 }
+$crypto_job_decrypt_source_name = "integration-resumable-decrypt-source.wpress";
+$crypto_job_decrypt_source = trasloco_backup_path( array( "archive" => $crypto_job_decrypt_source_name ) );
+if ( ! copy( $view_archive_path, $crypto_job_decrypt_source ) ) {
+    throw new Exception( "Could not create the resumable decryption source fixture" );
+}
+Trasloco_Integrity::create_chunked( $crypto_job_decrypt_source );
+$crypto_job_decrypt_encrypted_name = Trasloco_Backups_Controller::encrypt_archive(
+    $crypto_job_decrypt_source_name, "integration-manual-encryption-secret-2026" );
+$crypto_decrypt_job = Trasloco_Job_Worker::enqueue_crypto( "decrypt", $crypto_job_decrypt_encrypted_name );
+if ( ! is_int( $crypto_decrypt_job ) ) {
+    throw new Exception( "Could not queue resumable decryption: " .
+        ( is_wp_error( $crypto_decrypt_job ) ? $crypto_decrypt_job->get_error_message() : "invalid id" ) .
+        " (archive: " . $crypto_job_decrypt_encrypted_name . ")" );
+}
+$crypto_decrypt_result = array( "status" => "pending" );
+for ( $crypto_decrypt_step = 0; $crypto_decrypt_step < 256; $crypto_decrypt_step++ ) {
+    $crypto_decrypt_result = Trasloco_Job_Worker::run( $crypto_decrypt_job );
+    if ( $crypto_decrypt_result["status"] === "completed" ) { break; }
+    if ( $crypto_decrypt_result["status"] !== "pending" ) {
+        $crypto_decrypt_internal = Trasloco_Job_Store::get_internal( $crypto_decrypt_job );
+        throw new Exception( "Resumable decryption worker stopped before completion: " .
+            wp_json_encode( array( "result" => $crypto_decrypt_result,
+                "failure" => isset( $crypto_decrypt_internal["failure"] ) ? $crypto_decrypt_internal["failure"] : "unknown" ) ) );
+    }
+}
+$crypto_job_decrypted_name = substr( $crypto_job_decrypt_encrypted_name, 0, -strlen( ".wpress.enc" ) ) . "-decrypted.wpress";
+$crypto_job_decrypted_path = trasloco_backup_path( array( "archive" => $crypto_job_decrypted_name ) );
+if ( $crypto_decrypt_result["status"] !== "completed" ||
+    Trasloco_Integrity::verify( $crypto_job_decrypted_path )["status"] !== "verified" ||
+    hash_file( "sha256", $crypto_job_decrypted_path ) !== $view_archive_sha ) {
+    throw new Exception( "Resumable decryption worker did not publish the exact verified archive" );
+}
+@unlink( $crypto_job_decrypted_path );
+@unlink( Trasloco_Integrity::manifest_path( $crypto_job_decrypted_path ) );
+@unlink( trasloco_encrypted_backup_path( $crypto_job_decrypt_encrypted_name ) );
+@unlink( Trasloco_Integrity::manifest_path( trasloco_encrypted_backup_path( $crypto_job_decrypt_encrypted_name ) ) );
+@unlink( $crypto_job_decrypt_source );
+@unlink( Trasloco_Integrity::manifest_path( $crypto_job_decrypt_source ) );
 $manual_decrypted_name = Trasloco_Backups_Controller::decrypt_archive( $manual_encrypted_name,
     "integration-manual-encryption-secret-2026" );
 $manual_decrypted_path = trasloco_backup_path( array( "archive" => $manual_decrypted_name ) );

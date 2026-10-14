@@ -1,6 +1,6 @@
 # Production readiness roadmap
 
-Updated 2026-10-14. Version 1.3.0 is prepared and validated as a local release candidate on `codex/full-site-recovery`; it has not been pushed or published. It adds bounded continuation of interrupted exports, local accessibility improvements and an optional bounded raw-row comparison for selected-table restore. This is a maintenance release, not production certification. [The 2.0 execution plan](TRASLOCO_2_0_PLAN.md) contains the next feature increments; [branch reconciliation](BRANCH_RECONCILIATION.md) records how the separate draft implementation will be ported.
+Updated 2026-10-14. Version 1.4.0 is prepared and validated as a local release candidate on `codex/full-site-recovery`; it has not been pushed or published. It adds resumable authenticated encryption and decryption jobs to the 1.3.0 maintenance work. The local candidate passes the WordPress integration on PHP 7.4, 8.2 and 8.4, plus PHP 8.5 smoke and integration checks. This is not production certification. [The 2.0 execution plan](TRASLOCO_2_0_PLAN.md) contains the remaining feature increments; [branch reconciliation](BRANCH_RECONCILIATION.md) records how the separate draft implementation will be ported.
 
 ## Verified baseline
 
@@ -17,7 +17,7 @@ Run the optional previous-major WordPress fixture with `TRASLOCO_TEST_WORDPRESS_
 - [x] SHA-256 v1/v2 sidecars and resumable chunk-verification jobs.
 - [x] Verification and offline-rescue compatibility for schema-1 SHA-256 sidecars from the preserved 2.0 feature branch; new archives continue to use the hardening v2 chunk format.
 - [x] Persistent job ledger and leases, automatic backup settings, calendar-month scheduling, verified retention and failure notification hook.
-- [x] CLI streaming encryption/decryption and independent encrypted rescue; administrators can create, download and decrypt verified copies of backups from the Backups page. Wrong-passphrase, collision, integrity, nonce and rendered-link regressions pass locally. Resumable handling for large web requests remains open.
+- [x] CLI streaming encryption/decryption and independent encrypted rescue; administrators can encrypt verified copies and decrypt authenticated backups from the Backups page through durable jobs. Each worker handles at most four 1-MiB authenticated frames, seals stream state with the WordPress authentication salt, and resumes from flushed file offsets after interruption; the REST job response hides the sealed state. Local smoke and WordPress integration interrupt a job, reclaim its expired lease, resume it and verify exact plaintext bytes. Final structural inspection and checksum-manifest generation still scan the completed file in one worker request, and real-host proxy/WAF timeout testing remains open.
 - [x] Read-only decryption compatibility for the preserved 2.0 branch's authenticated `TRLENC01` envelope; new encrypted backups keep the hardening `TRASENC1` format.
 - [x] Verified pre-import recovery snapshots, independent receipts, clean-WordPress disaster rehearsal and manual database rollback after a real post-DDL SQL failure.
 - [x] Independent two-phase file recovery with preserved originals; unknown destination files are not deleted. The read-only recovery comparison supports exact relative path/subtree exclusions without skipping archive validation or changing imports.

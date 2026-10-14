@@ -82,7 +82,9 @@
 	$tr_manual_encryption_enabled = is_string( $tr_archive_passphrase ) && strlen( $tr_archive_passphrase ) >= 12 &&
 		function_exists( 'sodium_crypto_secretstream_xchacha20poly1305_init_push' );
 	?>
-	<?php if ( isset( $_GET['trasloco_encrypt_status'] ) && $_GET['trasloco_encrypt_status'] === 'error' ) : ?>
+	<?php if ( isset( $_GET['trasloco_encrypt_status'] ) && $_GET['trasloco_encrypt_status'] === 'queued' && isset( $_GET['trasloco_crypto_job'], $_GET['trasloco_crypto_output'] ) ) : ?>
+		<p role="status" aria-live="polite" class="notice notice-info tr-crypto-job-notice" data-crypto-job-id="<?php echo esc_attr( absint( $_GET['trasloco_crypto_job'] ) ); ?>" data-crypto-operation="encrypt" data-crypto-output="<?php echo esc_attr( sanitize_file_name( wp_unslash( $_GET['trasloco_crypto_output'] ) ) ); ?>"><?php esc_html_e( 'Encryption queued. Preparing the verified backup in bounded batches…', TRASLOCO_PLUGIN_NAME ); ?></p>
+	<?php elseif ( isset( $_GET['trasloco_encrypt_status'] ) && $_GET['trasloco_encrypt_status'] === 'error' ) : ?>
 		<p role="alert" class="notice notice-error"><?php esc_html_e( 'Backup encryption failed. Check the encryption setup and backup integrity, then try again.', TRASLOCO_PLUGIN_NAME ); ?></p>
 	<?php elseif ( isset( $_GET['trasloco_encrypt_status'] ) && $_GET['trasloco_encrypt_status'] === 'complete' && isset( $_GET['trasloco_encrypted_archive'] ) ) : ?>
 		<?php
@@ -101,7 +103,9 @@
 			<p role="alert" class="notice notice-error"><?php esc_html_e( 'The encrypted backup is not available for download.', TRASLOCO_PLUGIN_NAME ); ?></p>
 		<?php endif; ?>
 	<?php endif; ?>
-	<?php if ( isset( $_GET['trasloco_decrypt_status'] ) && $_GET['trasloco_decrypt_status'] === 'error' ) : ?>
+	<?php if ( isset( $_GET['trasloco_decrypt_status'] ) && $_GET['trasloco_decrypt_status'] === 'queued' && isset( $_GET['trasloco_crypto_job'], $_GET['trasloco_crypto_output'] ) ) : ?>
+		<p role="status" aria-live="polite" class="notice notice-info tr-crypto-job-notice" data-crypto-job-id="<?php echo esc_attr( absint( $_GET['trasloco_crypto_job'] ) ); ?>" data-crypto-operation="decrypt" data-crypto-output="<?php echo esc_attr( sanitize_file_name( wp_unslash( $_GET['trasloco_crypto_output'] ) ) ); ?>"><?php esc_html_e( 'Decryption queued. Authenticating the encrypted backup in bounded batches…', TRASLOCO_PLUGIN_NAME ); ?></p>
+	<?php elseif ( isset( $_GET['trasloco_decrypt_status'] ) && $_GET['trasloco_decrypt_status'] === 'error' ) : ?>
 		<p role="alert" class="notice notice-error"><?php esc_html_e( 'Backup decryption failed. Check the passphrase configuration and encrypted archive integrity, then try again.', TRASLOCO_PLUGIN_NAME ); ?></p>
 	<?php elseif ( isset( $_GET['trasloco_decrypt_status'] ) && $_GET['trasloco_decrypt_status'] === 'complete' && isset( $_GET['trasloco_decrypted_archive'] ) ) : ?>
 		<?php

@@ -69,6 +69,7 @@ class Trasloco_Job_Worker {
         Trasloco_Job_Store::fail_abandoned_backups();
         Trasloco_Job_Store::fail_exhausted_verifications();
         Trasloco_Job_Store::fail_exhausted_transfers();
+        Trasloco_Job_Store::fail_exhausted_crypto();
         foreach ( Trasloco_Job_Store::recoverable_verifications( 10 ) as $id ) {
             self::schedule( $id );
         }
@@ -78,6 +79,72 @@ class Trasloco_Job_Worker {
         foreach ( Trasloco_Job_Store::recoverable_transfers( 10 ) as $id ) {
             self::schedule( $id );
         }
+        foreach ( Trasloco_Job_Store::recoverable_crypto( 10 ) as $id ) {
+            self::schedule( $id );
+        }
+    }
+
+    /** Queue web encryption/decryption using credential-free, resumable jobs. */
+    public static function enqueue_crypto( $operation, $archive ) {
+        require_once TRASLOCO_LIB_PATH . '/vendor/core/archiver/class-trasloco-integrity.php';
+        if ( ! in_array( $operation, array( 'encrypt', 'decrypt' ), true ) || ! is_string( $archive ) ) {
+            return new WP_Error( 'trasloco_invalid_crypto_job', 'Invalid encryption request.' );
+        }
+        $passphrase = defined( 'TRASLOCO_ARCHIVE_PASSPHRASE' ) ? TRASLOCO_ARCHIVE_PASSPHRASE : getenv( 'TRASLOCO_ARCHIVE_PASSPHRASE' );
+        if ( ! is_string( $passphrase ) || strlen( $passphrase ) < 12 ) {
+            return new WP_Error( 'trasloco_crypto_unconfigured', 'Archive encryption is not configured.' );
+        }
+        if ( $operation === 'encrypt' ) {
+            if ( ! preg_match( '/^[A-Za-z0-9][A-Za-z0-9_.-]*\.wpress$/D', $archive ) || strpos( $archive, '..' ) !== false ) {
+                return new WP_Error( 'trasloco_invalid_crypto_job', 'Invalid backup filename.' );
+            }
+            $source = trasloco_backup_path( array( 'archive' => $archive ) );
+            if ( ! self::crypto_source_has_verification_proof( $archive, $source ) ) {
+                return new WP_Error( 'trasloco_crypto_archive_unverified', 'Verify this backup again before encrypting it.' );
+            }
+            $target = trasloco_encrypted_backup_path( $archive . '.enc' );
+        } else {
+            if ( ! preg_match( '/^[A-Za-z0-9][A-Za-z0-9_.-]*\.wpress\.enc$/D', $archive ) || strpos( $archive, '..' ) !== false ) {
+                return new WP_Error( 'trasloco_invalid_crypto_job', 'Invalid encrypted backup filename.' );
+            }
+            $source = trasloco_encrypted_backup_path( $archive );
+            $target_name = substr( $archive, 0, -strlen( '.wpress.enc' ) ) . '-decrypted.wpress';
+            $target = trasloco_backup_path( array( 'archive' => $target_name ) );
+        }
+        if ( ! is_file( $source ) || is_link( $source ) || ! is_readable( $source ) ) {
+            return new WP_Error( 'trasloco_crypto_archive_missing', 'Backup file is unavailable.' );
+        }
+        if ( file_exists( $target ) || is_link( $target ) || file_exists( Trasloco_Integrity::manifest_path( $target ) ) ) {
+            return new WP_Error( 'trasloco_crypto_target_exists', 'The output archive already exists.' );
+        }
+        $id = Trasloco_Job_Store::create( 'crypto', array( 'operation' => $operation, 'archive' => $archive ),
+            wp_generate_password( 32, false, false ) );
+        if ( is_wp_error( $id ) ) { return $id; }
+        Trasloco_Audit_Log::record( 'crypto.queued', $id );
+        if ( ! self::schedule( $id ) ) {
+            return new WP_Error( 'trasloco_crypto_schedule_failed', 'Encryption job was saved but could not be scheduled.', array( 'status' => 503, 'job_id' => $id ) );
+        }
+        return $id;
+    }
+
+    private static function crypto_source_has_verification_proof( $archive, $source ) {
+        $verified = Trasloco_Job_Store::verification_statuses( array( $archive ) );
+        $proof = isset( $verified[ $archive ]['proof'] ) && $verified[ $archive ]['state'] === 'completed'
+            ? $verified[ $archive ]['proof'] : array();
+        $manifest = Trasloco_Integrity::manifest_path( $source );
+        clearstatcache( true, $source ); $source_stat = @lstat( $source );
+        clearstatcache( true, $manifest ); $manifest_stat = @lstat( $manifest );
+        foreach ( array( 'size_bytes','file_mtime','file_ctime','file_inode','file_device',
+            'manifest_size_bytes','manifest_mtime','manifest_ctime','manifest_inode','manifest_device' ) as $field ) {
+            if ( ! isset( $proof[ $field ] ) ) { return false; }
+        }
+        return is_array( $source_stat ) && is_array( $manifest_stat ) && ! is_link( $source ) && is_file( $source ) &&
+            ! is_link( $manifest ) && is_file( $manifest ) &&
+            (int) $source_stat['size'] === (int) $proof['size_bytes'] && (int) $source_stat['mtime'] === (int) $proof['file_mtime'] &&
+            (int) $source_stat['ctime'] === (int) $proof['file_ctime'] && (int) $source_stat['ino'] === (int) $proof['file_inode'] &&
+            (int) $source_stat['dev'] === (int) $proof['file_device'] && (int) $manifest_stat['size'] === (int) $proof['manifest_size_bytes'] &&
+            (int) $manifest_stat['mtime'] === (int) $proof['manifest_mtime'] && (int) $manifest_stat['ctime'] === (int) $proof['manifest_ctime'] &&
+            (int) $manifest_stat['ino'] === (int) $proof['manifest_inode'] && (int) $manifest_stat['dev'] === (int) $proof['manifest_device'];
     }
 
     /** Persist a credential-free request for a verified offsite download. */
@@ -251,6 +318,118 @@ class Trasloco_Job_Worker {
             throw new RuntimeException( 'Offsite upload was cancelled or its lease was lost.' );
         }
         return $archive;
+    }
+
+    /** Process one authenticated archive-encryption batch and publish atomically. */
+    private static function crypto_batch( $id, $owner, $payload ) {
+        require_once TRASLOCO_LIB_PATH . '/model/class-trasloco-encryption.php';
+        require_once TRASLOCO_LIB_PATH . '/vendor/core/archiver/class-trasloco-integrity.php';
+        require_once TRASLOCO_LIB_PATH . '/vendor/core/archiver/class-trasloco-offline-recovery.php';
+        if ( ! isset( $payload['operation'], $payload['archive'] ) || count( $payload ) !== 2 ||
+            ! in_array( $payload['operation'], array( 'encrypt', 'decrypt' ), true ) || ! is_string( $payload['archive'] ) ) {
+            throw new RuntimeException( 'Invalid encryption job.' );
+        }
+        $operation = $payload['operation'];
+        $archive = $payload['archive'];
+        if ( $operation === 'encrypt' ) {
+            if ( ! preg_match( '/^[A-Za-z0-9][A-Za-z0-9_.-]*\.wpress$/D', $archive ) || strpos( $archive, '..' ) !== false ) {
+                throw new RuntimeException( 'Invalid backup reference.' );
+            }
+            $source = trasloco_backup_path( array( 'archive' => $archive ) );
+            if ( ! self::crypto_source_has_verification_proof( $archive, $source ) ) {
+                throw new RuntimeException( 'Source backup verification is no longer current.' );
+            }
+            $target = trasloco_encrypted_backup_path( $archive . '.enc' );
+            $output_name = $archive . '.enc';
+        } else {
+            if ( ! preg_match( '/^[A-Za-z0-9][A-Za-z0-9_.-]*\.wpress\.enc$/D', $archive ) || strpos( $archive, '..' ) !== false ) {
+                throw new RuntimeException( 'Invalid encrypted backup reference.' );
+            }
+            $source = trasloco_encrypted_backup_path( $archive );
+            $output_name = substr( $archive, 0, -strlen( '.wpress.enc' ) ) . '-decrypted.wpress';
+            $target = trasloco_backup_path( array( 'archive' => $output_name ) );
+        }
+        // Offline_Recovery validates the completed plaintext by its .wpress
+        // suffix before publication; the leading dot keeps staging private.
+        $temp = TRASLOCO_BACKUPS_PATH . DIRECTORY_SEPARATOR . '.trasloco-crypto-' . (int) $id . '.part.wpress';
+        if ( ! wp_mkdir_p( TRASLOCO_BACKUPS_PATH ) || is_link( TRASLOCO_BACKUPS_PATH ) ) {
+            throw new RuntimeException( 'Private backup storage is unavailable.' );
+        }
+        $passphrase = defined( 'TRASLOCO_ARCHIVE_PASSPHRASE' ) ? TRASLOCO_ARCHIVE_PASSPHRASE : getenv( 'TRASLOCO_ARCHIVE_PASSPHRASE' );
+        if ( ! is_string( $passphrase ) || strlen( $passphrase ) < 12 ) {
+            throw new RuntimeException( 'Archive encryption is not configured.' );
+        }
+        $previous = Trasloco_Job_Store::get_internal( $id );
+        $state = is_array( $previous ) && isset( $previous['checkpoint']['crypto_state'] ) &&
+            is_array( $previous['checkpoint']['crypto_state'] ) ? $previous['checkpoint']['crypto_state'] : null;
+        if ( is_file( $target ) || is_link( $target ) || is_file( Trasloco_Integrity::manifest_path( $target ) ) ) {
+            if ( ! $state || empty( $state['complete'] ) || is_link( $target ) || ! is_file( $target ) ||
+                ! is_file( $temp ) || is_link( $temp ) ) {
+                throw new RuntimeException( 'The output archive already exists.' );
+            }
+            $temp_stat = @lstat( $temp ); $target_stat = @lstat( $target );
+            if ( ! is_array( $temp_stat ) || ! is_array( $target_stat ) ||
+                $temp_stat['ino'] !== $target_stat['ino'] || $temp_stat['dev'] !== $target_stat['dev'] ) {
+                throw new RuntimeException( 'The output archive belongs to another operation.' );
+            }
+        }
+        $state = Trasloco_Encryption::resumable_step( $operation, $source, $temp, $passphrase, $state, 4 );
+        $progress = $state['total_bytes'] > 0
+            ? min( 99, 5 + (int) floor( ( $state['progress_bytes'] / $state['total_bytes'] ) * 90 ) ) : 95;
+        $checkpoint = array(
+            'phase' => $state['complete'] ? 'publishing' : $operation,
+            'archive' => $archive,
+            'bytes' => (int) $state['progress_bytes'],
+            'total_bytes' => (int) $state['total_bytes'],
+            'crypto_state' => $state,
+        );
+        if ( ! $state['complete'] ) {
+            if ( ! Trasloco_Job_Store::yield_crypto( $id, $owner, $progress, $checkpoint ) ) {
+                throw new RuntimeException( 'Encryption cancelled or worker lease lost.' );
+            }
+            return array( 'status' => 'pending', 'progress' => $progress );
+        }
+        if ( ! Trasloco_Job_Store::checkpoint( $id, $owner, 99, $checkpoint ) ) {
+            throw new RuntimeException( 'Encryption cancelled or worker lease lost before publication.' );
+        }
+        if ( $operation === 'decrypt' ) {
+            Trasloco_Offline_Recovery::inspect( $temp );
+        }
+        $published_here = false;
+        if ( ! file_exists( $target ) && ! @link( $temp, $target ) ) {
+            throw new RuntimeException( 'Cannot publish the completed archive without replacing an existing file.' );
+        } elseif ( file_exists( $target ) ) {
+            $temp_stat = @lstat( $temp ); $target_stat = @lstat( $target );
+            $published_here = is_array( $temp_stat ) && is_array( $target_stat ) &&
+                $temp_stat['ino'] === $target_stat['ino'] && $temp_stat['dev'] === $target_stat['dev'];
+        }
+        try {
+            if ( $operation === 'encrypt' ) {
+                Trasloco_Integrity::create( $target );
+            } else {
+                Trasloco_Integrity::create_chunked( $target );
+            }
+        } catch ( Throwable $error ) {
+            if ( $published_here ) {
+                @unlink( $target );
+                @unlink( Trasloco_Integrity::manifest_path( $target ) );
+            }
+            throw $error;
+        }
+        if ( ! Trasloco_Job_Store::finish( $id, $owner ) ) {
+            $latest = Trasloco_Job_Store::get_internal( $id );
+            if ( is_array( $latest ) && $latest['state'] === 'cancelled' ) {
+                $temp_stat = @lstat( $temp ); $target_stat = @lstat( $target );
+                if ( is_array( $temp_stat ) && is_array( $target_stat ) &&
+                    $temp_stat['ino'] === $target_stat['ino'] && $temp_stat['dev'] === $target_stat['dev'] ) {
+                    @unlink( $target );
+                    @unlink( Trasloco_Integrity::manifest_path( $target ) );
+                }
+            }
+            throw new RuntimeException( 'Encryption cancelled or worker lease lost before completion.' );
+        }
+        @unlink( $temp );
+        return array( 'status' => 'completed', 'archive' => $output_name );
     }
 
     public static function schedule( $id ) {
@@ -673,7 +852,7 @@ class Trasloco_Job_Worker {
     public static function run( $id ) {
         $id = (int) $id;
         $record = Trasloco_Job_Store::workload( $id );
-        if ( ! $record || ! in_array( $record['kind'], array( 'verify', 'backup', 'transfer' ), true ) ||
+        if ( ! $record || ! in_array( $record['kind'], array( 'verify', 'backup', 'transfer', 'crypto' ), true ) ||
             ! is_array( $record['payload'] ) ) {
             return array( 'status' => 'invalid' );
         }
@@ -685,6 +864,13 @@ class Trasloco_Job_Worker {
             return array( 'status' => 'not_claimed' );
         }
         try {
+            if ( $record['kind'] === 'crypto' ) {
+                $result = self::crypto_batch( $id, $owner, $record['payload'] );
+                if ( isset( $result['status'] ) && $result['status'] === 'pending' ) {
+                    self::schedule( $id );
+                }
+                return $result;
+            }
             if ( $record['kind'] === 'backup' ) {
                 list( $backup_lock, $backup_lock_owner ) = self::acquire_backup_lock( $id );
                 try {
@@ -759,8 +945,16 @@ class Trasloco_Job_Worker {
             // Generic error only; never log any secret-bearing payload or path.
             // Provider exceptions can include URLs or request details. Keep
             // the durable record secret-free and useful without those values.
-            $failure = $record['kind'] === 'transfer' ? 'Offsite transfer failed; inspect provider availability and job history.' : $e->getMessage();
+            $failure = $record['kind'] === 'transfer' ? 'Offsite transfer failed; inspect provider availability and job history.' :
+                ( $record['kind'] === 'crypto' ? 'Archive encryption or decryption failed; check its integrity and configuration.' : $e->getMessage() );
             $failed = Trasloco_Job_Store::fail( $id, $owner, $failure );
+            if ( $record['kind'] === 'crypto' ) {
+                $latest = Trasloco_Job_Store::get_internal( $id );
+                if ( $failed || ( is_array( $latest ) && in_array( $latest['state'], array( 'cancelled','failed' ), true ) ) ) {
+                    $partial = TRASLOCO_BACKUPS_PATH . DIRECTORY_SEPARATOR . '.trasloco-crypto-' . $id . '.part.wpress';
+                    if ( is_file( $partial ) && ! is_link( $partial ) ) { @unlink( $partial ); }
+                }
+            }
             if ( $record['kind'] === 'backup' && $failed ) {
                 $internal = Trasloco_Job_Store::get_internal( $id );
                 if ( is_array( $internal ) && isset( $internal['checkpoint']['phase'], $internal['checkpoint']['params']['storage'] ) &&

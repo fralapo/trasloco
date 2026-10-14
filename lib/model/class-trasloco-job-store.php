@@ -9,6 +9,7 @@ class Trasloco_Job_Store {
     const MAX_VERIFY_ATTEMPTS = 3;
     const MAX_TRANSFER_ATTEMPTS = 3;
     const MAX_BACKUP_ATTEMPTS = 3;
+    const MAX_CRYPTO_ATTEMPTS = 3;
 
     public static function table() {
         global $wpdb;
@@ -51,7 +52,7 @@ class Trasloco_Job_Store {
     public static function create( $kind, $payload, $key ) {
         global $wpdb;
         self::maybe_install();
-        if ( ! in_array( $kind, array( 'backup', 'restore', 'verify', 'transfer' ), true ) ||
+        if ( ! in_array( $kind, array( 'backup', 'restore', 'verify', 'transfer', 'crypto' ), true ) ||
             ! is_array( $payload ) || ! is_string( $key ) ||
             ! preg_match( '/^[a-zA-Z0-9:_-]{12,64}$/D', $key ) ) {
             return new WP_Error( 'trasloco_invalid_job', 'Invalid job request.' );
@@ -74,6 +75,17 @@ class Trasloco_Job_Store {
             if ( ! $archive_valid || ( ! $download_valid && ! $upload_valid ) ) {
                 return new WP_Error( 'trasloco_invalid_job', 'Invalid or unsupported offsite transfer job.' );
             }
+        }
+        if ( $kind === 'crypto' ) {
+            $expected_suffix = isset( $payload['operation'] ) && $payload['operation'] === 'decrypt'
+                ? '.wpress.enc' : '.wpress';
+            $valid = isset( $payload['operation'], $payload['archive'] ) &&
+                in_array( $payload['operation'], array( 'encrypt', 'decrypt' ), true ) &&
+                is_string( $payload['archive'] ) && strlen( $payload['archive'] ) <= 220 &&
+                preg_match( '/^[A-Za-z0-9][A-Za-z0-9_.-]*\.wpress(?:\.enc)?$/D', $payload['archive'] ) &&
+                strpos( $payload['archive'], '..' ) === false && count( $payload ) === 2 &&
+                substr( $payload['archive'], -strlen( $expected_suffix ) ) === $expected_suffix;
+            if ( ! $valid ) { return new WP_Error( 'trasloco_invalid_job', 'Invalid encryption job.' ); }
         }
         $table = self::table();
         $now = gmdate( 'Y-m-d H:i:s' );
@@ -115,6 +127,9 @@ class Trasloco_Job_Store {
             // Provider upload IDs can authorize multipart operations. Keep
             // them out of REST job status and other public job summaries.
             unset( $row['checkpoint']['provider_state'] );
+        }
+        if ( is_array( $row ) && $row['kind'] === 'crypto' && is_array( $row['checkpoint'] ) ) {
+            $row['checkpoint'] = array_intersect_key( $row['checkpoint'], array_flip( array( 'phase','archive','bytes','total_bytes' ) ) );
         }
         return $row;
     }
@@ -224,6 +239,31 @@ class Trasloco_Job_Store {
         ) ) );
     }
 
+    /** Recover interrupted chunked encryption/decryption from sealed checkpoints. */
+    public static function recoverable_crypto( $limit = 10 ) {
+        global $wpdb;
+        $table = self::table();
+        $limit = max( 1, min( 50, (int) $limit ) );
+        return array_map( 'intval', $wpdb->get_col( $wpdb->prepare(
+            "SELECT id FROM {$table} WHERE kind = 'crypto' AND attempts < %d AND
+            (state = 'pending' OR (state = 'running' AND lease_until < %d))
+            ORDER BY id ASC LIMIT %d",
+            self::MAX_CRYPTO_ATTEMPTS, time(), $limit
+        ) ) );
+    }
+
+    public static function fail_exhausted_crypto() {
+        global $wpdb;
+        $table = self::table();
+        return (int) $wpdb->query( $wpdb->prepare(
+            "UPDATE {$table} SET state = 'failed', lease_owner = '', lease_until = 0,
+            failure = 'Encryption worker stopped after repeated interrupted attempts.',
+            updated_at = %s WHERE kind = 'crypto' AND state = 'running'
+            AND attempts >= %d AND lease_until < %d",
+            gmdate( 'Y-m-d H:i:s' ), self::MAX_CRYPTO_ATTEMPTS, time()
+        ) );
+    }
+
     /** Stop crash-looping downloads after the bounded automatic retry budget. */
     public static function fail_exhausted_transfers() {
         global $wpdb;
@@ -316,6 +356,22 @@ class Trasloco_Job_Store {
         ) );
     }
 
+    /** Persist one crypto batch and safely release the worker lease. */
+    public static function yield_crypto( $id, $worker, $progress, $checkpoint ) {
+        global $wpdb;
+        if ( ! is_int( $progress ) || $progress < 0 || $progress > 99 || ! is_array( $checkpoint ) ) { return false; }
+        $encoded = wp_json_encode( $checkpoint );
+        if ( ! is_string( $encoded ) ) { return false; }
+        $table = self::table();
+        return 1 === $wpdb->query( $wpdb->prepare(
+            "UPDATE {$table} SET state = 'pending', progress = %d, checkpoint = %s,
+            attempts = GREATEST(attempts - 1, 0), lease_owner = '', lease_until = 0,
+            failure = NULL, updated_at = %s WHERE id = %d AND kind = 'crypto'
+            AND state = 'running' AND lease_owner = %s AND lease_until >= %d",
+            $progress, $encoded, gmdate( 'Y-m-d H:i:s' ), $id, $worker, time()
+        ) );
+    }
+
     /** Bounded recent job listing; excludes payloads, credentials and paths. */
     public static function recent( $limit = 20 ) {
         global $wpdb;
@@ -389,19 +445,21 @@ class Trasloco_Job_Store {
         $now = time();
         $table = self::table();
         // Atomic acquisition. Backups may be reclaimed only after publishing
-        // an explicit archive checkpoint; restores and uploads stay excluded.
+        // an explicit archive checkpoint; resumable crypto/transfer jobs own
+        // their own private checkpoints.
         return 1 === $wpdb->query( $wpdb->prepare(
             "UPDATE {$table} SET state = 'running', lease_owner = %s, lease_until = %d,
             attempts = attempts + 1, updated_at = %s
-            WHERE id = %d AND (kind NOT IN ('verify','transfer','backup') OR
+            WHERE id = %d AND (kind NOT IN ('verify','transfer','backup','crypto') OR
                  (kind = 'verify' AND attempts < %d) OR
                  (kind = 'transfer' AND attempts < %d) OR
-                 (kind = 'backup' AND attempts < %d))
+                 (kind = 'backup' AND attempts < %d) OR
+                 (kind = 'crypto' AND attempts < %d))
             AND (state = 'pending' OR
-                 ((kind = 'verify' OR kind = 'transfer') AND state = 'running' AND lease_until < %d) OR
+                 ((kind = 'verify' OR kind = 'transfer' OR kind = 'crypto') AND state = 'running' AND lease_until < %d) OR
                  (kind = 'backup' AND checkpoint <> '{}' AND state = 'running' AND lease_until < %d))",
             $worker, $now + $lease_seconds, gmdate( 'Y-m-d H:i:s' ), $id,
-            self::MAX_VERIFY_ATTEMPTS, self::MAX_TRANSFER_ATTEMPTS, self::MAX_BACKUP_ATTEMPTS, $now, $now
+            self::MAX_VERIFY_ATTEMPTS, self::MAX_TRANSFER_ATTEMPTS, self::MAX_BACKUP_ATTEMPTS, self::MAX_CRYPTO_ATTEMPTS, $now, $now
         ) );
     }
 

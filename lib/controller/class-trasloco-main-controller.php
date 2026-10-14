@@ -791,6 +791,22 @@ class Trasloco_Main_Controller {
 			Trasloco_Template::asset_link( 'javascript/selective-restore.js' ),
 			array( 'trasloco_backups' )
 		);
+		wp_enqueue_script(
+			'trasloco_crypto_jobs',
+			Trasloco_Template::asset_link( 'javascript/crypto-jobs.js' ),
+			array( 'trasloco_backups' ),
+			(string) filemtime( TRASLOCO_PATH . '/lib/view/assets/javascript/crypto-jobs.js' ),
+			true
+		);
+		wp_localize_script( 'trasloco_crypto_jobs', 'trasloco_crypto_jobs', array(
+			'rest_base' => trailingslashit( rest_url( 'trasloco/v1/jobs/' ) ),
+			'rest_nonce' => wp_create_nonce( 'wp_rest' ),
+			'strings' => array(
+				'running' => __( 'Archive crypto job: {progress}% complete.', TRASLOCO_PLUGIN_NAME ),
+				'failed' => __( 'Archive encryption or decryption failed. Review the archive, passphrase and job history.', TRASLOCO_PLUGIN_NAME ),
+				'status_failed' => __( 'Could not check the encryption job status. Refresh this page to resume checking.', TRASLOCO_PLUGIN_NAME ),
+			),
+		) );
 		require_once TRASLOCO_LIB_PATH . '/model/class-trasloco-selective-restore-lock.php';
 		wp_localize_script( 'trasloco_selective_restore', 'trasloco_selective_restore', array(
 			'rest_base' => trailingslashit( rest_url( 'trasloco/v1/backups/' ) ),

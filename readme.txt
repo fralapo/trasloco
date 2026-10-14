@@ -3,7 +3,7 @@ Tags: backup, migration, migrate, export, import
 Requires at least: 5.5
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.3.0
+Stable tag: 1.4.0
 License: AGPL-3.0-or-later
 License URI: https://www.gnu.org/licenses/agpl-3.0.html
 
@@ -35,6 +35,11 @@ Trasloco exports a whole WordPress site (database, media, themes and plugins) to
 The new address is set by the import: there is nothing to type. Trasloco > Guide explains every option.
 
 == Changelog ==
+
+= 1.4.0 =
+* Administrators can queue authenticated backup encryption and decryption from the Backups page. Bounded jobs resume after interruption, preserve TRLENC01 decryption compatibility and publish output only after authentication and archive inspection.
+* Secretstream checkpoints are sealed with the WordPress authentication salt; passphrases are not saved in job payloads or sent in forms. Final archive inspection and checksum generation still scan the completed file in one worker request.
+* The complete local WordPress integration passes on PHP 7.4, 8.2, 8.4 and 8.5. Security smoke tests pass on all four versions. Real-host proxy, WAF and timeout testing remains open.
 
 = 1.3.0 =
 * Interrupted local backup jobs resume from flushed export checkpoints, discard uncommitted trailing bytes and avoid duplicate archives during finalization.
