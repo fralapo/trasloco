@@ -121,7 +121,7 @@ Yes, with WP-CLI: `wp trasloco backup` creates a backup (it takes the same optio
 One `.wpress` file holds the database dump, the `wp-content` uploads, themes, plugins and must-use plugins. Spam comments, post revisions, media, themes, plugins, cache or the database can each be left out on the Export page.
 
 ### Which WordPress and PHP versions does Trasloco support?
-Trasloco needs WordPress 5.5 or later. Version 1.2.0 passes CLI integration on PHP 7.4, 8.2 and 8.4 with MySQL 8.0 and MariaDB 11.4, using WordPress downloaded by CI. This is not a pinned multi-version WordPress or real-host HTTP certification. See [validation evidence](docs/ROADMAP.md).
+Trasloco needs WordPress 5.5 or later. The current source passes local CLI integration on WordPress 6.9.10 with all six PHP 7.4/8.2/8.4 and MySQL 8.0/MariaDB 11.4 combinations. WordPress 7.1.3 also passes locally on PHP 8.5 with MariaDB 13. This is not a pinned multi-version WordPress or real-host HTTP certification. See [validation evidence](docs/ROADMAP.md).
 
 ### Which languages does the Trasloco admin interface support?
 English, Italian, Spanish, French and German. The language follows the WordPress user profile, and any other language falls back to English. See [Languages](#languages) to add one.
@@ -132,7 +132,7 @@ English, Italian, Spanish, French and German. The language follows the WordPress
 
 As of version 1.2.0 (October 2026):
 
-- **Not yet tried on a real host behind a firewall.** So far it has been tested on local WordPress installs, including an import of a real 1.64 GB site (12 pages, 73 media files, 19 plugins). The base64 upload was built for hosting firewalls, but it has not been seen working behind one yet. The published PHP 7.4/8.2/8.4 CLI integration matrix is historical evidence for the last release; after later local changes, PHP 8.2 and 8.4 pass against MySQL 8.0 and MariaDB 11.4, while PHP 7.4 and real-host HTTP tests remain pending.
+- **Not yet tried on a real host behind a firewall.** So far it has been tested on local WordPress installs, including an import of a real 1.64 GB site (12 pages, 73 media files, 19 plugins). The base64 upload was built for hosting firewalls, but it has not been seen working behind one yet. The published PHP 7.4/8.2/8.4 CLI integration matrix is historical evidence for the last release; the current source has now passed the same six PHP/database combinations locally, while real-host HTTP tests remain pending.
 - **Full-site rollback is not yet automatic.** File recovery restores planned files in two phases and preserves unrelated destination files; it does not make the entire site restore globally atomic.
 - **Single sites only.** Importing a multisite network is not supported.
 - **PHP's built-in web server is slow with big sites.** This is not a plugin problem, but if you use `php -S` for testing, each import step can take tens of seconds.
