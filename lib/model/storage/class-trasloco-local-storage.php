@@ -19,7 +19,7 @@ class Trasloco_Local_Storage implements Trasloco_Storage_Adapter {
 
     private function path( $key ) {
         if ( ! is_string( $key ) || strlen( $key ) > 220 ||
-            ! preg_match( '/^[a-zA-Z0-9][a-zA-Z0-9_.-]*\\.wpress(?:\\.enc|\\.manifest\\.json)?$/D', $key ) ||
+            ! preg_match( '/^[a-zA-Z0-9][a-zA-Z0-9_.-]*\\.wpress(?:\\.enc(?:\\.manifest\\.json)?|\\.manifest\\.json)?$/D', $key ) ||
             strpos( $key, '..' ) !== false ) {
             throw new InvalidArgumentException( 'Invalid storage key.' );
         }
@@ -69,8 +69,11 @@ class Trasloco_Local_Storage implements Trasloco_Storage_Adapter {
         return $written;
     }
 
-    public function open_read( $key ) {
+    public function open_read( $key, $max_bytes = null ) {
         $path = $this->path( $key );
+        if ( $max_bytes !== null && ( ! is_int( $max_bytes ) || $max_bytes < 0 || filesize( $path ) > $max_bytes ) ) {
+            throw new RuntimeException( 'Stored object exceeds the requested size limit.' );
+        }
         $handle = @fopen( $path, 'rb' );
         if ( $handle === false ) {
             throw new RuntimeException( 'Archive cannot be opened.' );

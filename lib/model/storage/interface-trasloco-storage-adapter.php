@@ -5,7 +5,7 @@
  */
 interface Trasloco_Storage_Adapter {
     public function put_stream( $key, $handle );
-    public function open_read( $key );
+    public function open_read( $key, $max_bytes = null );
     public function exists( $key );
     public function delete( $key );
     public function enumerate();

@@ -114,6 +114,25 @@ if [ ! -s "$ARCHIVE" ]; then
   exit 1
 fi
 $WP trasloco verify "$(basename "$ARCHIVE")" --path="$ROOT/source"
+# Exercise the configured offsite CLI against an isolated private local remote.
+# The source and destination sites are separate WordPress/MySQL installations.
+OFFSITE_NAME="offsite-transfer-fixture.wpress"
+cp "$ARCHIVE" "$ROOT/source/wp-content/trasloco-backups/$OFFSITE_NAME"
+cp "$ARCHIVE.manifest.json" "$ROOT/source/wp-content/trasloco-backups/$OFFSITE_NAME.manifest.json"
+mkdir -p "$ROOT/offsite"
+$WP config set TRASLOCO_REMOTE_DRIVER local --type=constant --path="$ROOT/source"
+$WP config set TRASLOCO_REMOTE_DIRECTORY "$ROOT/offsite" --type=constant --path="$ROOT/source"
+if $WP trasloco offsite upload "$OFFSITE_NAME" --path="$ROOT/source"; then
+  echo "ERROR: plaintext offsite upload did not require explicit consent" >&2
+  exit 1
+fi
+$WP trasloco offsite upload "$OFFSITE_NAME" --allow-unencrypted --path="$ROOT/source"
+test -s "$ROOT/offsite/$OFFSITE_NAME" && test -s "$ROOT/offsite/$OFFSITE_NAME.manifest.json"
+$WP config set TRASLOCO_REMOTE_DRIVER local --type=constant --path="$ROOT/target"
+$WP config set TRASLOCO_REMOTE_DIRECTORY "$ROOT/offsite" --type=constant --path="$ROOT/target"
+$WP trasloco offsite download "$OFFSITE_NAME" --path="$ROOT/target"
+cmp "$ROOT/source/wp-content/trasloco-backups/$OFFSITE_NAME" "$ROOT/target/wp-content/trasloco-backups/$OFFSITE_NAME"
+cmp "$ROOT/source/wp-content/trasloco-backups/$OFFSITE_NAME.manifest.json" "$ROOT/target/wp-content/trasloco-backups/$OFFSITE_NAME.manifest.json"
 # Disaster rehearsal on a separately bootstrapped WordPress and fresh MySQL DB.
 bash "$GITHUB_WORKSPACE/tests/disaster-rehearsal.sh" "$ARCHIVE" "$ROOT"
 # Destructive-import guard: a structurally valid backup with the SQL entry
@@ -415,6 +434,14 @@ rm -rf -- "$EXTRACT_DIR"
 if $WP eval 'exit( ! function_exists( "sodium_crypto_secretstream_xchacha20poly1305_init_push" ) );' --path="$ROOT/source"; then
   TRASLOCO_ARCHIVE_PASSPHRASE='integration-crypt-password-2026' $WP trasloco encrypt "$(basename "$ARCHIVE")" --path="$ROOT/source"
   test -s "$ARCHIVE.enc"
+  test -s "$ARCHIVE.enc.manifest.json"
+  $WP trasloco offsite upload "$(basename "$ARCHIVE").enc" --path="$ROOT/source"
+  test -s "$ROOT/offsite/$(basename "$ARCHIVE").enc" && test -s "$ROOT/offsite/$(basename "$ARCHIVE").enc.manifest.json"
+  $WP trasloco offsite download "$(basename "$ARCHIVE").enc" --path="$ROOT/target"
+  TRASLOCO_ARCHIVE_PASSPHRASE='integration-crypt-password-2026' $WP trasloco decrypt "$(basename "$ARCHIVE").enc" --path="$ROOT/target"
+  DECRYPTED_NAME="${ARCHIVE##*/}"
+  DECRYPTED_NAME="${DECRYPTED_NAME%.wpress}-decrypted.wpress"
+  cmp -s "$ARCHIVE" "$ROOT/target/wp-content/trasloco-backups/$DECRYPTED_NAME"
   TRASLOCO_ARCHIVE_PASSPHRASE='integration-crypt-password-2026' $WP trasloco decrypt "$(basename "$ARCHIVE").enc" --path="$ROOT/source"
   RESTORED="${ARCHIVE%.wpress}-decrypted.wpress"
   cmp -s "$ARCHIVE" "$RESTORED"

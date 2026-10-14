@@ -71,7 +71,7 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 - [x] Phase 0B-2A: queued verification worker with leases, checkpoint, REST status/cancel and scheduled execution.
 - [x] Phase 0B-2B-1: common stream adapter with tested local atomic writer and path/symlink defenses.
 - [ ] Phase 0B-2B-2: bounded-time chunk hashing, remote adapters, durable retries.
-- [ ] Remote storage increment: a bounded WebDAV adapter now implements the stream contract with HTTPS/DNS pinning, conditional create-only upload, no redirects/proxies, and bounded inventory parsing. Local contract tests pass; integration into backup and WP-CLI workflows plus live-provider, failure/retry and hosting tests remain pending. S3 and other providers are not implemented.
+- [ ] Remote storage increment: a bounded WebDAV adapter implements the stream contract with HTTPS/DNS pinning, conditional create-only upload, no redirects/proxies and bounded inventory parsing. Manual WP-CLI upload/download now stages files privately, verifies remote/local SHA-256 sidecars, refuses replacement and requires explicit consent for plaintext uploads. Local protocol mocks and a local-provider round-trip pass; live-provider tests, reliable retry/resume, automated scheduling and S3/other providers remain pending.
 - [x] Phase 1A: create local SHA-256 sidecar manifests and add WP-CLI verification with WordPress integration test.
 - [ ] Phase 1B: verified UI, restore rehearsals and full archive content checks.
 - [x] Initial feature 14 foundation: read-only admin-scoped REST inventory with integration permission test.

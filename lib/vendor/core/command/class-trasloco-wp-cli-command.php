@@ -246,6 +246,49 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 			Trasloco_Export_Lock::release( $backup_lock, $lock_owner );
 		}
 
+		/**
+		 * Transfer a verified archive through a configured private storage adapter.
+		 *
+		 * ## OPTIONS
+		 * <upload|download>
+		 * <archive>
+		 * [--allow-unencrypted]
+		 * Permit uploading a plaintext .wpress archive. Encrypted .wpress.enc files
+		 * do not need this option.
+		 *
+		 * ## EXAMPLES
+		 *     wp trasloco offsite upload backup.wpress.enc
+		 *     wp trasloco offsite upload backup.wpress --allow-unencrypted
+		 *     wp trasloco offsite download backup.wpress.enc
+		 *
+		 * @subcommand offsite
+		 */
+		public function offsite( array $args, array $assoc_args ) {
+			if ( count( $args ) < 2 || ! in_array( $args[0], array( 'upload', 'download' ), true ) ) {
+				WP_CLI::error( 'Usage: wp trasloco offsite <upload|download> <archive> [--allow-unencrypted].' );
+				return;
+			}
+			if ( ! wp_mkdir_p( TRASLOCO_BACKUPS_PATH ) ) {
+				WP_CLI::error( 'Unable to prepare the local backup directory.' );
+				return;
+			}
+			try {
+				require_once TRASLOCO_LIB_PATH . '/vendor/core/archiver/class-trasloco-integrity.php';
+				$adapter = Trasloco_Storage_Factory::configured();
+				$transfer = new Trasloco_Offsite_Transfer( $adapter, TRASLOCO_BACKUPS_PATH );
+				if ( $args[0] === 'upload' ) {
+					$result = $transfer->upload( $args[1], isset( $assoc_args['allow-unencrypted'] ) );
+				} else {
+					$result = $transfer->download( $args[1] );
+				}
+				$verb = $result['status'] === 'already_present' ? 'already verified at' :
+					( $args[0] === 'upload' ? 'uploaded to' : 'downloaded from' );
+				WP_CLI::success( sprintf( '%s %s offsite (%d bytes).', $result['archive'], $verb, $result['bytes'] ) );
+			} catch ( Exception $error ) {
+				WP_CLI::error( $error->getMessage() );
+			}
+		}
+
 
 		/**
 		 * Encrypt an archive into a .wpress.enc file using a libsodium stream.
@@ -262,9 +305,23 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 				WP_CLI::error( 'Set TRASLOCO_ARCHIVE_PASSPHRASE (at least 12 characters).' );
 			}
 			try {
+				require_once TRASLOCO_LIB_PATH . '/vendor/core/archiver/class-trasloco-integrity.php';
 				$source = trasloco_backup_path( array( 'archive' => $args[0] ) );
+				$encrypted = $source . '.enc';
+				$manifest = Trasloco_Integrity::manifest_path( $encrypted );
+				if ( file_exists( $encrypted ) || is_link( $encrypted ) || file_exists( $manifest ) || is_link( $manifest ) ) {
+					WP_CLI::error( 'Encrypted backup or its manifest already exists; refusing to replace it.' );
+					return;
+				}
 				require_once TRASLOCO_LIB_PATH . '/model/class-trasloco-encryption.php';
-				Trasloco_Encryption::encrypt( $source, $source . '.enc', $passphrase );
+				Trasloco_Encryption::encrypt( $source, $encrypted, $passphrase );
+				try {
+					Trasloco_Integrity::create( $encrypted );
+				} catch ( Exception $error ) {
+					@unlink( $encrypted );
+					@unlink( $manifest );
+					throw $error;
+				}
 				WP_CLI::success( 'Encrypted backup: ' . basename( $source ) . '.enc' );
 			} catch ( Exception $e ) {
 				WP_CLI::error( $e->getMessage() );

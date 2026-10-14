@@ -16,21 +16,34 @@ Install WP-CLI on the hosting server, verify a manual export first, and use cron
 - Use the correct system user, restricted file permissions and a maintenance window on busy sites.
 - Configure `TRASLOCO_BACKUPS_DIR` outside the public document root where possible.
 
-## Encrypted offsite replication
+## Encrypted offsite storage
 
-Use a supported [rclone](https://rclone.org/) remote with a **crypt** wrapper, then replicate the backup folder:
+The WP-CLI offsite command supports a private mounted directory and HTTPS WebDAV. Configure the provider in `wp-config.php`; keep the WebDAV directory and credentials out of the webroot and source control:
 
-```bash
-rclone copy /srv/private/wordpress-backups encrypted-remote:trasloco/my-site --checksum
+```php
+define( 'TRASLOCO_REMOTE_DRIVER', 'webdav' );
+define( 'TRASLOCO_WEBDAV_URL', 'https://webdav.example.net/backups/' );
+define( 'TRASLOCO_WEBDAV_USER', getenv( 'TRASLOCO_WEBDAV_USER' ) );
+define( 'TRASLOCO_WEBDAV_PASSWORD', getenv( 'TRASLOCO_WEBDAV_PASSWORD' ) );
 ```
 
-Run this only after a successful backup, preferably from a single cron wrapper script that exits on errors. Never commit rclone credentials or plaintext database passwords into the repository.
+Create and transfer an authenticated encrypted archive:
+
+```bash
+TRASLOCO_ARCHIVE_PASSPHRASE='use a secret from your secret manager' wp trasloco encrypt backup.wpress
+wp trasloco offsite upload backup.wpress.enc
+wp trasloco offsite download backup.wpress.enc
+TRASLOCO_ARCHIVE_PASSPHRASE='use a secret from your secret manager' wp trasloco decrypt backup.wpress.enc
+```
+
+The encrypted archive carries a SHA-256 sidecar. Upload publishes the sidecar last, verifies both remote objects by reading them back and never replaces different remote content. Plaintext `.wpress` upload requires the explicit `--allow-unencrypted` option. Downloads are staged privately, checked against the sidecar, then published without replacing existing local files. These transfers are manual WP-CLI operations; there is no automatic schedule, remote retry queue or provider health alert yet. A WebDAV adapter is covered by local protocol mocks but still needs testing against real WebDAV providers. A mounted private directory can instead use `TRASLOCO_REMOTE_DRIVER=local` and `TRASLOCO_REMOTE_DIRECTORY`.
+
+Never commit storage credentials or plaintext database passwords into the repository. Rehearse a download and isolated restore before relying on a provider for disaster recovery.
 
 ## Recovery rehearsal
 
 Each month, download a random backup from the offsite destination and restore it on an isolated staging WordPress installation. Confirm database, user accounts, media, forms, URLs, and themes. Also verify backup age and available storage.
 
 ## Still to implement
-- A production-provider-tested WebDAV integration in backup and WP-CLI workflows. The current WebDAV stream adapter is loaded by the plugin and passes local contract tests, but no backup or command uses it yet.
 - S3 and other cloud connectors, remote retry/resume and provider health checks.
 - Incremental/differential backup chains and retention dependency management.

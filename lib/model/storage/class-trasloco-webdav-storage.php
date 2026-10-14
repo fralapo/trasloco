@@ -50,7 +50,7 @@ class Trasloco_WebDAV_Storage implements Trasloco_Storage_Adapter {
 
     private function validate_key( $key ) {
         if ( ! is_string( $key ) || strlen( $key ) > 220 ||
-            ! preg_match( '/^[A-Za-z0-9][A-Za-z0-9_.-]*\.wpress(?:\.enc|\.manifest\.json)?$/D', $key ) ||
+            ! preg_match( '/^[A-Za-z0-9][A-Za-z0-9_.-]*\.wpress(?:\.enc(?:\.manifest\.json)?|\.manifest\.json)?$/D', $key ) ||
             strpos( $key, '..' ) !== false ) {
             throw new InvalidArgumentException( 'Invalid WebDAV storage key.' );
         }
@@ -197,14 +197,17 @@ class Trasloco_WebDAV_Storage implements Trasloco_Storage_Adapter {
         return $bytes;
     }
 
-    public function open_read( $key ) {
+    public function open_read( $key, $max_bytes = null ) {
         $key = $this->validate_key( $key );
+        if ( $max_bytes !== null && ( ! is_int( $max_bytes ) || $max_bytes < 0 ) ) {
+            throw new InvalidArgumentException( 'Invalid WebDAV response size limit.' );
+        }
         $stream = @fopen( 'php://temp/maxmemory:2097152', 'w+b' );
         if ( $stream === false ) {
             throw new RuntimeException( 'Unable to allocate a private WebDAV download stream.' );
         }
         try {
-            $status = $this->request( 'GET', $key, null, $stream );
+            $status = $this->request( 'GET', $key, null, $stream, array(), $max_bytes );
             if ( $status < 200 || $status >= 300 || ! rewind( $stream ) ) {
                 throw new RuntimeException( 'WebDAV archive cannot be downloaded.' );
             }

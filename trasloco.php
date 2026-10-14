@@ -111,6 +111,8 @@ require_once dirname( __FILE__ ) . DIRECTORY_SEPARATOR . 'exceptions.php';
 require_once dirname( __FILE__ ) . '/lib/model/storage/interface-trasloco-storage-adapter.php';
 require_once dirname( __FILE__ ) . '/lib/model/storage/class-trasloco-local-storage.php';
 require_once dirname( __FILE__ ) . '/lib/model/storage/class-trasloco-webdav-storage.php';
+require_once dirname( __FILE__ ) . '/lib/model/storage/class-trasloco-storage-factory.php';
+require_once dirname( __FILE__ ) . '/lib/model/storage/class-trasloco-offsite-transfer.php';
 
 // Durable job records. Jobs are not executed until an explicit, tested worker is added.
 require_once dirname( __FILE__ ) . '/lib/model/class-trasloco-job-store.php';
