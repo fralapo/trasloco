@@ -1,6 +1,6 @@
 <?php
 /**
- * Strictly read-only REST visibility into local backup inventory.
+ * Admin-only REST visibility and bounded backup job mutations.
  * WordPress cookie+REST nonces or revocable Application Passwords authenticate
  * callers; every route independently requires manage_options.
  */
@@ -104,6 +104,21 @@ class Trasloco_REST_API {
             'callback' => array( __CLASS__, 'list_jobs' ),
             'permission_callback' => array( __CLASS__, 'can_manage' ),
         ) );
+        register_rest_route( 'trasloco/v1', '/jobs/backup', array(
+            'methods' => 'POST',
+            'callback' => array( __CLASS__, 'queue_backup' ),
+            'permission_callback' => array( __CLASS__, 'can_manage' ),
+            'args' => array(
+                'retention' => array( 'type' => 'integer', 'minimum' => 1, 'maximum' => 100 ),
+                'upload_offsite' => array( 'type' => 'boolean' ),
+                'idempotency_key' => array( 'type' => 'string', 'maxLength' => 64 ),
+            ),
+        ) );
+        register_rest_route( 'trasloco/v1', '/audit', array(
+            'methods' => 'GET',
+            'callback' => array( __CLASS__, 'list_audit_events' ),
+            'permission_callback' => array( __CLASS__, 'can_manage' ),
+        ) );
         register_rest_route( 'trasloco/v1', '/jobs/(?P<id>[0-9]+)/retry', array(
             'methods' => 'POST',
             'callback' => array( __CLASS__, 'retry_job' ),
@@ -148,10 +163,57 @@ class Trasloco_REST_API {
         if ( is_wp_error( $id ) ) {
             return $id;
         }
+        if ( ! Trasloco_Audit_Log::record( 'verification.queued', $id ) ) {
+            return new WP_Error( 'trasloco_audit_failed', 'Verification was saved but could not be added to the audit log.', array( 'status' => 503, 'job_id' => $id ) );
+        }
         if ( ! Trasloco_Job_Worker::schedule( $id ) ) {
             return new WP_Error( 'trasloco_schedule_failed', 'Job saved but no worker could be scheduled. Use WP-CLI to run it.', array( 'status' => 503, 'job_id' => $id ) );
         }
         return new WP_REST_Response( array( 'job_id' => $id, 'state' => Trasloco_Job_Store::get( $id )['state'] ), 202 );
+    }
+
+    /** Queue one validated site backup through the persistent worker. */
+    public static function queue_backup( $request ) {
+        $retention = $request->get_param( 'retention' );
+        $retention = $retention === null ? Trasloco_Scheduled_Backups::settings()['keep'] : filter_var(
+            $retention, FILTER_VALIDATE_INT, array( 'options' => array( 'min_range' => 1, 'max_range' => 100 ) )
+        );
+        $upload_offsite = $request->get_param( 'upload_offsite' );
+        $upload_offsite = $upload_offsite === null ? false : $upload_offsite;
+        if ( $retention === false || ! is_int( $retention ) || ! is_bool( $upload_offsite ) ) {
+            return new WP_Error( 'trasloco_invalid_backup_job', 'Retention must be 1–100 and upload_offsite must be a boolean.', array( 'status' => 400 ) );
+        }
+        $key = $request->get_param( 'idempotency_key' );
+        if ( $key === null || $key === '' ) {
+            $key = wp_generate_password( 40, false, false );
+        }
+        $id = Trasloco_Job_Store::create( 'backup', array(
+            'retention' => $retention,
+            'upload_offsite' => $upload_offsite,
+        ), $key );
+        if ( is_wp_error( $id ) ) {
+            return $id;
+        }
+        if ( ! Trasloco_Audit_Log::record( 'backup.queued', $id ) ) {
+            return new WP_Error( 'trasloco_audit_failed', 'Backup was saved but could not be added to the audit log.', array( 'status' => 503, 'job_id' => $id ) );
+        }
+        if ( ! Trasloco_Job_Worker::schedule( $id ) ) {
+            return new WP_Error( 'trasloco_schedule_failed', 'Backup job was saved but no worker could be scheduled.', array( 'status' => 503, 'job_id' => $id ) );
+        }
+        return new WP_REST_Response( array(
+            'job_id' => $id,
+            'state' => Trasloco_Job_Store::get( $id )['state'],
+        ), 202 );
+    }
+
+    public static function list_audit_events( $request ) {
+        $raw_limit = $request->get_param( 'per_page' );
+        $limit = $raw_limit === null ? 100 : filter_var( $raw_limit, FILTER_VALIDATE_INT,
+            array( 'options' => array( 'min_range' => 1, 'max_range' => 100 ) ) );
+        if ( $limit === false ) {
+            return new WP_Error( 'trasloco_invalid_pagination', 'per_page must be 1–100.', array( 'status' => 400 ) );
+        }
+        return rest_ensure_response( array( 'events' => Trasloco_Audit_Log::recent( $limit ) ) );
     }
 
 
@@ -163,6 +225,9 @@ class Trasloco_REST_API {
         $id = (int) $request->get_param( 'id' );
         if ( ! Trasloco_Job_Store::retry_verification( $id ) ) {
             return new WP_Error( 'trasloco_retry_not_allowed', 'Only failed or cancelled verification jobs may be retried (up to three attempts).', array( 'status' => 409 ) );
+        }
+        if ( ! Trasloco_Audit_Log::record( 'job.retried', $id ) ) {
+            return new WP_Error( 'trasloco_audit_failed', 'Retry was recorded but could not be added to the audit log.', array( 'status' => 503 ) );
         }
         if ( ! Trasloco_Job_Worker::schedule( $id ) ) {
             return new WP_Error( 'trasloco_schedule_failed', 'Retry recorded but worker scheduling failed.', array( 'status' => 503 ) );
@@ -181,6 +246,9 @@ class Trasloco_REST_API {
         $id = (int) $request->get_param( 'id' );
         if ( ! Trasloco_Job_Store::cancel( $id ) ) {
             return new WP_Error( 'trasloco_job_not_cancellable', 'Job not found or already completed.', array( 'status' => 409 ) );
+        }
+        if ( ! Trasloco_Audit_Log::record( 'job.cancelled', $id ) ) {
+            return new WP_Error( 'trasloco_audit_failed', 'Cancellation was recorded but could not be added to the audit log.', array( 'status' => 503 ) );
         }
         return rest_ensure_response( Trasloco_Job_Store::get( $id ) );
     }

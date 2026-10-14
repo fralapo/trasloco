@@ -35,6 +35,7 @@ I wrote it to move a 1.6 GB site to shared hosting without paying for a "remove 
 - **PHP 8.2 clean.** The iterators carry `#[\ReturnTypeWillChange]`, so the log is free of deprecation notices.
 - **WP-CLI:** `wp trasloco backup` and `wp trasloco restore <file>`. For scheduled jobs, `wp trasloco backup --keep=7` keeps only the latest seven backups. See [automation](docs/AUTOMATION.md) for cron and offsite storage.
 - **Verified backups and recovery.** SHA-256 manifests, resumable verification and offsite jobs, scheduled backups with verified retention, configurable email and signed webhook alerts with bounded delivery retries, and optional encrypted WebDAV/S3 delivery, in-app and standalone encrypted rescue, and a two-phase offline file recovery workflow. See [webhook notifications](docs/WEBHOOK_NOTIFICATIONS.md). Full-site rollback is not yet automatic.
+- **Admin API.** Authenticated clients can queue durable backups and inspect bounded job and audit history. See the [REST API guide](docs/REST_API.md).
 - **Optional S3-compatible storage.** Verified uploads and resumable downloads for AWS S3 and compatible providers, including queued multipart uploads that recover after worker interruption; requires the optional PHP 8.1+ SDK runtime. See [S3 offsite storage](docs/OFFSITE_S3.md) for installation and setup.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>

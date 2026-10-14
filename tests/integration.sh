@@ -758,10 +758,42 @@ $WP eval '
 wp_set_current_user( 0 );
 $deny = rest_do_request( new WP_REST_Request( "GET", "/trasloco/v1/backups" ) );
 if ( $deny->get_status() < 400 ) { throw new Exception( "REST endpoint accessible to anonymous user" ); }
+$deny_backup = rest_do_request( new WP_REST_Request( "POST", "/trasloco/v1/jobs/backup" ) );
+if ( $deny_backup->get_status() < 400 ) { throw new Exception( "Anonymous user queued a backup over REST" ); }
 $admins = get_users( array( "role" => "administrator", "number" => 1 ) );
 wp_set_current_user( $admins[0]->ID );
 $ok = rest_do_request( new WP_REST_Request( "GET", "/trasloco/v1/backups" ) );
 if ( $ok->get_status() !== 200 ) { throw new Exception( "REST backup inventory refused administrator" ); }
+$request = new WP_REST_Request( "POST", "/trasloco/v1/jobs/backup" );
+$request->set_param( "retention", 5 );
+$request->set_param( "idempotency_key", "ci-rest-backup-job-0000001" );
+$queued = rest_do_request( $request );
+if ( $queued->get_status() !== 202 || empty( $queued->get_data()["job_id"] ) ) {
+    throw new Exception( "Administrator could not queue a backup through REST: " . wp_json_encode( $queued->get_data() ) );
+}
+$job_id = (int) $queued->get_data()["job_id"];
+$job = Trasloco_Job_Store::workload( $job_id );
+if ( ! is_array( $job ) || $job["kind"] !== "backup" ||
+    $job["payload"] !== array( "retention" => 5, "upload_offsite" => false ) ) {
+    throw new Exception( "REST backup job payload was not normalized safely" );
+}
+$audit_request = new WP_REST_Request( "GET", "/trasloco/v1/audit" );
+$audit_request->set_param( "per_page", 20 );
+$audit = rest_do_request( $audit_request );
+if ( $audit->get_status() !== 200 ) {
+    throw new Exception( "Admin audit endpoint failed: " . wp_json_encode( $audit->get_data() ) );
+}
+$events = $audit->get_data()["events"];
+$recorded = false;
+foreach ( $events as $event ) {
+    if ( $event["action"] === "backup.queued" && (int) $event["object_id"] === $job_id &&
+        (int) $event["actor_id"] === get_current_user_id() ) { $recorded = true; }
+}
+if ( ! $recorded ) { throw new Exception( "REST backup action was missing from the actor audit log" ); }
+wp_clear_scheduled_hook( Trasloco_Job_Worker::HOOK, array( $job_id ) );
+$invalid = new WP_REST_Request( "POST", "/trasloco/v1/jobs/backup" );
+$invalid->set_param( "retention", 101 );
+if ( rest_do_request( $invalid )->get_status() < 400 ) { throw new Exception( "REST accepted an out-of-range retention policy" ); }
 ' --path="$ROOT/target"
 $WP eval '
 Trasloco_Job_Store::maybe_install();

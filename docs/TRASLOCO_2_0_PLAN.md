@@ -76,7 +76,7 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 - [x] Phase 1A: create local SHA-256 sidecar manifests and add WP-CLI verification with WordPress integration test.
 - [x] Phase 1B: the backup list shows completed archive verification only while the archive and manifest still match the worker-recorded file identities; pending and failed states are visible. Durable full-archive checks, verified restore rehearsals and the rendered UI regression pass in local WordPress integration.
 - [x] Initial feature 14 foundation: read-only admin-scoped REST inventory with integration permission test.
-- [ ] Feature 14 mutating API (only after durable job engine and audit log).
+- [x] Feature 14 bounded mutating API: administrators can queue durable local backups over REST, and the last 1,000 job mutation actions retain actor, action, job ID and UTC timestamp. Restore remains outside REST; the verified explicit restore workflow is retained.
 - [ ] Phases 2-15 as ordered above.
 
 - [x] Native WP-Cron automatic backup engine with job queue, SHA-256 verification, retention and admin configuration.
