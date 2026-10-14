@@ -99,6 +99,15 @@ class Trasloco_Import_Preflight {
             }
             $params['trasloco_selected_tables'] = $plan['source_tables'];
             $params['trasloco_selective_tables'] = $plan['source_tables'];
+            if ( ! empty( $params['trasloco_selective_fingerprints'] ) ) {
+                $fingerprints = is_string( $params['trasloco_selective_fingerprints'] )
+                    ? json_decode( $params['trasloco_selective_fingerprints'], true ) : null;
+                try {
+                    Trasloco_Selective_Database_Restore::assert_fingerprints_current( $params['archive'], $suffixes, $fingerprints );
+                } catch ( Throwable $error ) {
+                    throw new Trasloco_Import_Exception( 'Selective restore stopped because live table data changed after preview. Review the tables again and pause writes before retrying.' );
+                }
+            }
         }
         return $params;
     }

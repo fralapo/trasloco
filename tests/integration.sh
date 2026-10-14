@@ -148,9 +148,24 @@ $changeset = Trasloco_SQL_Changeset_Preview::compare( getenv( "TRASLOCO_SELECTIV
 $table = $changeset["tables"][0];
 if ( $changeset["status"] !== "available" || $table["status"] !== "compared" ||
      $table["source_rows"] !== 1 || $table["destination_rows"] !== 2 ||
-     $table["changed"] !== 1 || $table["removed"] !== 1 || $table["added"] !== 0 ) {
+     $table["changed"] !== 1 || $table["removed"] !== 1 || $table["added"] !== 0 ||
+     ! preg_match( "/^[a-f0-9]{64}$/D", $table["destination_fingerprint"] ) ) {
     throw new Exception( "Row changeset did not report the changed and live-only rows: " . wp_json_encode( $changeset ) );
 }
+require_once TRASLOCO_LIB_PATH . "/model/class-trasloco-selective-database-restore.php";
+$wpdb->update( $wpdb->prefix . "trasloco_selective_probe", array( "value" => "changed-after-preview" ), array( "id" => 1 ) );
+$stale_rejected = false;
+try {
+    Trasloco_Selective_Database_Restore::assert_fingerprints_current(
+        basename( getenv( "TRASLOCO_SELECTIVE_ARCHIVE" ) ),
+        array( "trasloco_selective_probe" ),
+        array( "trasloco_selective_probe" => $table["destination_fingerprint"] )
+    );
+} catch ( RuntimeException $error ) {
+    $stale_rejected = strpos( $error->getMessage(), "changed after the preview" ) !== false;
+}
+if ( ! $stale_rejected ) { throw new Exception( "Selective restore did not reject a table changed after preview" ); }
+$wpdb->update( $wpdb->prefix . "trasloco_selective_probe", array( "value" => "changed-live-value" ), array( "id" => 1 ) );
 $admins = get_users( array( "role" => "administrator", "number" => 1 ) );
 if ( empty( $admins ) ) { throw new Exception( "Could not load an administrator for row-preview REST test" ); }
 wp_set_current_user( $admins[0]->ID );
@@ -1493,7 +1508,7 @@ foreach ( $preview_data["database_preview"]["table_operations"] as $table_operat
     }
 }
 if ( $preview_data["database_preview"]["status"] !== "available" || ! $has_options_preview ||
-    strpos( $preview_data["database_preview"]["warning"], "does not compare row values" ) === false ) {
+    strpos( $preview_data["database_preview"]["warning"], "optional selected-table report compares bounded raw archive rows" ) === false ) {
     throw new Exception( "Archive preview did not map the SQL table replacement to the destination" );
 }
 ' --path="$ROOT/source"

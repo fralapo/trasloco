@@ -348,7 +348,54 @@ class Trasloco_SQL_Changeset_Preview {
             'removed' => $removed,
             'changed' => $changed,
             'unchanged' => count( $source_map ) - $added - $changed,
+            'destination_fingerprint' => self::fingerprint( $destination_map, $columns, $primary ),
         );
+    }
+
+    /** Stable opaque fingerprint for detecting writes after the UI preview. */
+    public static function fingerprint( $row_map, $columns, $primary ) {
+        if ( ! is_array( $row_map ) ) {
+            throw new InvalidArgumentException( 'A destination row map is required.' );
+        }
+        ksort( $row_map, SORT_STRING );
+        $context = hash_init( 'sha256' );
+        hash_update( $context, wp_json_encode( array( 'columns' => $columns, 'primary_key' => $primary ) ) . "\0" );
+        foreach ( $row_map as $key => $digest ) {
+            if ( ! is_string( $key ) || ! preg_match( '/^[a-f0-9]{64}$/D', $key ) ||
+                ! is_string( $digest ) || ! preg_match( '/^[a-f0-9]{64}$/D', $digest ) ) {
+                throw new InvalidArgumentException( 'A destination row map is malformed.' );
+            }
+            hash_update( $context, $key . $digest );
+        }
+        return hash_final( $context );
+    }
+
+    /** Fingerprint live tables only; used immediately before selective import. */
+    public static function live_fingerprints( $suffixes ) {
+        global $wpdb;
+        if ( ! is_array( $suffixes ) || empty( $suffixes ) || count( $suffixes ) > self::MAX_TABLES || is_multisite() ) {
+            throw new InvalidArgumentException( 'A bounded single-site table selection is required.' );
+        }
+        $result = array();
+        foreach ( array_values( array_unique( $suffixes ) ) as $suffix ) {
+            if ( ! is_string( $suffix ) || ! preg_match( '/^[A-Za-z0-9_$]{1,180}$/D', $suffix ) ||
+                strpos( $suffix, 'basesite_' ) === 0 || preg_match( '/^[0-9]+_/', $suffix ) ) {
+                throw new InvalidArgumentException( 'A selected table suffix is not safely mappable.' );
+            }
+            $target = $wpdb->prefix . $suffix;
+            if ( strlen( $target ) > 64 ) {
+                throw new RuntimeException( 'A destination table name exceeds the MySQL identifier limit.' );
+            }
+            $columns = self::destination_columns( $target );
+            $primary = $columns === null ? array() : self::destination_primary_key( $target );
+            if ( empty( $columns ) || empty( $primary ) || array_diff( $primary, $columns ) ) {
+                $result[ $suffix ] = null;
+                continue;
+            }
+            $rows = self::destination_rows( $target, $columns, $primary );
+            $result[ $suffix ] = $rows === null ? null : self::fingerprint( $rows, $columns, $primary );
+        }
+        return $result;
     }
 
     private static function row_map( $rows, $columns, $primary ) {

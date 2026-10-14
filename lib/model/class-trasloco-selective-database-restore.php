@@ -4,6 +4,32 @@
  * This class only builds a plan; the importer applies its exact table allowlist.
  */
 class Trasloco_Selective_Database_Restore {
+    /** Abort when a bounded preview fingerprint no longer matches live rows. */
+    public static function assert_fingerprints_current( $archive, $suffixes, $fingerprints ) {
+        if ( ! is_array( $fingerprints ) ) {
+            throw new InvalidArgumentException( 'Selective restore preview fingerprints are invalid.' );
+        }
+        if ( empty( $fingerprints ) ) {
+            return true;
+        }
+        $selected = array_fill_keys( $suffixes, true );
+        foreach ( $fingerprints as $suffix => $fingerprint ) {
+            if ( ! is_string( $suffix ) || ! isset( $selected[ $suffix ] ) ||
+                ! is_string( $fingerprint ) || ! preg_match( '/^[a-f0-9]{64}$/D', $fingerprint ) ) {
+                throw new InvalidArgumentException( 'Selective restore preview fingerprints are invalid.' );
+            }
+        }
+        require_once TRASLOCO_LIB_PATH . '/vendor/core/archiver/class-trasloco-sql-changeset-preview.php';
+        $live = Trasloco_SQL_Changeset_Preview::live_fingerprints( array_keys( $fingerprints ) );
+        foreach ( $fingerprints as $suffix => $fingerprint ) {
+            if ( ! isset( $live[ $suffix ] ) || ! is_string( $live[ $suffix ] ) ||
+                ! hash_equals( $fingerprint, $live[ $suffix ] ) ) {
+                throw new RuntimeException( 'Live table data changed after the preview. Recheck the selected tables and pause writes before retrying.' );
+            }
+        }
+        return true;
+    }
+
     /** Build a destination-aware plan from the requested WordPress table suffixes. */
     public static function plan( $archive, $suffixes ) {
         global $wpdb;
