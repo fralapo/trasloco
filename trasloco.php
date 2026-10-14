@@ -114,7 +114,7 @@ require_once dirname( __FILE__ ) . '/lib/model/storage/class-trasloco-webdav-sto
 require_once dirname( __FILE__ ) . '/lib/model/storage/class-trasloco-storage-factory.php';
 require_once dirname( __FILE__ ) . '/lib/model/storage/class-trasloco-offsite-transfer.php';
 
-// Durable job records. Jobs are not executed until an explicit, tested worker is added.
+// Durable job records shared by scheduled, verification and transfer workers.
 require_once dirname( __FILE__ ) . '/lib/model/class-trasloco-job-store.php';
 add_action( 'init', array( 'Trasloco_Job_Store', 'maybe_install' ) );
 

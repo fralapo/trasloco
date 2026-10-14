@@ -164,8 +164,16 @@ try {
     file_put_contents( $resume_folder . '/download.part', 'partial trailing block', FILE_APPEND );
     $resume_metadata = json_decode( file_get_contents( $resume_folder . '/transfer.json' ), true );
     file_put_contents( $resume_folder . '/transfer.json', json_encode( array_reverse( $resume_metadata, true ) ) );
-    $resume_result = $resumable_target->download( 'resume-after-interruption.wpress' );
+    $progress = array();
+    $resume_result = $resumable_target->download( 'resume-after-interruption.wpress', function ( $bytes, $total ) use ( &$progress ) {
+        $progress[] = array( $bytes, $total );
+        return true;
+    } );
     offsite_assert( $resume_result['status'] === 'downloaded', 'Interrupted offsite download did not resume.' );
+    $last_progress = end( $progress );
+    offsite_assert( count( $progress ) === 2 && $progress[0][0] === 2 * Trasloco_Offsite_Transfer::DOWNLOAD_CHUNK_BYTES &&
+        $last_progress[0] === filesize( $resumable_archive ) && $last_progress[1] === filesize( $resumable_archive ),
+        'Offsite progress callback did not report durable verified byte ranges.' );
     offsite_assert( $tracking_store->offsets[0] === Trasloco_Offsite_Transfer::DOWNLOAD_CHUNK_BYTES &&
         $tracking_store->offsets[1] === Trasloco_Offsite_Transfer::DOWNLOAD_CHUNK_BYTES + Trasloco_Offsite_Transfer::DOWNLOAD_CHUNK_BYTES,
         'Offsite retry did not resume at the last durable chunk boundary.' );

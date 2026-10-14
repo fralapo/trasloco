@@ -337,7 +337,10 @@ class Trasloco_Offsite_Transfer {
         return true;
     }
 
-    public function download( $archive ) {
+    public function download( $archive, $progress_callback = null ) {
+        if ( $progress_callback !== null && ! is_callable( $progress_callback ) ) {
+            throw new InvalidArgumentException( 'Invalid offsite download progress callback.' );
+        }
         $archive = $this->archive_name( $archive );
         $destination = $this->local_root . DIRECTORY_SEPARATOR . $archive;
         $manifest_destination = Trasloco_Integrity::manifest_path( $destination );
@@ -506,6 +509,9 @@ class Trasloco_Offsite_Transfer {
                     throw new RuntimeException( 'Unable to persist the offsite download checkpoint.' );
                 }
                 $offset += $length;
+                if ( $progress_callback !== null && call_user_func( $progress_callback, $offset, $expected_size ) === false ) {
+                    throw new RuntimeException( 'Offsite download was cancelled or lost its job lease.' );
+                }
             }
             fclose( $archive_stream );
             $archive_stream = false;

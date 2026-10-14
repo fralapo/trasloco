@@ -68,9 +68,73 @@ class Trasloco_Job_Worker {
     public static function reconcile() {
         Trasloco_Job_Store::fail_abandoned_backups();
         Trasloco_Job_Store::fail_exhausted_verifications();
+        Trasloco_Job_Store::fail_exhausted_transfers();
         foreach ( Trasloco_Job_Store::recoverable_verifications( 10 ) as $id ) {
             self::schedule( $id );
         }
+        foreach ( Trasloco_Job_Store::recoverable_transfers( 10 ) as $id ) {
+            self::schedule( $id );
+        }
+    }
+
+    /** Persist a credential-free request for a verified offsite download. */
+    public static function enqueue_offsite_download( $archive ) {
+        if ( ! is_string( $archive ) || strlen( $archive ) > 206 ||
+            ! preg_match( '/^[A-Za-z0-9][A-Za-z0-9_.-]*\.wpress(?:\.enc)?$/D', $archive ) ||
+            strpos( $archive, '..' ) !== false ) {
+            return new WP_Error( 'trasloco_invalid_archive', 'Invalid backup archive name.' );
+        }
+        $id = Trasloco_Job_Store::create( 'transfer',
+            array( 'operation' => 'download', 'archive' => $archive ),
+            wp_generate_password( 32, false, false ) );
+        if ( is_wp_error( $id ) ) {
+            return $id;
+        }
+        // A failed enqueue remains pending and will be picked up by reconcile().
+        self::schedule( $id );
+        return $id;
+    }
+
+    /** Run a leased offsite download and persist byte-level progress. */
+    private static function transfer_download( $id, $owner, $payload ) {
+        if ( ! isset( $payload['operation'], $payload['archive'] ) ||
+            $payload['operation'] !== 'download' || ! is_string( $payload['archive'] ) ||
+            strlen( $payload['archive'] ) > 206 ||
+            ! preg_match( '/^[A-Za-z0-9][A-Za-z0-9_.-]*\.wpress(?:\.enc)?$/D', $payload['archive'] ) ||
+            strpos( $payload['archive'], '..' ) !== false || count( $payload ) !== 2 ) {
+            throw new RuntimeException( 'Invalid offsite download request.' );
+        }
+        if ( ! wp_mkdir_p( TRASLOCO_BACKUPS_PATH ) ) {
+            throw new RuntimeException( 'Unable to prepare the local backup directory.' );
+        }
+        require_once TRASLOCO_LIB_PATH . '/vendor/core/archiver/class-trasloco-integrity.php';
+        $adapter = Trasloco_Storage_Factory::configured();
+        $transfer = new Trasloco_Offsite_Transfer( $adapter, TRASLOCO_BACKUPS_PATH );
+        $archive = $payload['archive'];
+        $last_renewal = time();
+        if ( ! Trasloco_Job_Store::checkpoint( $id, $owner, 1,
+            array( 'phase' => 'downloading', 'archive' => $archive, 'bytes' => 0, 'total_bytes' => 0 ) ) ) {
+            throw new RuntimeException( 'Offsite download was cancelled or its lease was lost.' );
+        }
+        $result = $transfer->download( $archive, function ( $bytes, $total ) use ( $id, $owner, $archive, &$last_renewal ) {
+            if ( time() - $last_renewal >= 120 ) {
+                if ( ! Trasloco_Job_Store::renew( $id, $owner, 300 ) ) {
+                    return false;
+                }
+                $last_renewal = time();
+            }
+            $progress = $total > 0 ? min( 95, 5 + (int) floor( ( $bytes / $total ) * 85 ) ) : 90;
+            return Trasloco_Job_Store::checkpoint( $id, $owner, $progress, array(
+                'phase' => 'downloading', 'archive' => $archive,
+                'bytes' => (int) $bytes, 'total_bytes' => (int) $total,
+            ) );
+        } );
+        if ( ! Trasloco_Job_Store::checkpoint( $id, $owner, 99, array(
+            'phase' => 'verified', 'archive' => $archive, 'bytes' => (int) $result['bytes'],
+        ) ) ) {
+            throw new RuntimeException( 'Offsite download was cancelled or its lease was lost.' );
+        }
+        return $archive;
     }
 
     public static function schedule( $id ) {
@@ -248,14 +312,15 @@ class Trasloco_Job_Worker {
     public static function run( $id ) {
         $id = (int) $id;
         $record = Trasloco_Job_Store::workload( $id );
-        if ( ! $record || ! in_array( $record['kind'], array( 'verify', 'backup' ), true ) ||
+        if ( ! $record || ! in_array( $record['kind'], array( 'verify', 'backup', 'transfer' ), true ) ||
             ! is_array( $record['payload'] ) ) {
             return array( 'status' => 'invalid' );
         }
 
         // Only workers with an acquired lease are allowed to update state.
         $owner = 'worker-' . wp_generate_password( 24, false, false );
-        if ( ! Trasloco_Job_Store::claim( $id, $owner, 3600 ) ) {
+        $lease_seconds = $record['kind'] === 'transfer' ? 300 : 3600;
+        if ( ! Trasloco_Job_Store::claim( $id, $owner, $lease_seconds ) ) {
             return array( 'status' => 'not_claimed' );
         }
         try {
@@ -278,6 +343,13 @@ class Trasloco_Job_Worker {
                     unset( $GLOBALS['trasloco_active_export_lock'] );
                     Trasloco_Export_Lock::release( $backup_lock, $backup_lock_owner );
                 }
+                if ( ! Trasloco_Job_Store::finish( $id, $owner ) ) {
+                    return array( 'status' => 'not_claimed' );
+                }
+                return array( 'status' => 'completed', 'archive' => $name );
+            }
+            if ( $record['kind'] === 'transfer' ) {
+                $name = self::transfer_download( $id, $owner, $record['payload'] );
                 if ( ! Trasloco_Job_Store::finish( $id, $owner ) ) {
                     return array( 'status' => 'not_claimed' );
                 }
@@ -308,7 +380,10 @@ class Trasloco_Job_Worker {
             return array( 'status' => 'completed', 'archive' => $filename );
         } catch ( Throwable $e ) {
             // Generic error only; never log any secret-bearing payload or path.
-            Trasloco_Job_Store::fail( $id, $owner, $e->getMessage() );
+            // Provider exceptions can include URLs or request details. Keep
+            // the durable record secret-free and useful without those values.
+            $failure = $record['kind'] === 'transfer' ? 'Offsite download failed; inspect provider availability and job history.' : $e->getMessage();
+            Trasloco_Job_Store::fail( $id, $owner, $failure );
             if ( $record['kind'] === 'backup' && empty( $record['payload']['recovery_point'] ) ) {
                 do_action( 'trasloco_scheduled_backup_failed', $id );
             }

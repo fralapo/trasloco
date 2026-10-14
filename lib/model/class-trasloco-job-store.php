@@ -9,6 +9,7 @@
 class Trasloco_Job_Store {
     const SCHEMA = 1;
     const MAX_VERIFY_ATTEMPTS = 3;
+    const MAX_TRANSFER_ATTEMPTS = 3;
 
     public static function table() {
         global $wpdb;
@@ -55,6 +56,15 @@ class Trasloco_Job_Store {
             ! is_array( $payload ) || ! is_string( $key ) ||
             ! preg_match( '/^[a-zA-Z0-9:_-]{12,64}$/D', $key ) ) {
             return new WP_Error( 'trasloco_invalid_job', 'Invalid job request.' );
+        }
+        // Only verified downloads have crash-safe replay semantics. Never put
+        // provider credentials in a job payload or queue an upload here.
+        if ( $kind === 'transfer' && ( ! isset( $payload['operation'], $payload['archive'] ) ||
+            $payload['operation'] !== 'download' || ! is_string( $payload['archive'] ) ||
+            strlen( $payload['archive'] ) > 206 ||
+            ! preg_match( '/^[A-Za-z0-9][A-Za-z0-9_.-]*\.wpress(?:\.enc)?$/D', $payload['archive'] ) ||
+            strpos( $payload['archive'], '..' ) !== false || count( $payload ) !== 2 ) ) {
+            return new WP_Error( 'trasloco_invalid_job', 'Only safe offsite download jobs are supported.' );
         }
         $table = self::table();
         $now = gmdate( 'Y-m-d H:i:s' );
@@ -180,6 +190,46 @@ class Trasloco_Job_Store {
         ) );
     }
 
+    /** Recover interrupted offsite downloads; private range checkpoints make replay safe. */
+    public static function recoverable_transfers( $limit = 10 ) {
+        global $wpdb;
+        $table = self::table();
+        $limit = max( 1, min( 50, (int) $limit ) );
+        $now = time();
+        return array_map( 'intval', $wpdb->get_col( $wpdb->prepare(
+            "SELECT id FROM {$table} WHERE kind = 'transfer' AND attempts < %d AND
+            (state = 'pending' OR (state = 'running' AND lease_until < %d))
+            ORDER BY id ASC LIMIT %d",
+            self::MAX_TRANSFER_ATTEMPTS, $now, $limit
+        ) ) );
+    }
+
+    /** Stop crash-looping downloads after the bounded automatic retry budget. */
+    public static function fail_exhausted_transfers() {
+        global $wpdb;
+        $table = self::table();
+        return (int) $wpdb->query( $wpdb->prepare(
+            "UPDATE {$table} SET state = 'failed', lease_owner = '', lease_until = 0,
+            failure = 'Offsite download stopped after repeated interrupted attempts.',
+            updated_at = %s WHERE kind = 'transfer' AND state = 'running'
+            AND attempts >= %d AND lease_until < %d",
+            gmdate( 'Y-m-d H:i:s' ), self::MAX_TRANSFER_ATTEMPTS, time()
+        ) );
+    }
+
+    /** Reopen a failed/cancelled download when its automatic attempt budget remains. */
+    public static function retry_transfer( $id ) {
+        global $wpdb;
+        $table = self::table();
+        return 1 === $wpdb->query( $wpdb->prepare(
+            "UPDATE {$table} SET state = 'pending', failure = NULL,
+            lease_owner = '', lease_until = 0, updated_at = %s
+            WHERE id = %d AND kind = 'transfer' AND attempts < %d
+            AND state IN ('failed','cancelled')",
+            gmdate( 'Y-m-d H:i:s' ), $id, self::MAX_TRANSFER_ATTEMPTS
+        ) );
+    }
+
     /** Mark abandoned backup workers as failed, rather than duplicating a
      * potentially multi-gigabyte operation automatically. */
     public static function fail_abandoned_backups() {
@@ -259,18 +309,19 @@ class Trasloco_Job_Store {
         }
         $now = time();
         $table = self::table();
-        // Atomic acquisition. Only read-only verification may reclaim an
-        // expired running lease. A backup/restore/transfer can have modified
-        // files or database state before its lease expired; replaying it
-        // automatically risks duplicate/destructive work. Such jobs must
-        // instead be marked abandoned and reviewed by an operator.
+        // Atomic acquisition. Only read-only verification and range-resumable
+        // offsite downloads may reclaim expired leases; destructive backups,
+        // restores and uploads remain excluded from automatic replay.
         return 1 === $wpdb->query( $wpdb->prepare(
             "UPDATE {$table} SET state = 'running', lease_owner = %s, lease_until = %d,
             attempts = attempts + 1, updated_at = %s
-            WHERE id = %d AND (kind <> 'verify' OR attempts < %d)
+            WHERE id = %d AND (kind NOT IN ('verify','transfer') OR
+                 (kind = 'verify' AND attempts < %d) OR
+                 (kind = 'transfer' AND attempts < %d))
             AND (state = 'pending' OR
-                 (kind = 'verify' AND state = 'running' AND lease_until < %d))",
-            $worker, $now + $lease_seconds, gmdate( 'Y-m-d H:i:s' ), $id, self::MAX_VERIFY_ATTEMPTS, $now
+                 ((kind = 'verify' OR kind = 'transfer') AND state = 'running' AND lease_until < %d))",
+            $worker, $now + $lease_seconds, gmdate( 'Y-m-d H:i:s' ), $id,
+            self::MAX_VERIFY_ATTEMPTS, self::MAX_TRANSFER_ATTEMPTS, $now
         ) );
     }
 

@@ -166,6 +166,8 @@ fi
 rm "$ROOT/offsite/partial.wpress"
 $WP config set TRASLOCO_REMOTE_DRIVER local --type=constant --path="$ROOT/target"
 $WP config set TRASLOCO_REMOTE_DIRECTORY "$ROOT/offsite" --type=constant --path="$ROOT/target"
+$WP trasloco offsite queue-download "$OFFSITE_NAME" --path="$ROOT/target"
+$WP eval-file "$GITHUB_WORKSPACE/tests/offsite-job-smoke.php" --path="$ROOT/target"
 $WP trasloco offsite download "$OFFSITE_NAME" --path="$ROOT/target"
 cmp "$ROOT/source/wp-content/trasloco-backups/$OFFSITE_NAME" "$ROOT/target/wp-content/trasloco-backups/$OFFSITE_NAME"
 cmp "$ROOT/source/wp-content/trasloco-backups/$OFFSITE_NAME.manifest.json" "$ROOT/target/wp-content/trasloco-backups/$OFFSITE_NAME.manifest.json"
