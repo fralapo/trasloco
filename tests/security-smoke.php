@@ -181,7 +181,7 @@ if ( function_exists( 'sodium_crypto_secretstream_xchacha20poly1305_init_push' )
     // interactive Argon2id costs, and a final-tagged last payload frame).
     $legacy = $source . '.legacy.enc';
     $legacy_plain = $source . '.legacy-source';
-    file_put_contents( $legacy_plain, str_repeat( "legacy encrypted fixture", 700 ) );
+    file_put_contents( $legacy_plain, str_repeat( "L", 1048576 + 54321 ) );
     $salt = random_bytes( SODIUM_CRYPTO_PWHASH_SALTBYTES );
     $key = sodium_crypto_pwhash(
         SODIUM_CRYPTO_SECRETSTREAM_XCHACHA20POLY1305_KEYBYTES,
