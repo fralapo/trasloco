@@ -452,10 +452,19 @@
 /* ---------- Progress window (built by the JS) ---------- */
 .trasloco-modal-container {
 	max-width: 520px !important;
+	width: min(480px, calc(100vw - 32px));
+	max-height: calc(100vh - 32px);
+	overflow: auto;
+	transform: translate(240px, -50%);
 	padding: 32px !important;
 	border-radius: 12px !important;
 	font-size: 15px;
 	line-height: 1.5;
+}
+
+.trasloco-modal-container :focus-visible {
+	outline: 3px solid var(--wp-admin-theme-color, #2271b1);
+	outline-offset: 3px;
 }
 
 .trasloco-modal-container h1 { font-size: 20px; font-weight: 600; margin: 0 0 8px; }
@@ -535,6 +544,14 @@
 
 /* ---------- Narrow screens ---------- */
 @media (max-width: 782px) {
+	.trasloco-modal-container {
+		right: 16px;
+		left: 16px;
+		width: auto;
+		max-width: none !important;
+		transform: translateY(-50%);
+		padding: 20px !important;
+	}
 	.tr-page { margin-right: 12px; }
 	.tr-page .tr-card { padding: 16px; }
 	.tr-page .tr-queries .trasloco-query .tr-query-fields,
@@ -550,6 +567,20 @@
 	.tr-page .tr-table tr:last-child { border-bottom: 0; }
 	.tr-page .tr-table tbody td.trasloco-backup-actions { text-align: left; }
 	.tr-page .tr-table tbody td.trasloco-backup-actions .tr-btn { margin: 4px 8px 4px 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.trasloco-modal-container *,
+	.trasloco-modal-container *::before,
+	.trasloco-modal-container *::after,
+	.tr-page *,
+	.tr-page *::before,
+	.tr-page *::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		scroll-behavior: auto !important;
+		transition-duration: 0.01ms !important;
+	}
 }
 
 @media (prefers-reduced-motion: reduce) {

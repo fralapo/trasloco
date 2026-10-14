@@ -1,6 +1,7 @@
 #trasloco-selective-restore-dialog {
 	width: min(900px, calc(100vw - 32px));
 	max-height: min(85vh, 800px);
+	overflow: auto;
 	padding: 0;
 	border: 1px solid #c3c4c7;
 	border-radius: 4px;
@@ -34,8 +35,13 @@
 
 .tr-selective-restore-actions {
 	display: flex;
+	flex-wrap: wrap;
 	justify-content: flex-end;
 	gap: 8px;
+}
+
+.tr-selective-restore-actions button {
+	min-height: 40px;
 }
 
 .trasloco-backup-actions .trasloco-backup-selective-restore {
