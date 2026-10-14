@@ -10,3 +10,6 @@ interface Trasloco_Storage_Adapter {
     public function delete( $key );
     public function enumerate();
 }
+
+/** An adapter may safely retry this failed request without changing its meaning. */
+class Trasloco_Storage_Transient_Exception extends RuntimeException {}

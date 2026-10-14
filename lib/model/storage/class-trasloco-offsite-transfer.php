@@ -103,6 +103,19 @@ class Trasloco_Offsite_Transfer {
         return array( $bytes, hash_final( $hash ) );
     }
 
+    private function retry_transient( $operation ) {
+        for ( $attempt = 1; ; ++$attempt ) {
+            try {
+                return $operation();
+            } catch ( Trasloco_Storage_Transient_Exception $error ) {
+                if ( $attempt >= 3 ) {
+                    throw $error;
+                }
+                usleep( 250000 * $attempt );
+            }
+        }
+    }
+
     private function remote_matches( $key, $expected ) {
         if ( ! $this->remote->exists( $key ) ) {
             return false;
@@ -119,7 +132,7 @@ class Trasloco_Offsite_Transfer {
         return true;
     }
 
-    private function upload_one( $key, $path ) {
+    private function upload_one_attempt( $key, $path ) {
         $expected = $this->file_digest( $path );
         if ( $this->remote_matches( $key, $expected ) ) {
             return false;
@@ -152,6 +165,12 @@ class Trasloco_Offsite_Transfer {
             throw new RuntimeException( 'Remote upload did not publish the complete object.' );
         }
         return true;
+    }
+
+    private function upload_one( $key, $path ) {
+        return $this->retry_transient( function () use ( $key, $path ) {
+            return $this->upload_one_attempt( $key, $path );
+        } );
     }
 
     public function upload( $archive, $allow_unencrypted = false ) {
@@ -224,7 +243,7 @@ class Trasloco_Offsite_Transfer {
         );
     }
 
-    private function download_one( $key, $destination, $max_bytes ) {
+    private function download_one_once( $key, $destination, $max_bytes ) {
         $stream = $this->remote->open_read( $key, $max_bytes );
         $output = @fopen( $destination, 'wb' );
         if ( $output === false ) {
@@ -261,6 +280,12 @@ class Trasloco_Offsite_Transfer {
             fclose( $stream );
             fclose( $output );
         }
+    }
+
+    private function download_one( $key, $destination, $max_bytes ) {
+        return $this->retry_transient( function () use ( $key, $destination, $max_bytes ) {
+            return $this->download_one_once( $key, $destination, $max_bytes );
+        } );
     }
 
     private function compare_files( $first, $second ) {

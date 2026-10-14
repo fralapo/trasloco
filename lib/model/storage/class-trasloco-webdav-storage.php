@@ -95,6 +95,10 @@ class Trasloco_WebDAV_Storage implements Trasloco_Storage_Adapter {
         return array( $this->host . ':' . $this->port . ':' . implode( ',', $pinned_addresses ) );
     }
 
+    protected function is_transient_status( $status ) {
+        return in_array( (int) $status, array( 408, 425, 429, 500, 502, 503, 504 ), true );
+    }
+
     /**
      * Execute one WebDAV request. Request/response content always uses streams;
      * PROPFIND is bounded to avoid loading an unbounded remote inventory.
@@ -170,7 +174,10 @@ class Trasloco_WebDAV_Storage implements Trasloco_Storage_Adapter {
         $status = (int) curl_getinfo( $curl, CURLINFO_RESPONSE_CODE );
         curl_close( $curl );
         if ( $result === false ) {
-            throw new RuntimeException( 'WebDAV request failed; check the HTTPS service and certificate.' );
+            throw new Trasloco_Storage_Transient_Exception( 'WebDAV request failed; check the HTTPS service and certificate.' );
+        }
+        if ( $this->is_transient_status( $status ) ) {
+            throw new Trasloco_Storage_Transient_Exception( 'WebDAV service returned a temporary error (' . $status . ').' );
         }
         return $status;
     }

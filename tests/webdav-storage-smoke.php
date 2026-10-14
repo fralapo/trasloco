@@ -21,6 +21,10 @@ class Trasloco_Test_WebDAV_Storage extends Trasloco_WebDAV_Storage {
     public $requests = array();
     public $responses = array();
 
+    public function temporary_status( $status ) {
+        return $this->is_transient_status( $status );
+    }
+
     protected function resolve_host() {
         return array( 'storage.example:443:203.0.113.12' );
     }
@@ -48,6 +52,12 @@ $store = new Trasloco_Test_WebDAV_Storage(
     'backup-user',
     'fixture-secret'
 );
+foreach ( array( 408, 425, 429, 500, 502, 503, 504 ) as $status ) {
+    webdav_assert( $store->temporary_status( $status ), 'WebDAV temporary response was not classified for retry.' );
+}
+foreach ( array( 400, 401, 403, 404, 412 ) as $status ) {
+    webdav_assert( ! $store->temporary_status( $status ), 'WebDAV permanent/conflict response was classified for retry.' );
+}
 $store->responses[] = array( 'status' => 201 );
 $input = fopen( 'php://temp', 'w+b' );
 fwrite( $input, 'streamed encrypted backup bytes' );

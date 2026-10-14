@@ -38,6 +38,31 @@ class Trasloco_Fault_After_Put_Storage implements Trasloco_Storage_Adapter {
     public function enumerate() { return $this->storage->enumerate(); }
 }
 
+class Trasloco_Transient_Once_Storage implements Trasloco_Storage_Adapter {
+    private $storage;
+    public $fail_put = true;
+    public $fail_read = true;
+
+    public function __construct( $storage ) { $this->storage = $storage; }
+    public function put_stream( $key, $handle ) {
+        if ( $this->fail_put ) {
+            $this->fail_put = false;
+            throw new Trasloco_Storage_Transient_Exception( 'Simulated temporary upload failure.' );
+        }
+        return $this->storage->put_stream( $key, $handle );
+    }
+    public function open_read( $key, $max_bytes = null ) {
+        if ( $this->fail_read ) {
+            $this->fail_read = false;
+            throw new Trasloco_Storage_Transient_Exception( 'Simulated temporary download failure.' );
+        }
+        return $this->storage->open_read( $key, $max_bytes );
+    }
+    public function exists( $key ) { return $this->storage->exists( $key ); }
+    public function delete( $key ) { return $this->storage->delete( $key ); }
+    public function enumerate() { return $this->storage->enumerate(); }
+}
+
 $root = sys_get_temp_dir() . '/trasloco-offsite-' . bin2hex( random_bytes( 8 ) );
 $local_source = $root . '/source';
 $local_target = $root . '/target';
@@ -67,6 +92,16 @@ try {
     offsite_assert( Trasloco_Integrity::verify( $local_target . '/fixture.wpress' )['status'] === 'verified', 'Downloaded backup manifest did not verify.' );
 
     offsite_assert( $source_transfer->upload( 'fixture.wpress', true )['status'] === 'already_present', 'Identical remote retry was not idempotent.' );
+    $transient_archive = $local_source . '/transient-retry.wpress';
+    file_put_contents( $transient_archive, "transient retry fixture\n" );
+    Trasloco_Integrity::create( $transient_archive );
+    $transient_store = new Trasloco_Transient_Once_Storage( $remote_store );
+    $transient_source = new Trasloco_Offsite_Transfer( $transient_store, $local_source );
+    $transient_target = new Trasloco_Offsite_Transfer( $transient_store, $local_target );
+    offsite_assert( $transient_source->upload( 'transient-retry.wpress', true )['status'] === 'uploaded', 'Transient upload failure was not retried.' );
+    $transient_store->fail_read = true;
+    offsite_assert( $transient_target->download( 'transient-retry.wpress' )['status'] === 'downloaded', 'Transient download failure was not retried.' );
+    offsite_assert( hash_file( 'sha256', $transient_archive ) === hash_file( 'sha256', $local_target . '/transient-retry.wpress' ), 'Retried offsite transfer changed archive bytes.' );
     copy( $source_archive, $local_source . '/lost-response.wpress' );
     copy( $source_archive . '.manifest.json', $local_source . '/lost-response.wpress.manifest.json' );
     $uncertain_remote = new Trasloco_Fault_After_Put_Storage( $remote_store );
