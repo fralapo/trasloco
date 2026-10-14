@@ -404,12 +404,17 @@ $WP trasloco restore-recovery "$RECOVERY_ID" --yes --path="$ROOT/target"
 # behind. Prepare and inspect a separate quarantine only after SQL recovery so
 # a changed candidate cannot be silently discarded by the standard import.
 FULL_SITE_FILES="$ROOT/full-site-file-recovery"
-php "$GITHUB_WORKSPACE/tools/recovery-files.php" prepare \
-  "$FAILED_RECOVERY" "$ROOT/target/wp-content" "$FULL_SITE_FILES" --include-untracked > "$ROOT/full-site-prepare.json"
-php "$GITHUB_WORKSPACE/tools/recovery-files.php" review "$FULL_SITE_FILES" > "$ROOT/full-site-review.json"
+FULL_SITE_PLAN=$($WP trasloco prepare-recovery-files "$RECOVERY_ID" \
+  --workspace="$FULL_SITE_FILES" --path="$ROOT/target")
+FULL_SITE_JSON=$(printf '%s\n' "$FULL_SITE_PLAN" | awk 'substr($0, 1, 1) == "{" { json = $0 } END { print json }')
+test -n "$FULL_SITE_JSON"
+printf '%s\n' "$FULL_SITE_JSON" > "$ROOT/full-site-plan.json"
 FULL_SITE_APPROVAL=$(php -r '
-  $prepared = json_decode(file_get_contents($argv[1]), true);
-  $review = json_decode(file_get_contents($argv[2]), true);
+  $plan = json_decode(file_get_contents($argv[1]), true);
+  $prepared = is_array($plan) ? ($plan["prepared"] ?? null) : null;
+  $summary = is_array($plan) ? ($plan["review"] ?? null) : null;
+  $review = is_array($summary) && isset($summary["report_file"])
+      ? json_decode(file_get_contents($summary["report_file"]), true) : null;
   $expected = "uploads/target-before-import/untracked-after-failure.txt";
   $found = false;
   $files = is_array($review["quarantine_files"] ?? null) ? $review["quarantine_files"] : array();
@@ -419,15 +424,18 @@ FULL_SITE_APPROVAL=$(php -r '
   if (!is_array($prepared) || !is_array($review) ||
       !isset($prepared["quarantine_candidates"], $prepared["approval_sha256"]) ||
       !isset($review["approval_sha256"]) ||
+      !isset($summary["quarantine_candidates"]) ||
       $prepared["quarantine_candidates"] < 1 ||
       $prepared["quarantine_candidates"] !== count($files) ||
+      $summary["quarantine_candidates"] !== count($files) ||
       !hash_equals($prepared["approval_sha256"], $review["approval_sha256"]) ||
       !$found) {
       fwrite(STDERR, "Full-site rollback did not produce the expected reviewed file set: " .
-          json_encode(array("prepared" => $prepared, "review" => $review), JSON_UNESCAPED_SLASHES) . "\n"); exit(1);
+          json_encode(array("prepared" => $prepared, "review" => $review,
+              "plan_output" => substr((string) file_get_contents($argv[1]), 0, 2000)), JSON_UNESCAPED_SLASHES) . "\n"); exit(1);
   }
   echo $review["approval_sha256"];
-' "$ROOT/full-site-prepare.json" "$ROOT/full-site-review.json")
+' "$ROOT/full-site-plan.json")
 php "$GITHUB_WORKSPACE/tools/recovery-files.php" apply \
   "$FULL_SITE_FILES" "$ROOT/target/wp-content" --site-offline-confirmed \
   --approve-untracked="$FULL_SITE_APPROVAL"

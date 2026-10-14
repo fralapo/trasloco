@@ -602,6 +602,79 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 		}
 
 		/**
+		 * Prepare and review file recovery for a pending import receipt.
+		 *
+		 * Run after `restore-recovery`. The command stages the verified snapshot,
+		 * preserves current originals and lists archive-absent files; it does not
+		 * write to wp-content or approve quarantine.
+		 *
+		 * ## OPTIONS
+		 * <receipt-id>
+		 * The 32-character identifier from `php tools/recovery-status.php --json`.
+		 * --workspace=<absolute-path>
+		 * A new private directory outside wp-content, with an existing parent.
+		 *
+		 * @subcommand prepare-recovery-files
+		 */
+		public function prepare_recovery_files( array $args, array $assoc_args ) {
+			if ( count( $args ) !== 1 || ! is_string( $args[0] ) ||
+				! preg_match( '/^[a-f0-9]{32}$/D', $args[0] ) ||
+				empty( $assoc_args['workspace'] ) || ! is_string( $assoc_args['workspace'] ) ||
+				$assoc_args['workspace'][0] !== DIRECTORY_SEPARATOR ) {
+				WP_CLI::error( 'Usage: wp trasloco prepare-recovery-files <receipt-id> --workspace=/absolute/private/new-directory' );
+			}
+
+			require_once TRASLOCO_LIB_PATH . '/model/import/class-trasloco-recovery-journal.php';
+			require_once TRASLOCO_LIB_PATH . '/vendor/core/archiver/class-trasloco-integrity.php';
+			require_once TRASLOCO_LIB_PATH . '/vendor/core/archiver/class-trasloco-offline-file-recovery.php';
+			$receipt = Trasloco_Recovery_Journal::get( TRASLOCO_BACKUPS_PATH, $args[0] );
+			if ( ! is_array( $receipt ) || $receipt['status'] !== 'pending' ) {
+				WP_CLI::error( 'The pending recovery receipt was not found.' );
+			}
+			try {
+				$archive = trasloco_backup_path( array( 'archive' => $receipt['recovery_archive'] ) );
+				if ( Trasloco_Integrity::verify( $archive )['status'] !== 'verified' ) {
+					throw new RuntimeException( 'Recovery archive checksum verification failed.' );
+				}
+				$prepared = Trasloco_Offline_File_Recovery::prepare(
+					$archive,
+					WP_CONTENT_DIR,
+					$assoc_args['workspace'],
+					Trasloco_Offline_File_Recovery::MAX_BYTES,
+					true,
+					false
+				);
+				$review = Trasloco_Offline_File_Recovery::review( $assoc_args['workspace'] );
+				$review_file = trailingslashit( realpath( $assoc_args['workspace'] ) ) . 'review.json';
+				$review_json = wp_json_encode( $review, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES );
+				if ( ! is_string( $review_json ) || file_put_contents( $review_file, $review_json, LOCK_EX ) !== strlen( $review_json ) ||
+					! @chmod( $review_file, 0600 ) ) {
+					throw new RuntimeException( 'Could not write the private review report.' );
+				}
+			} catch ( Throwable $error ) {
+				WP_CLI::error( 'File recovery plan could not be prepared. No destination files were changed.' );
+			}
+
+			$plan_output = wp_json_encode( array(
+				'recovery_archive' => $receipt['recovery_archive'],
+				'workspace' => realpath( $assoc_args['workspace'] ),
+				'file_plan_file' => trailingslashit( realpath( $assoc_args['workspace'] ) ) . 'plan.json',
+				'prepared' => $prepared,
+				'review' => array(
+					'quarantine_candidates' => count( $review['quarantine_files'] ),
+					'approval_sha256' => $review['approval_sha256'],
+					'report_file' => $review_file,
+				),
+				'safety_notice' => 'Review every quarantine_files entry in review.json. Apply only while all site writers are stopped, using approval_sha256.',
+			), JSON_UNESCAPED_SLASHES );
+			if ( ! is_string( $plan_output ) ) {
+				WP_CLI::error( 'File recovery plan could not be encoded.' );
+			}
+			WP_CLI::line( $plan_output );
+			fwrite( STDERR, "Review the private review.json report before applying file recovery.\n" );
+		}
+
+		/**
 		 * Restore selected database tables from a verified local backup.
 		 *
 		 * ## OPTIONS

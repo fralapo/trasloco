@@ -145,17 +145,14 @@ Use the **exact** recovery filename reported by `php tools/recovery-status.php`,
 
 ### Reconcile files after restoring the database
 
-For a same-site rollback, stop web traffic, PHP workers, cron and deployment writers for the entire operation. After `wp trasloco restore` completes successfully, prepare a file plan from the **same** verified recovery archive and target `wp-content`:
+For a same-site rollback, stop web traffic, PHP workers, cron and deployment writers for the entire operation. After the database and archived files have been restored, use the same pending receipt to prepare and review a private file plan:
 
 ```bash
-php tools/recovery-files.php prepare \
-  /private/trasloco-backups/recovery-EXAMPLE.wpress \
-  /absolute/path/to/wordpress/wp-content \
-  /private/recovery-files-work --include-untracked
-php tools/recovery-files.php review /private/recovery-files-work
+wp trasloco prepare-recovery-files 0123456789abcdef0123456789abcdef \
+  --workspace=/private/recovery-files-work --path=/absolute/path/to/wordpress
 ```
 
-Inspect every `quarantine_files` entry. If the list is correct, copy the exact `approval_sha256` printed by `review` into the apply command:
+This command verifies the archive recorded in that receipt, stages the snapshot and preserves current originals in the new workspace. Its output gives the private `file_plan_file` and `review.report_file` paths; inspect both, especially every quarantine candidate. An archive-absent file may be a legitimate upload or later change. The `approval_sha256` is tied to the exact candidate set. If the list is correct, apply with that fingerprint:
 
 ```bash
 php tools/recovery-files.php apply /private/recovery-files-work \
@@ -163,7 +160,7 @@ php tools/recovery-files.php apply /private/recovery-files-work \
   --site-offline-confirmed --approve-untracked=<approval_sha256>
 ```
 
-This restores archived files and moves reviewed archive-absent regular files into the private workspace, where they remain recoverable. Verify the restored users, URLs, representative posts, media and `wp db check` before reopening traffic. A pending receipt remains a record of the failed import. This is a staged operator-driven recovery, not a globally atomic transaction: if a step fails, keep the site offline, retain both workspaces and resume from the failed step after reviewing its state. If WordPress or its database cannot run, restore the archive to an isolated fresh site first; do not point recovery commands at a live database that cannot be verified.
+This restores archived files and moves reviewed archive-absent regular files into the private workspace, where they remain recoverable. If Trasloco/WP-CLI cannot run, the standalone `tools/recovery-files.php prepare ... --include-untracked` and `review` commands still work from PHP CLI with the explicit archive path. Verify the restored users, URLs, representative posts, media and `wp db check` before reopening traffic. A pending receipt remains a record of the failed import. This is a staged operator-driven recovery, not a globally atomic transaction: if a step fails, keep the site offline, retain both workspaces and resume from the failed step after reviewing its state. If WordPress or its database cannot run, restore the archive to an isolated fresh site first; do not point recovery commands at a live database that cannot be verified.
 
 The complete same-site sequence is exercised by `tests/integration.sh`: it injects a real SQL failure after DDL, restores the recovery-point database, verifies the original destination media, reviews and quarantines a file created after the failed import, and checks the restored WordPress users and URL. The same integration now also kills WP-CLI with SIGKILL while the SQL importer is executing, verifies that its receipt remains pending, and successfully runs the restore again; the first receipt stays pending as a forensic record. This passed locally on PHP 8.5.4, WordPress 7.1.3 and MariaDB 13.0.2 on 2026-10-14. Other PHP/database combinations and hosting configurations still require their own rehearsal.
 
