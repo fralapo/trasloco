@@ -12,6 +12,16 @@
 	background: rgba(0, 0, 0, .55);
 }
 
+#trasloco-selective-restore-dialog.tr-selective-restore-fallback[open] {
+	position: fixed;
+	top: 50%;
+	left: 50%;
+	z-index: 100002;
+	margin: 0;
+	transform: translate(-50%, -50%);
+	box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .55), 0 10px 35px rgba(0, 0, 0, .25);
+}
+
 .tr-selective-restore-dialog {
 	padding: 24px;
 }
@@ -27,6 +37,18 @@
 
 .tr-selective-restore-table-wrap table {
 	border-collapse: collapse;
+}
+
+.tr-selective-restore-table-wrap input[type="checkbox"] {
+	width: 24px;
+	height: 24px;
+	vertical-align: middle;
+}
+
+#trasloco-selective-restore-dialog button:focus-visible,
+#trasloco-selective-restore-dialog input:focus-visible {
+	outline: 3px solid #135e96;
+	outline-offset: 2px;
 }
 
 .tr-selective-restore-status.is-error {
