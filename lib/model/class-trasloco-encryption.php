@@ -9,6 +9,7 @@
  */
 class Trasloco_Encryption {
     const MAGIC = 'TRASENC1';
+    const LEGACY_MAGIC = 'TRLENC01';
     const CHUNK = 1048576;
 
     private static function available() {
@@ -139,19 +140,28 @@ class Trasloco_Encryption {
             throw new RuntimeException( 'Cannot open encrypted archive.' );
         }
         try {
-            if ( self::exact( $in, strlen( self::MAGIC ) ) !== self::MAGIC ) {
+            $magic = self::exact( $in, strlen( self::MAGIC ) );
+            if ( $magic === self::MAGIC ) {
+                $salt = self::exact( $in, SODIUM_CRYPTO_PWHASH_SALTBYTES );
+                $cost = unpack( 'Nops/Nmem', self::exact( $in, 8 ) );
+                $ops = $cost['ops'];
+                $mem = $cost['mem'];
+            } elseif ( $magic === self::LEGACY_MAGIC ) {
+                // The feature branch used fixed interactive Argon2id costs
+                // and omitted them from the envelope header.
+                $salt = self::exact( $in, SODIUM_CRYPTO_PWHASH_SALTBYTES );
+                $ops = SODIUM_CRYPTO_PWHASH_OPSLIMIT_INTERACTIVE;
+                $mem = SODIUM_CRYPTO_PWHASH_MEMLIMIT_INTERACTIVE;
+            } else {
                 throw new RuntimeException( 'Unknown encrypted archive format.' );
             }
-            $salt = self::exact( $in, SODIUM_CRYPTO_PWHASH_SALTBYTES );
-            $cost = unpack( 'Nops/Nmem', self::exact( $in, 8 ) );
             // Prevent malicious envelopes from requesting unbounded CPU/RAM.
-            if ( $cost['ops'] < 1 || $cost['ops'] > SODIUM_CRYPTO_PWHASH_OPSLIMIT_MODERATE ||
-                $cost['mem'] < 8 * 1024 * 1024 ||
-                $cost['mem'] > SODIUM_CRYPTO_PWHASH_MEMLIMIT_MODERATE ) {
+            if ( $ops < 1 || $ops > SODIUM_CRYPTO_PWHASH_OPSLIMIT_MODERATE ||
+                $mem < 8 * 1024 * 1024 || $mem > SODIUM_CRYPTO_PWHASH_MEMLIMIT_MODERATE ) {
                 throw new RuntimeException( 'Unsupported archive key derivation parameters.' );
             }
             $header = self::exact( $in, SODIUM_CRYPTO_SECRETSTREAM_XCHACHA20POLY1305_HEADERBYTES );
-            $key = self::secret( $passphrase, $salt, $cost['ops'], $cost['mem'] );
+            $key = self::secret( $passphrase, $salt, $ops, $mem );
             $state = sodium_crypto_secretstream_xchacha20poly1305_init_pull( $header, $key );
             sodium_memzero( $key );
             if ( $state === false ) {

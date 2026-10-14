@@ -176,6 +176,48 @@ if ( function_exists( 'sodium_crypto_secretstream_xchacha20poly1305_init_push' )
     Trasloco_Encryption::decrypt( $encrypted, $decrypted, 'passphrase-with-20chars' );
     ensure( hash_file( 'sha256', $source ) === hash_file( 'sha256', $decrypted ), 'encrypted round trip' );
     unlink( $decrypted );
+
+    // Generate the original feature-branch envelope (TRLENC01, fixed
+    // interactive Argon2id costs, and a final-tagged last payload frame).
+    $legacy = $source . '.legacy.enc';
+    $legacy_plain = $source . '.legacy-source';
+    file_put_contents( $legacy_plain, str_repeat( "legacy encrypted fixture", 700 ) );
+    $salt = random_bytes( SODIUM_CRYPTO_PWHASH_SALTBYTES );
+    $key = sodium_crypto_pwhash(
+        SODIUM_CRYPTO_SECRETSTREAM_XCHACHA20POLY1305_KEYBYTES,
+        'passphrase-with-20chars', $salt,
+        SODIUM_CRYPTO_PWHASH_OPSLIMIT_INTERACTIVE,
+        SODIUM_CRYPTO_PWHASH_MEMLIMIT_INTERACTIVE,
+        SODIUM_CRYPTO_PWHASH_ALG_ARGON2ID13
+    );
+    list( $legacy_state, $legacy_header ) = sodium_crypto_secretstream_xchacha20poly1305_init_push( $key );
+    sodium_memzero( $key );
+    $legacy_in = fopen( $legacy_plain, 'rb' );
+    $legacy_out = fopen( $legacy, 'wb' );
+    fwrite( $legacy_out, 'TRLENC01' . $salt . $legacy_header );
+    do {
+        $part = fread( $legacy_in, 1048576 );
+        $last = feof( $legacy_in );
+        $tag = $last ? SODIUM_CRYPTO_SECRETSTREAM_XCHACHA20POLY1305_TAG_FINAL : SODIUM_CRYPTO_SECRETSTREAM_XCHACHA20POLY1305_TAG_MESSAGE;
+        $frame = sodium_crypto_secretstream_xchacha20poly1305_push( $legacy_state, $part, '', $tag );
+        fwrite( $legacy_out, pack( 'N', strlen( $frame ) ) . $frame );
+    } while ( ! $last );
+    fclose( $legacy_in );
+    fclose( $legacy_out );
+    $legacy_decrypted = $legacy_plain . '.restored';
+    Trasloco_Encryption::decrypt( $legacy, $legacy_decrypted, 'passphrase-with-20chars' );
+    ensure( hash_file( 'sha256', $legacy_plain ) === hash_file( 'sha256', $legacy_decrypted ), 'legacy feature-branch envelope decrypt' );
+    $legacy_wrong = $legacy_plain . '.wrong';
+    try {
+        Trasloco_Encryption::decrypt( $legacy, $legacy_wrong, 'definitely-wrong-passphrase' );
+        ensure( false, 'legacy envelope accepted the wrong password' );
+    } catch ( RuntimeException $expected ) {
+        ensure( ! file_exists( $legacy_wrong ), 'legacy wrong password left plaintext behind' );
+    }
+    unlink( $legacy );
+    unlink( $legacy_plain );
+    unlink( $legacy_decrypted );
+
     try {
         Trasloco_Encryption::decrypt( $encrypted, $decrypted, 'definitely-wrong-passphrase' );
         ensure( false, 'wrong password accepted' );

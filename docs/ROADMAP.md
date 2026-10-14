@@ -18,6 +18,7 @@ Run the optional previous-major WordPress fixture with `TRASLOCO_TEST_WORDPRESS_
 - [x] Verification and offline-rescue compatibility for schema-1 SHA-256 sidecars from the preserved 2.0 feature branch; new archives continue to use the hardening v2 chunk format.
 - [x] Persistent job ledger and leases, automatic backup settings, calendar-month scheduling, verified retention and failure notification hook.
 - [x] CLI streaming encryption/decryption and independent encrypted rescue.
+- [x] Read-only decryption compatibility for the preserved 2.0 branch's authenticated `TRLENC01` envelope; new encrypted backups keep the hardening `TRASENC1` format.
 - [x] Verified pre-import recovery snapshots, independent receipts, clean-WordPress disaster rehearsal and manual database rollback after a real post-DDL SQL failure.
 - [x] Independent two-phase file recovery with preserved originals; unknown destination files are not deleted.
 - [x] Administrator preflight/dashboard, archive preview and permission-scoped REST inventory/status; WordPress 6.9+ also exposes the same bounded preflight as a read-only admin-only Abilities API ability.
