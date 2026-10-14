@@ -1,5 +1,5 @@
 # working folders the plugin creates at runtime
-storage/
+/storage/
 
 # test archives
 *.wpress

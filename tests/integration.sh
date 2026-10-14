@@ -7,15 +7,24 @@ TRASLOCO_TEST_DB_PORT="${TRASLOCO_TEST_DB_PORT:-3306}"
 TRASLOCO_TEST_DB_USER="${TRASLOCO_TEST_DB_USER:-root}"
 TRASLOCO_TEST_DB_PASSWORD="${TRASLOCO_TEST_DB_PASSWORD:-root}"
 export TRASLOCO_TEST_DB_HOST TRASLOCO_TEST_DB_PORT TRASLOCO_TEST_DB_USER TRASLOCO_TEST_DB_PASSWORD
+RUN_SUFFIX="$(printf '%s' "${BASHPID:-$$}-${RANDOM}" | tr -cd '[:alnum:]' | cut -c1-20)"
+DB_PREFIX="tr_${RUN_SUFFIX}"
+DB_SOURCE="${DB_PREFIX}_source"
+DB_TARGET="${DB_PREFIX}_target"
+export TRASLOCO_TEST_DB_PREFIX="$DB_PREFIX"
 MYSQL=(mysql --protocol=TCP -h "$TRASLOCO_TEST_DB_HOST" -P "$TRASLOCO_TEST_DB_PORT" \
   -u "$TRASLOCO_TEST_DB_USER" "-p$TRASLOCO_TEST_DB_PASSWORD")
 if [ -n "${TRASLOCO_TEST_WORDPRESS_VERSION:-}" ]; then
   export TRASLOCO_TEST_WORDPRESS_VERSION
 fi
 ROOT="$(mktemp -d)"
-trap 'rm -rf "$ROOT"' EXIT
+cleanup() {
+  "${MYSQL[@]}" -e "DROP DATABASE IF EXISTS \`$DB_SOURCE\`; DROP DATABASE IF EXISTS \`$DB_TARGET\`; DROP DATABASE IF EXISTS \`${DB_PREFIX}_disaster_rehearsal\`;" >/dev/null 2>&1 || true
+  rm -rf "$ROOT"
+}
+trap cleanup EXIT
 
-"${MYSQL[@]}" -e "CREATE DATABASE trasloco_source; CREATE DATABASE trasloco_target;"
+"${MYSQL[@]}" -e "CREATE DATABASE \`$DB_SOURCE\`; CREATE DATABASE \`$DB_TARGET\`;"
 for ROLE in source target; do
   SITE="$ROOT/$ROLE"
   if [ -n "${TRASLOCO_TEST_WORDPRESS_VERSION:-}" ]; then
@@ -25,7 +34,8 @@ for ROLE in source target; do
   fi
   mkdir -p "$SITE/wp-content/plugins"
   cp -R "$GITHUB_WORKSPACE" "$SITE/wp-content/plugins/trasloco"
-  $WP config create --path="$SITE" --dbname="trasloco_$ROLE" --dbuser="$TRASLOCO_TEST_DB_USER" \
+  if [ "$ROLE" = source ]; then SITE_DB="$DB_SOURCE"; else SITE_DB="$DB_TARGET"; fi
+  $WP config create --path="$SITE" --dbname="$SITE_DB" --dbuser="$TRASLOCO_TEST_DB_USER" \
     --dbpass="$TRASLOCO_TEST_DB_PASSWORD" --dbhost="$TRASLOCO_TEST_DB_HOST:$TRASLOCO_TEST_DB_PORT" --skip-check
   if [ "$ROLE" = source ]; then
     $WP core install --path="$SITE" --url=http://old.example.test --title=Original --admin_user=oldadmin --admin_password=testpassword --admin_email=old@example.test
@@ -735,6 +745,12 @@ if ( stream_get_contents( $proof ) !== "binary payload" ) {
     throw new Exception( "Collision corrupted original backup" );
 }
 fclose( $proof );
+$encrypted = fopen( "php://temp", "w+b" );
+fwrite( $encrypted, "encrypted bytes" );
+rewind( $encrypted );
+if ( $store->put_stream( "fixture.wpress.enc", $encrypted ) !== strlen( "encrypted bytes" ) ) { throw new Exception( "Encrypted storage write failed" ); }
+fclose( $encrypted );
+if ( $store->enumerate() !== array( "fixture.wpress", "fixture.wpress.enc" ) ) { throw new Exception( "Encrypted archive was missing from storage inventory" ); }
 foreach ( scandir( $root ) as $filename ) {
     if ( strpos( $filename, ".tr-writing-" ) === 0 ) {
         throw new Exception( "Temporary backup bytes remained after failed publication" );

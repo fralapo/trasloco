@@ -31,6 +31,6 @@ Run this only after a successful backup, preferably from a single cron wrapper s
 Each month, download a random backup from the offsite destination and restore it on an isolated staging WordPress installation. Confirm database, user accounts, media, forms, URLs, and themes. Also verify backup age and available storage.
 
 ## Still to implement
-- Native WordPress scheduling and retention settings with failure notifications.
-- Native S3/WebDAV/cloud connectors.
-- Incremental/differential backup chain and integrity manifests.
+- A production-provider-tested WebDAV integration in backup and WP-CLI workflows. The current WebDAV stream adapter is loaded by the plugin and passes local contract tests, but no backup or command uses it yet.
+- S3 and other cloud connectors, remote retry/resume and provider health checks.
+- Incremental/differential backup chains and retention dependency management.

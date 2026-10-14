@@ -19,7 +19,7 @@ class Trasloco_Local_Storage implements Trasloco_Storage_Adapter {
 
     private function path( $key ) {
         if ( ! is_string( $key ) || strlen( $key ) > 220 ||
-            ! preg_match( '/^[a-zA-Z0-9][a-zA-Z0-9_.-]*\\.wpress(?:\\.manifest\\.json)?$/D', $key ) ||
+            ! preg_match( '/^[a-zA-Z0-9][a-zA-Z0-9_.-]*\\.wpress(?:\\.enc|\\.manifest\\.json)?$/D', $key ) ||
             strpos( $key, '..' ) !== false ) {
             throw new InvalidArgumentException( 'Invalid storage key.' );
         }

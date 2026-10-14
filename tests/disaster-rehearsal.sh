@@ -12,11 +12,12 @@ TRASLOCO_TEST_DB_USER="${TRASLOCO_TEST_DB_USER:-root}"
 TRASLOCO_TEST_DB_PASSWORD="${TRASLOCO_TEST_DB_PASSWORD:-root}"
 MYSQL=(mysql --protocol=TCP -h "$TRASLOCO_TEST_DB_HOST" -P "$TRASLOCO_TEST_DB_PORT" \
   -u "$TRASLOCO_TEST_DB_USER" "-p$TRASLOCO_TEST_DB_PASSWORD")
+DB_NAME="${TRASLOCO_TEST_DB_PREFIX:-tr_local}_disaster_rehearsal"
 if [ ! -s "$ARCHIVE" ] || [ ! -s "$ARCHIVE.manifest.json" ]; then
   echo "Disaster rehearsal needs a verified backup and manifest" >&2
   exit 1
 fi
-"${MYSQL[@]}" -e "CREATE DATABASE trasloco_disaster_rehearsal;"
+"${MYSQL[@]}" -e "CREATE DATABASE \`$DB_NAME\`;"
 SITE="$ROOT/disaster-rehearsal"
 if [ -n "${TRASLOCO_TEST_WORDPRESS_VERSION:-}" ]; then
   $WP core download --path="$SITE" --skip-content --version="$TRASLOCO_TEST_WORDPRESS_VERSION"
@@ -25,7 +26,7 @@ else
 fi
 mkdir -p "$SITE/wp-content/plugins"
 cp -R "$GITHUB_WORKSPACE" "$SITE/wp-content/plugins/trasloco"
-$WP config create --path="$SITE" --dbname=trasloco_disaster_rehearsal \
+$WP config create --path="$SITE" --dbname="$DB_NAME" \
   --dbuser="$TRASLOCO_TEST_DB_USER" --dbpass="$TRASLOCO_TEST_DB_PASSWORD" \
   --dbhost="$TRASLOCO_TEST_DB_HOST:$TRASLOCO_TEST_DB_PORT" --skip-check
 $WP core install --path="$SITE" --url=http://rescue.example.test \
