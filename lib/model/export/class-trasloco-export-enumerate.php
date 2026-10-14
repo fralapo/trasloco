@@ -44,63 +44,11 @@ class Trasloco_Export_Enumerate {
 		// Set progress
 		Trasloco_Status::info( __( 'Listing the files to copy (media, themes, plugins)...', TRASLOCO_PLUGIN_NAME ) );
 
-		// Set exclude filters
-		$exclude_filters = trasloco_content_filters();
-
-		// Exclude cache
-		if ( isset( $params['options']['no_cache'] ) ) {
-			$exclude_filters[] = 'cache';
-		}
-
-		// Exclude themes
-		if ( isset( $params['options']['no_themes'] ) ) {
-			$exclude_filters[] = 'themes';
-		} else {
-			$inactive_themes = array();
-
-			// Exclude inactive themes
-			if ( isset( $params['options']['no_inactive_themes'] ) ) {
-				foreach ( wp_get_themes() as $theme => $info ) {
-					// Exclude current parent and child themes
-					if ( ! in_array( $theme, array( get_template(), get_stylesheet() ) ) ) {
-						$inactive_themes[] = 'themes' . DIRECTORY_SEPARATOR . $theme;
-					}
-				}
-			}
-
-			// Set exclude filters
-			$exclude_filters = array_merge( $exclude_filters, $inactive_themes );
-		}
-
-		// Exclude must-use plugins
-		if ( isset( $params['options']['no_muplugins'] ) ) {
-			$exclude_filters = array_merge( $exclude_filters, array( 'mu-plugins' ) );
-		}
-
-		// Exclude plugins
-		if ( isset( $params['options']['no_plugins'] ) ) {
-			$exclude_filters = array_merge( $exclude_filters, array( 'plugins' ) );
-		} else {
-			$inactive_plugins = array();
-
-			// Exclude inactive plugins
-			if ( isset( $params['options']['no_inactive_plugins'] ) ) {
-				foreach ( get_plugins() as $plugin => $info ) {
-					if ( is_plugin_inactive( $plugin ) ) {
-						$inactive_plugins[] = 'plugins' . DIRECTORY_SEPARATOR .
-							( ( dirname( $plugin ) === '.' ) ? basename( $plugin ) : dirname( $plugin ) );
-					}
-				}
-			}
-
-			// Set exclude filters
-			$exclude_filters = array_merge( $exclude_filters, trasloco_plugin_filters( $inactive_plugins ) );
-		}
-
-		// Exclude media
-		if ( isset( $params['options']['no_media'] ) ) {
-			$exclude_filters = array_merge( $exclude_filters, array( 'uploads', 'blogs.dir' ) );
-		}
+		// Set the exact filters used by this export. Package metadata records
+		// them so offline recovery can distinguish omissions from new files.
+		$exclude_filters = isset( $params['content_excluded_paths'] ) &&
+			is_array( $params['content_excluded_paths'] ) ? $params['content_excluded_paths'] :
+			self::get_exclude_filters( $params );
 
 		// Create map file
 		$filemap = trasloco_open( trasloco_filemap_path( $params ), 'w' );
@@ -127,7 +75,7 @@ class Trasloco_Export_Enumerate {
 		$iterator = new Trasloco_Recursive_Newline_Filter( $iterator );
 
 		// Exclude uploads, plugins or themes
-		$iterator = new Trasloco_Recursive_Exclude_Filter( $iterator, apply_filters( 'trasloco_exclude_content_from_export', $exclude_filters ) );
+		$iterator = new Trasloco_Recursive_Exclude_Filter( $iterator, $exclude_filters );
 
 		// Recursively iterate over content directory
 		$iterator = new Trasloco_Recursive_Iterator_Iterator( $iterator, RecursiveIteratorIterator::LEAVES_ONLY, RecursiveIteratorIterator::CATCH_GET_CHILD );
@@ -159,5 +107,53 @@ class Trasloco_Export_Enumerate {
 		trasloco_close( $filemap );
 
 		return $params;
+	}
+
+	/** Return normalized export exclusions for the archive and package metadata. */
+	public static function get_exclude_filters( $params ) {
+		$exclude_filters = trasloco_content_filters();
+
+		if ( isset( $params['options']['no_cache'] ) ) {
+			$exclude_filters[] = 'cache';
+		}
+
+		if ( isset( $params['options']['no_themes'] ) ) {
+			$exclude_filters[] = 'themes';
+		} else {
+			$inactive_themes = array();
+			if ( isset( $params['options']['no_inactive_themes'] ) ) {
+				foreach ( wp_get_themes() as $theme => $info ) {
+					if ( ! in_array( $theme, array( get_template(), get_stylesheet() ) ) ) {
+						$inactive_themes[] = 'themes' . DIRECTORY_SEPARATOR . $theme;
+					}
+				}
+			}
+			$exclude_filters = array_merge( $exclude_filters, $inactive_themes );
+		}
+
+		if ( isset( $params['options']['no_muplugins'] ) ) {
+			$exclude_filters[] = 'mu-plugins';
+		}
+
+		if ( isset( $params['options']['no_plugins'] ) ) {
+			$exclude_filters[] = 'plugins';
+		} else {
+			$inactive_plugins = array();
+			if ( isset( $params['options']['no_inactive_plugins'] ) ) {
+				foreach ( get_plugins() as $plugin => $info ) {
+					if ( is_plugin_inactive( $plugin ) ) {
+						$inactive_plugins[] = 'plugins' . DIRECTORY_SEPARATOR .
+							( ( dirname( $plugin ) === '.' ) ? basename( $plugin ) : dirname( $plugin ) );
+					}
+				}
+			}
+			$exclude_filters = array_merge( $exclude_filters, trasloco_plugin_filters( $inactive_plugins ) );
+		}
+
+		if ( isset( $params['options']['no_media'] ) ) {
+			$exclude_filters = array_merge( $exclude_filters, array( 'uploads', 'blogs.dir' ) );
+		}
+
+		return array_values( apply_filters( 'trasloco_exclude_content_from_export', $exclude_filters ) );
 	}
 }

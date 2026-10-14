@@ -4,7 +4,7 @@ require_once dirname( __DIR__ ) . '/lib/vendor/core/archiver/class-trasloco-offl
 function recovery_assert( $condition, $message ) {
     if ( ! $condition ) { throw new RuntimeException( $message ); }
 }
-function recovery_fixture( $root, $name, $old, $new, $mode = 0600 ) {
+function recovery_fixture( $root, $name, $old, $new, $mode = 0600, $package = '{}' ) {
     $base = $root . '/' . $name;
     mkdir( $base . '/wp-content/uploads', 0700, true );
     if ( $old !== null ) {
@@ -12,7 +12,7 @@ function recovery_fixture( $root, $name, $old, $new, $mode = 0600 ) {
         chmod( $base . '/wp-content/uploads/file.txt', $mode );
     }
     $archive = $base . '/snapshot.wpress';
-    $data = pack( 'a255a14a12a4096', 'package.json', '2', '0', '.' ) . '{}';
+    $data = pack( 'a255a14a12a4096', 'package.json', (string) strlen( $package ), '0', '.' ) . $package;
     $data .= pack( 'a255a14a12a4096', 'file.txt', (string) strlen( $new ), '0', 'uploads' ) . $new;
     file_put_contents( $archive, $data . str_repeat( chr( 0 ), 4377 ) );
     file_put_contents( $archive . '.manifest.json', json_encode( array(
@@ -120,6 +120,188 @@ try {
     catch ( RuntimeException $e ) { $rejected = true; }
     recovery_assert( $rejected, 'Special permission bits accepted from plan.' );
     recovery_assert( file_get_contents( $base . '/wp-content/uploads/file.txt' ) === 'OLD', 'Invalid mode changed live content.' );
+
+    $base = recovery_fixture( $root, 'quarantine', 'OLD', 'NEW' );
+    mkdir( $base . '/wp-content/uploads/cache', 0700 );
+    file_put_contents( $base . '/wp-content/uploads/cache/generated.txt', 'Generated after snapshot' );
+    mkdir( $base . '/wp-content/plugins/extra-plugin', 0700, true );
+    file_put_contents( $base . '/wp-content/plugins/extra-plugin/plugin.php', '<?php // newer plugin' );
+    mkdir( $base . '/wp-content/plugins/trasloco', 0700, true );
+    file_put_contents( $base . '/wp-content/plugins/trasloco/trasloco.php', '<?php // keep the recovery plugin' );
+    $prepared = Trasloco_Offline_File_Recovery::prepare(
+        $base . '/snapshot.wpress', $base . '/wp-content', $base . '/work',
+        Trasloco_Offline_File_Recovery::MAX_BYTES, true
+    );
+    recovery_assert( $prepared['quarantine_candidates'] === 2, 'Untracked files were not all planned for quarantine.' );
+    recovery_assert( preg_match( '/^[a-f0-9]{64}$/D', $prepared['approval_sha256'] ), 'Approval fingerprint is missing.' );
+    recovery_assert( file_get_contents( $base . '/wp-content/uploads/cache/generated.txt' ) === 'Generated after snapshot', 'Preparation changed a live untracked file.' );
+    recovery_assert( file_get_contents( $base . '/work/quarantine/uploads/cache/generated.txt' ) === 'Generated after snapshot', 'Preparation did not preserve an untracked file privately.' );
+    $review = Trasloco_Offline_File_Recovery::review( $base . '/work' );
+    recovery_assert( count( $review['quarantine_files'] ) === 2 &&
+        $review['approval_sha256'] === $prepared['approval_sha256'] &&
+        $review['content_root'] === realpath( $base . '/wp-content' ) &&
+        $review['archive_sha256'] === hash_file( 'sha256', $base . '/snapshot.wpress' ),
+        'Review output differs from the prepared approval set or target.' );
+    $rejected = false;
+    try { Trasloco_Offline_File_Recovery::apply( $base . '/work', $base . '/wp-content', str_repeat( '0', 64 ) ); }
+    catch ( RuntimeException $e ) { $rejected = true; }
+    recovery_assert( $rejected, 'Quarantine apply accepted a stale approval fingerprint.' );
+    recovery_assert( file_get_contents( $base . '/wp-content/uploads/file.txt' ) === 'OLD', 'Invalid approval changed a snapshot file.' );
+    $applied = Trasloco_Offline_File_Recovery::apply( $base . '/work', $base . '/wp-content', $prepared['approval_sha256'] );
+    recovery_assert( $applied['state'] === 'completed' && $applied['untracked_quarantined'] === 2,
+        'Approved recovery did not quarantine all archive-absent files.' );
+    recovery_assert( ! file_exists( $base . '/wp-content/uploads/cache/generated.txt' ) &&
+        ! file_exists( $base . '/wp-content/plugins/extra-plugin/plugin.php' ), 'Approved files remain in the live content tree.' );
+    recovery_assert( file_exists( $base . '/wp-content/plugins/trasloco/trasloco.php' ),
+        'The plugin omitted by design was included as an archive-absent candidate.' );
+    recovery_assert( file_get_contents( $base . '/work/quarantine/plugins/extra-plugin/plugin.php' ) === '<?php // newer plugin',
+        'Quarantined plugin bytes were not retained privately.' );
+    $restored = Trasloco_Offline_File_Recovery::restore_quarantine(
+        $base . '/work', $base . '/wp-content', $prepared['approval_sha256']
+    );
+    recovery_assert( $restored['files_restored'] === 2 &&
+        file_get_contents( $base . '/wp-content/uploads/cache/generated.txt' ) === 'Generated after snapshot',
+        'Quarantined files could not be restored.' );
+    file_put_contents( $base . '/wp-content/uploads/cache/generated.txt', 'Newer after rollback' );
+    $rejected = false;
+    try { Trasloco_Offline_File_Recovery::restore_quarantine(
+        $base . '/work', $base . '/wp-content', $prepared['approval_sha256']
+    ); } catch ( RuntimeException $e ) { $rejected = true; }
+    recovery_assert( $rejected && file_get_contents( $base . '/wp-content/uploads/cache/generated.txt' ) === 'Newer after rollback',
+        'Quarantine restore overwrote newer destination data.' );
+
+    $base = recovery_fixture( $root, 'quarantine-export-exclusion', null, 'NEW', 0600,
+        json_encode( array( 'ContentExcludedPaths' => array( 'uploads/cache' ) ) ) );
+    mkdir( $base . '/wp-content/uploads/cache', 0700 );
+    file_put_contents( $base . '/wp-content/uploads/cache/generated.txt', 'Excluded by export filter' );
+    file_put_contents( $base . '/wp-content/uploads/extra.txt', 'Not excluded by export filter' );
+    $prepared = Trasloco_Offline_File_Recovery::prepare(
+        $base . '/snapshot.wpress', $base . '/wp-content', $base . '/work',
+        Trasloco_Offline_File_Recovery::MAX_BYTES, true
+    );
+    recovery_assert( $prepared['quarantine_candidates'] === 1 &&
+        file_exists( $base . '/wp-content/uploads/cache/generated.txt' ) &&
+        file_exists( $base . '/work/quarantine/uploads/extra.txt' ),
+        'Recovery did not honor a content path excluded by the export filter.' );
+
+    $base = recovery_fixture( $root, 'quarantine-unsafe-export-exclusion', null, 'NEW', 0600,
+        json_encode( array( 'ContentExcludedPaths' => array( 'uploads/../plugins' ) ) ) );
+    $rejected = false;
+    try {
+        Trasloco_Offline_File_Recovery::prepare( $base . '/snapshot.wpress', $base . '/wp-content',
+            $base . '/work', Trasloco_Offline_File_Recovery::MAX_BYTES, true );
+    } catch ( RuntimeException $e ) { $rejected = true; }
+    recovery_assert( $rejected && ! file_exists( $base . '/work/plan.json' ),
+        'Recovery accepted an unsafe path from package exclusion metadata.' );
+
+    $base = recovery_fixture( $root, 'quarantine-changed', 'OLD', 'NEW' );
+    file_put_contents( $base . '/wp-content/uploads/extra.txt', 'Before plan' );
+    $prepared = Trasloco_Offline_File_Recovery::prepare(
+        $base . '/snapshot.wpress', $base . '/wp-content', $base . '/work',
+        Trasloco_Offline_File_Recovery::MAX_BYTES, true
+    );
+    file_put_contents( $base . '/wp-content/uploads/extra.txt', 'Changed after plan' );
+    $rejected = false;
+    try { Trasloco_Offline_File_Recovery::apply( $base . '/work', $base . '/wp-content', $prepared['approval_sha256'] ); }
+    catch ( RuntimeException $e ) { $rejected = true; }
+    recovery_assert( $rejected, 'Changed archive-absent destination file was quarantined.' );
+    recovery_assert( file_get_contents( $base . '/wp-content/uploads/file.txt' ) === 'OLD',
+        'Snapshot files were changed before candidate preflight completed.' );
+    recovery_assert( file_get_contents( $base . '/wp-content/uploads/extra.txt' ) === 'Changed after plan',
+        'A post-plan file change was overwritten or deleted.' );
+
+    $base = recovery_fixture( $root, 'quarantine-budget', null, 'NEW' );
+    file_put_contents( $base . '/wp-content/uploads/extra.txt', 'Four' );
+    $rejected = false;
+    try {
+        Trasloco_Offline_File_Recovery::prepare( $base . '/snapshot.wpress', $base . '/wp-content',
+            $base . '/work', 6, true );
+    } catch ( RuntimeException $e ) { $rejected = true; }
+    recovery_assert( $rejected && ! file_exists( $base . '/work/plan.json' ) &&
+        file_get_contents( $base . '/wp-content/uploads/extra.txt' ) === 'Four',
+        'Over-budget quarantine published a plan or changed the destination.' );
+
+    $base = recovery_fixture( $root, 'quarantine-symlink', null, 'NEW' );
+    $outside = $base . '/outside';
+    mkdir( $outside );
+    file_put_contents( $outside . '/secret.txt', 'Must not be followed.' );
+    symlink( $outside, $base . '/wp-content/plugins' );
+    $rejected = false;
+    try {
+        Trasloco_Offline_File_Recovery::prepare( $base . '/snapshot.wpress', $base . '/wp-content',
+            $base . '/work', Trasloco_Offline_File_Recovery::MAX_BYTES, true );
+    } catch ( RuntimeException $e ) { $rejected = true; }
+    recovery_assert( $rejected && ! file_exists( $base . '/work/plan.json' ) &&
+        file_get_contents( $outside . '/secret.txt' ) === 'Must not be followed.',
+        'Quarantine followed a linked content group or published an incomplete inventory.' );
+
+    $base = recovery_fixture( $root, 'quarantine-partial-archive', null, 'NEW', 0600,
+        json_encode( array( 'NoMedia' => true ) ) );
+    file_put_contents( $base . '/wp-content/uploads/extra.txt', 'Intentionally not archived' );
+    $rejected = false;
+    try {
+        Trasloco_Offline_File_Recovery::prepare( $base . '/snapshot.wpress', $base . '/wp-content',
+            $base . '/work', Trasloco_Offline_File_Recovery::MAX_BYTES, true );
+    } catch ( RuntimeException $e ) { $rejected = true; }
+    recovery_assert( $rejected && ! file_exists( $base . '/work/plan.json' ) &&
+        file_get_contents( $base . '/wp-content/uploads/extra.txt' ) === 'Intentionally not archived',
+        'Archive-absent quarantine accepted a deliberately media-excluded backup.' );
+
+    $base = recovery_fixture( $root, 'quarantine-resume', null, 'NEW' );
+    file_put_contents( $base . '/wp-content/uploads/extra.txt', 'Safe after interruption' );
+    $prepared = Trasloco_Offline_File_Recovery::prepare(
+        $base . '/snapshot.wpress', $base . '/wp-content', $base . '/work',
+        Trasloco_Offline_File_Recovery::MAX_BYTES, true
+    );
+    $plan_path = $base . '/work/plan.json';
+    $plan = json_decode( file_get_contents( $plan_path ), true );
+    $plan['state'] = 'applying';
+    file_put_contents( $plan_path, json_encode( $plan ) );
+    unlink( $base . '/wp-content/uploads/extra.txt' );
+    $resumed = Trasloco_Offline_File_Recovery::apply(
+        $base . '/work', $base . '/wp-content', $prepared['approval_sha256']
+    );
+    recovery_assert( $resumed['state'] === 'completed' &&
+        file_get_contents( $base . '/wp-content/uploads/file.txt' ) === 'NEW' &&
+        file_get_contents( $base . '/work/quarantine/uploads/extra.txt' ) === 'Safe after interruption',
+        'Recovery did not resume after interruption during candidate quarantine.' );
+
+    $base = recovery_fixture( $root, 'quarantine-cli', null, 'NEW' );
+    file_put_contents( $base . '/wp-content/uploads/extra.txt', 'CLI quarantine' );
+    $tool = dirname( __DIR__ ) . '/tools/recovery-files.php';
+    $command = escapeshellarg( PHP_BINARY ) . ' ' . escapeshellarg( $tool ) .
+        ' prepare ' . escapeshellarg( $base . '/snapshot.wpress' ) .
+        ' ' . escapeshellarg( $base . '/wp-content' ) . ' ' . escapeshellarg( $base . '/work' ) .
+        ' --include-untracked 2>&1';
+    $output = array();
+    exec( $command, $output, $status );
+    recovery_assert( $status === 0, 'CLI quarantine preparation failed: ' . implode( "\n", $output ) );
+    $prepared = json_decode( implode( "\n", $output ), true );
+    recovery_assert( is_array( $prepared ) && $prepared['quarantine_candidates'] === 1,
+        'CLI preparation did not report the quarantine candidate: ' . implode( "\n", $output ) );
+    $command = escapeshellarg( PHP_BINARY ) . ' ' . escapeshellarg( $tool ) .
+        ' review ' . escapeshellarg( $base . '/work' ) . ' 2>&1';
+    $output = array();
+    exec( $command, $output, $status );
+    $review = json_decode( implode( "\n", $output ), true );
+    recovery_assert( $status === 0 && count( $review['quarantine_files'] ) === 1,
+        'CLI review did not print the complete quarantine list.' );
+    $approval = $prepared['approval_sha256'];
+    $command = escapeshellarg( PHP_BINARY ) . ' ' . escapeshellarg( $tool ) .
+        ' apply ' . escapeshellarg( $base . '/work' ) . ' ' . escapeshellarg( $base . '/wp-content' ) .
+        ' --site-offline-confirmed --approve-untracked=' . escapeshellarg( $approval ) . ' 2>&1';
+    $output = array();
+    exec( $command, $output, $status );
+    recovery_assert( $status === 0 && ! file_exists( $base . '/wp-content/uploads/extra.txt' ),
+        'CLI approved quarantine apply failed: ' . implode( "\n", $output ) );
+    $command = escapeshellarg( PHP_BINARY ) . ' ' . escapeshellarg( $tool ) .
+        ' restore-quarantine ' . escapeshellarg( $base . '/work' ) . ' ' .
+        escapeshellarg( $base . '/wp-content' ) . ' --approve-untracked=' .
+        escapeshellarg( $approval ) . ' 2>&1';
+    $output = array();
+    exec( $command, $output, $status );
+    recovery_assert( $status === 0 && file_get_contents( $base . '/wp-content/uploads/extra.txt' ) === 'CLI quarantine',
+        'CLI failed to restore the quarantined file: ' . implode( "\n", $output ) );
     echo "Offline file recovery safety tests passed.\n";
 } finally {
     $files = new RecursiveIteratorIterator( new RecursiveDirectoryIterator( $root, FilesystemIterator::SKIP_DOTS ), RecursiveIteratorIterator::CHILD_FIRST );

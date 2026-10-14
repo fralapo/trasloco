@@ -127,6 +127,17 @@ class Trasloco_Export_Config {
 		// Set plugin version
 		$config['Plugin'] = array( 'Version' => TRASLOCO_VERSION );
 
+		// Record Trasloco's own plugin directory. It is deliberately omitted
+		// from exports, so offline recovery must not mistake it for an
+		// imported-only destination file.
+		$config['TraslocoPluginDir'] = dirname( TRASLOCO_PLUGIN_BASENAME ) === '.' ? '' :
+			dirname( TRASLOCO_PLUGIN_BASENAME );
+
+		// Persist the exact content exclusions used by the export. Recovery must
+		// leave intentionally omitted files in place.
+		$params['content_excluded_paths'] = Trasloco_Export_Enumerate::get_exclude_filters( $params );
+		$config['ContentExcludedPaths'] = $params['content_excluded_paths'];
+
 		// Set WordPress version and content
 		$config['WordPress'] = array( 'Version' => $wp_version, 'Content' => WP_CONTENT_DIR );
 
