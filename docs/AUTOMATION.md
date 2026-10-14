@@ -33,10 +33,11 @@ Create and transfer an authenticated encrypted archive:
 TRASLOCO_ARCHIVE_PASSPHRASE='use a secret from your secret manager' wp trasloco encrypt backup.wpress
 wp trasloco offsite upload backup.wpress.enc
 wp trasloco offsite download backup.wpress.enc
+wp trasloco offsite status
 TRASLOCO_ARCHIVE_PASSPHRASE='use a secret from your secret manager' wp trasloco decrypt backup.wpress.enc
 ```
 
-The encrypted archive carries a SHA-256 sidecar. Upload publishes the sidecar last, verifies both remote objects by reading them back and never replaces different remote content. Plaintext `.wpress` upload requires the explicit `--allow-unencrypted` option. Downloads are staged privately, checked against the sidecar, then published without replacing existing local files. These transfers are manual WP-CLI operations; there is no automatic schedule, remote retry queue or provider health alert yet. A WebDAV adapter is covered by local protocol mocks but still needs testing against real WebDAV providers. A mounted private directory can instead use `TRASLOCO_REMOTE_DRIVER=local` and `TRASLOCO_REMOTE_DIRECTORY`.
+The encrypted archive carries a SHA-256 sidecar. Upload publishes the sidecar last, verifies both remote objects by reading them back and never replaces different remote content. Plaintext `.wpress` upload requires the explicit `--allow-unencrypted` option. Downloads are staged privately, checked against the sidecar, then published without replacing existing local files. `wp trasloco offsite status` checks provider reachability and reports archive/manifest pairs that appear incomplete. It is an inventory check only: it does not read and hash every remote archive, so run an actual download and integrity verification for restore rehearsals. These transfers are manual WP-CLI operations; there is no automatic schedule, remote retry queue or provider health alert yet. A WebDAV adapter is covered by local protocol mocks but still needs testing against real WebDAV providers. A mounted private directory can instead use `TRASLOCO_REMOTE_DRIVER=local` and `TRASLOCO_REMOTE_DIRECTORY`.
 
 Never commit storage credentials or plaintext database passwords into the repository. Rehearse a download and isolated restore before relying on a provider for disaster recovery.
 

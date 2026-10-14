@@ -4,6 +4,8 @@
  * configured storage adapter. Plaintext upload always needs explicit consent.
  */
 class Trasloco_Offsite_Transfer {
+    const MAX_INVENTORY_ITEMS = 10000;
+
     private $remote;
     private $local_root;
 
@@ -172,6 +174,53 @@ class Trasloco_Offsite_Transfer {
             'archive' => $archive,
             'bytes' => $this->file_digest( $path )[0],
             'encrypted' => $encrypted,
+        );
+    }
+
+    /**
+     * Return a bounded summary of remote archive/manifest pairs without
+     * downloading their contents. A complete pair still requires a transfer
+     * verification before it can be trusted for restore.
+     */
+    public function inventory_status() {
+        $keys = $this->remote->enumerate();
+        if ( ! is_array( $keys ) || count( $keys ) > self::MAX_INVENTORY_ITEMS ) {
+            throw new RuntimeException( 'Remote storage returned an invalid or oversized inventory.' );
+        }
+        $archives = array();
+        $manifests = array();
+        foreach ( $keys as $key ) {
+            if ( ! is_string( $key ) ) {
+                throw new RuntimeException( 'Remote storage returned an invalid inventory entry.' );
+            }
+            if ( preg_match( '/^(.*\.wpress(?:\.enc)?)\.manifest\.json$/D', $key, $match ) ) {
+                $archive = $this->archive_name( $match[1] );
+                $manifests[ $archive ] = true;
+            } elseif ( preg_match( '/\.wpress(?:\.enc)?$/D', $key ) ) {
+                $archive = $this->archive_name( $key );
+                $archives[ $archive ] = true;
+            }
+        }
+
+        $names = array_values( array_unique( array_merge( array_keys( $archives ), array_keys( $manifests ) ) ) );
+        sort( $names, SORT_STRING );
+        $items = array();
+        $complete = 0;
+        foreach ( $names as $name ) {
+            $has_archive = isset( $archives[ $name ] );
+            $has_manifest = isset( $manifests[ $name ] );
+            $status = $has_archive && $has_manifest ? 'complete' : ( $has_archive ? 'missing_manifest' : 'missing_archive' );
+            if ( $status === 'complete' ) {
+                ++$complete;
+            }
+            $items[] = array( 'archive' => $name, 'status' => $status );
+        }
+
+        return array(
+            'status' => count( $items ) === $complete ? 'healthy' : 'incomplete',
+            'archives' => $items,
+            'complete' => $complete,
+            'incomplete' => count( $items ) - $complete,
         );
     }
 

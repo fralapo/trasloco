@@ -250,8 +250,8 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 		 * Transfer a verified archive through a configured private storage adapter.
 		 *
 		 * ## OPTIONS
-		 * <upload|download>
-		 * <archive>
+		 * <upload|download|status>
+		 * [<archive>]
 		 * [--allow-unencrypted]
 		 * Permit uploading a plaintext .wpress archive. Encrypted .wpress.enc files
 		 * do not need this option.
@@ -260,12 +260,14 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 		 *     wp trasloco offsite upload backup.wpress.enc
 		 *     wp trasloco offsite upload backup.wpress --allow-unencrypted
 		 *     wp trasloco offsite download backup.wpress.enc
+		 *     wp trasloco offsite status
 		 *
 		 * @subcommand offsite
 		 */
 		public function offsite( array $args, array $assoc_args ) {
-			if ( count( $args ) < 2 || ! in_array( $args[0], array( 'upload', 'download' ), true ) ) {
-				WP_CLI::error( 'Usage: wp trasloco offsite <upload|download> <archive> [--allow-unencrypted].' );
+			if ( empty( $args[0] ) || ! in_array( $args[0], array( 'upload', 'download', 'status' ), true ) ||
+				( $args[0] === 'status' ? count( $args ) !== 1 : count( $args ) !== 2 ) ) {
+				WP_CLI::error( 'Usage: wp trasloco offsite <upload|download> <archive> [--allow-unencrypted] | status.' );
 				return;
 			}
 			if ( ! wp_mkdir_p( TRASLOCO_BACKUPS_PATH ) ) {
@@ -276,7 +278,23 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 				require_once TRASLOCO_LIB_PATH . '/vendor/core/archiver/class-trasloco-integrity.php';
 				$adapter = Trasloco_Storage_Factory::configured();
 				$transfer = new Trasloco_Offsite_Transfer( $adapter, TRASLOCO_BACKUPS_PATH );
-				if ( $args[0] === 'upload' ) {
+				if ( $args[0] === 'status' ) {
+					$report = $transfer->inventory_status();
+					WP_CLI::log( sprintf(
+						'Offsite storage: %s; %d complete, %d incomplete.',
+						$report['status'],
+						$report['complete'],
+						$report['incomplete']
+					) );
+					foreach ( $report['archives'] as $item ) {
+						WP_CLI::log( $item['status'] . ': ' . $item['archive'] );
+					}
+					if ( $report['status'] !== 'healthy' ) {
+						WP_CLI::error( 'Remote inventory is incomplete; review the listed archive/manifest pairs.' );
+					}
+					WP_CLI::success( 'Remote storage is reachable and every listed archive has a manifest.' );
+					return;
+				} elseif ( $args[0] === 'upload' ) {
 					$result = $transfer->upload( $args[1], isset( $assoc_args['allow-unencrypted'] ) );
 				} else {
 					$result = $transfer->download( $args[1] );

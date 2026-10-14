@@ -96,6 +96,13 @@ try {
     );
     offsite_assert( ! file_exists( $local_target . '/damaged.wpress' ), 'Failed transfer left an archive visible in the backup directory.' );
 
+    file_put_contents( $remote_path . '/orphan.wpress.manifest.json', '{"incomplete":true}' );
+    file_put_contents( $remote_path . '/lonely.wpress.enc', 'partial upload' );
+    $inventory = $source_transfer->inventory_status();
+    offsite_assert( $inventory['status'] === 'incomplete', 'Remote inventory did not report incomplete archive pairs.' );
+    offsite_assert( $inventory['incomplete'] === 2, 'Remote inventory counted orphan archives or manifests incorrectly.' );
+    offsite_assert( count( $inventory['archives'] ) === $inventory['complete'] + 2, 'Remote inventory summary counts are inconsistent.' );
+
     $occupied = $local_target . '/occupied.wpress';
     file_put_contents( $occupied, 'operator file that must be preserved' );
     copy( $source_archive, $remote_path . '/occupied.wpress' );

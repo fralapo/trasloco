@@ -128,6 +128,14 @@ if $WP trasloco offsite upload "$OFFSITE_NAME" --path="$ROOT/source"; then
 fi
 $WP trasloco offsite upload "$OFFSITE_NAME" --allow-unencrypted --path="$ROOT/source"
 test -s "$ROOT/offsite/$OFFSITE_NAME" && test -s "$ROOT/offsite/$OFFSITE_NAME.manifest.json"
+OFFSITE_STATUS=$($WP trasloco offsite status --path="$ROOT/source" 2>&1)
+case "$OFFSITE_STATUS" in *"Offsite storage: healthy; 1 complete, 0 incomplete."*) ;; *) echo "Unexpected offsite status report: $OFFSITE_STATUS" >&2; exit 1 ;; esac
+printf 'interrupted upload' > "$ROOT/offsite/partial.wpress"
+if $WP trasloco offsite status --path="$ROOT/source" >/dev/null 2>&1; then
+  echo "ERROR: offsite status accepted an archive without its manifest" >&2
+  exit 1
+fi
+rm "$ROOT/offsite/partial.wpress"
 $WP config set TRASLOCO_REMOTE_DRIVER local --type=constant --path="$ROOT/target"
 $WP config set TRASLOCO_REMOTE_DIRECTORY "$ROOT/offsite" --type=constant --path="$ROOT/target"
 $WP trasloco offsite download "$OFFSITE_NAME" --path="$ROOT/target"
