@@ -46,3 +46,5 @@ Run the optional previous-major WordPress fixture with `TRASLOCO_TEST_WORDPRESS_
 - [x] Module-by-module reconciliation of draft PR #2 against all 30 exclusive commits and changed source files. Each feature module now has an explicit port, compatibility, retain or defer decision in [branch reconciliation](BRANCH_RECONCILIATION.md); the preserved branch is not merged wholesale.
 
 Green CLI CI is necessary but does not prove complete disaster recovery or host compatibility. The local 1.3.0 release candidate does not claim those remaining certification results.
+
+On the final local 1.3.0 candidate, the full WordPress integration and rollback rehearsal also passed on PHP 8.5.11/MariaDB 13 with WooCommerce 11.2.1 using both HPOS and legacy order storage. The large-archive verification fixture now drives every bounded continuation to completion, matching the production worker contract.
