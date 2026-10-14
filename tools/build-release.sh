@@ -59,7 +59,7 @@ if ! unzip -tq "$OUTPUT" >/dev/null; then
   exit 1
 fi
 if [[ "$WITH_S3" == 1 ]]; then
-  if ! unzip -Z1 "$OUTPUT" | grep -qx 'trasloco/vendor-s3/autoload.php'; then
+  if ! unzip -Z1 "$OUTPUT" | grep -x 'trasloco/vendor-s3/autoload.php' >/dev/null; then
     rm -f "$OUTPUT"
     printf 'The S3 release ZIP does not contain its runtime autoloader.\n' >&2
     exit 1
