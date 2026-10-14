@@ -60,3 +60,19 @@ The command requires a valid SHA-256 sidecar and scans at most 1 GiB of `databas
 This is an operation inventory, **not a semantic database changeset**: it does not validate arbitrary SQL syntax, count affected rows, compare values, inspect the destination database or approve a restore. Treat the archive as authoritative input and rehearse a restore against an isolated copy before production use.
 
 The administrator-only REST archive preview also compares recognized table names with the current site's table names when Trasloco can safely infer the single-site prefix mapping. It labels likely table creation, modification or replacement and returns `unknown_mapping` where multisite or source naming makes that inference unsafe. This still does not compare rows, validate arbitrary SQL, predict plugin behavior or make an import safe; it is only a table-level review aid.
+
+## Restore selected database tables
+
+On a single-site installation, WP-CLI can restore selected table suffixes from a local backup. The first command is read-only and prints the table mapping and whether each destination table will be replaced or created:
+
+```bash
+wp trasloco restore-tables site-backup.wpress --tables=posts,postmeta
+```
+
+Review the plan, pause site writes, and pass `--yes` to apply it:
+
+```bash
+wp trasloco restore-tables site-backup.wpress --tables=posts,postmeta --yes
+```
+
+The archive must have a valid SHA-256 sidecar and complete `DROP`/`CREATE` operations for each selected table. Before changing SQL, Trasloco creates and verifies a full-site recovery point; if that backup fails, it stops. The command leaves archived files and plugin/theme activation unchanged, and only executes recognized SQL statements whose source table is on the explicit allowlist. MySQL DDL is not transactional, so a failed operation may leave a partially replaced table; use the recovery receipt and rehearsed recovery procedure before retrying. Restoring related tables separately can produce inconsistent data. Multisite is unsupported, and the command does not pause concurrent application writes for you.

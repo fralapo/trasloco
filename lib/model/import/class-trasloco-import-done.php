@@ -26,6 +26,16 @@
 class Trasloco_Import_Done {
 
 	public static function execute( $params ) {
+		if ( ! empty( $params['trasloco_selective_tables'] ) ) {
+			Trasloco_Status::done(
+				__( 'Selected database tables were restored.', TRASLOCO_PLUGIN_NAME ),
+				__( 'Files and plugin/theme activation were not changed. Review related tables for consistency.', TRASLOCO_PLUGIN_NAME )
+			);
+			if ( ! empty( $params['recovery_receipt'] ) ) {
+				Trasloco_Recovery_Journal::complete( TRASLOCO_BACKUPS_PATH, $params['recovery_receipt'] );
+			}
+			return $params;
+		}
 
 		// Check multisite.json file
 		if ( true === is_file( trasloco_multisite_path( $params ) ) ) {

@@ -105,7 +105,7 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 - [ ] Phase 9B semantic SQL changeset preview and import preflight exclusions. The read-only file comparison accepts exact relative path/subtree exclusions via `php tools/recovery-diff.php --exclude=uploads/cache`; exclusions never skip archive path validation or alter imports. The administrator archive preview now maps recognized table operations to destination table names and existence for supported single-site prefixes. Neither feature compares live database rows, validates arbitrary SQL, or changes import behavior; semantic row-level changesets and import exclusions remain open.
 
 - [x] Phase 8A: WP-CLI selective media/plugin/theme extraction into a new private directory without overwriting live site content.
-- [ ] Phase 8B: selective database table restore, UI, collision handling and live-site consistency checks.
+- [ ] Phase 8B: selective database table restore, UI, collision handling and live-site consistency checks. The first single-site WP-CLI increment now previews selected table replacements by default and requires `--yes` to apply. It creates a verified full-site recovery point and imports only recognized SQL statements for the allowlisted tables; the admin UI and automated live-write consistency controls remain open.
 
 - [x] Bounded scheduled reconciliation of verification jobs, cancellation/retry and safe abandonment of crashed backups.
 - [ ] True byte-level continuation of interrupted local backups and provider-specific crash replay tests against real WebDAV services.

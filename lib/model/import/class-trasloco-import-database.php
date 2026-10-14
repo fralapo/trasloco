@@ -762,6 +762,10 @@ class Trasloco_Import_Database {
 			->set_new_replace_raw_values( $new_replace_raw_values )
 			->set_error_log( trasloco_storage_path( $params ) . DIRECTORY_SEPARATOR . 'database-errors.log' );
 
+		if ( isset( $params['trasloco_selected_tables'] ) ) {
+			$mysql->set_import_table_allowlist( $params['trasloco_selected_tables'] );
+		}
+
 		// Do not pre-emptively DROP every destination table based on an old
 		// ServMask version comparison. Trasloco 1.x is below 4.10 too, and this
 		// deleted the wp_options table before restoring anything. Each archived

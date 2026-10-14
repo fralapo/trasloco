@@ -971,6 +971,18 @@ return array(
 		'fr' => 'Le site a été importé',
 		'de' => 'Die Website wurde importiert',
 	),
+	'Selected database tables were restored.' => array(
+		'it' => 'Le tabelle del database selezionate sono state ripristinate.',
+		'es' => 'Se han restaurado las tablas de base de datos seleccionadas.',
+		'fr' => 'Les tables de base de données sélectionnées ont été restaurées.',
+		'de' => 'Die ausgewählten Datenbanktabellen wurden wiederhergestellt.',
+	),
+	'Files and plugin/theme activation were not changed. Review related tables for consistency.' => array(
+		'it' => 'I file e lo stato di attivazione di plugin e tema non sono stati modificati. Controlla la coerenza delle tabelle correlate.',
+		'es' => 'No se han cambiado los archivos ni la activación de plugins o temas. Revisa la coherencia de las tablas relacionadas.',
+		'fr' => 'Les fichiers et l’activation des extensions ou du thème n’ont pas changé. Vérifiez la cohérence des tables associées.',
+		'de' => 'Dateien sowie Plugin- und Theme-Aktivierungen wurden nicht geändert. Prüfen Sie zusammengehörige Tabellen auf Konsistenz.',
+	),
 	'Every export is saved on this server, in the %s folder. Here you can download, restore or delete each file.' => array(
 		'it' => 'Ogni esportazione viene salvata su questo server, nella cartella %s. Da qui puoi scaricare, ripristinare o eliminare ogni file.',
 		'es' => 'Cada exportación se guarda en este servidor, en la carpeta %s. Desde aquí puedes descargar, restaurar o eliminar cada archivo.',

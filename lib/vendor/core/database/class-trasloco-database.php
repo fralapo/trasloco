@@ -110,6 +110,14 @@ abstract class Trasloco_Database {
 	protected $exclude_table_prefixes = array();
 
 	/**
+	 * Exact source table names allowed during an explicitly selective import.
+	 * Null means the standard full-database import path.
+	 *
+	 * @var array|null
+	 */
+	protected $import_table_allowlist = null;
+
+	/**
 	 * List all tables that should not be affected by the timeout of the current request
 	 *
 	 * @var array
@@ -426,6 +434,53 @@ abstract class Trasloco_Database {
 	 */
 	public function get_exclude_table_prefixes() {
 		return $this->exclude_table_prefixes;
+	}
+
+	/**
+	 * Restrict database import to exact table names present in the source dump.
+	 * Unknown SQL statements are skipped while this allowlist is active.
+	 *
+	 * @param array $tables Exact source table names.
+	 * @return object
+	 */
+	public function set_import_table_allowlist( $tables ) {
+		if ( ! is_array( $tables ) || empty( $tables ) || count( $tables ) > 50 ) {
+			throw new InvalidArgumentException( 'A selective import requires between 1 and 50 table names.' );
+		}
+		$validated = array();
+		foreach ( $tables as $table ) {
+			if ( ! is_string( $table ) || ! preg_match( '/^[A-Za-z0-9_$]{1,191}$/D', $table ) ) {
+				throw new InvalidArgumentException( 'The selective import table list contains an invalid name.' );
+			}
+			$validated[] = $table;
+		}
+		$this->import_table_allowlist = array_values( array_unique( $validated ) );
+		if ( empty( $this->import_table_allowlist ) ) {
+			throw new InvalidArgumentException( 'The selective import table list is empty.' );
+		}
+		return $this;
+	}
+
+	/**
+	 * Check whether a complete SQL statement targets an allowed source table.
+	 * Selective restore deliberately accepts only statements emitted by the
+	 * offline operation inventory; it never executes unrecognized SQL.
+	 *
+	 * @param string $query SQL statement.
+	 * @return boolean
+	 */
+	protected function is_import_query_allowed( $query ) {
+		if ( $this->import_table_allowlist === null ) {
+			return true;
+		}
+		if ( ! is_string( $query ) || ! preg_match(
+			'/^\\s*(?:DROP\\s+TABLE\\s+IF\\s+EXISTS|CREATE\\s+TABLE|INSERT\\s+INTO|REPLACE\\s+INTO|ALTER\\s+TABLE|TRUNCATE\\s+TABLE)\\s+`([^`]{1,191})`/i',
+			$query,
+			$match
+		) ) {
+			return false;
+		}
+		return in_array( $match[1], $this->import_table_allowlist, true );
 	}
 
 	/**
@@ -817,6 +872,15 @@ abstract class Trasloco_Database {
 				// End of query
 				if ( preg_match( '/;\s*$/S', $query ) ) {
 					$query = trim( $query );
+
+					// Selective restore is an explicit allowlist. Advance the resume
+					// offset for every skipped statement so an interrupted run never
+					// replays unrelated SQL on its next request.
+					if ( ! $this->is_import_query_allowed( $query ) ) {
+						$query_offset = ftell( $file_handler );
+						$query = null;
+						continue;
+					}
 
 					// Check max allowed packet
 					if ( strlen( $query ) <= $max_allowed_packet ) {

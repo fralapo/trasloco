@@ -548,6 +548,119 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 		}
 
 		/**
+		 * Restore selected database tables from a verified local backup.
+		 *
+		 * ## OPTIONS
+		 * <archive>
+		 * --tables=<suffixes>
+		 * Comma-separated single-site table suffixes, for example posts,postmeta.
+		 * [--yes]
+		 * Required to replace the selected tables after the read-only plan is shown.
+		 *
+		 * @subcommand restore-tables
+		 */
+		public function restore_tables( array $args, array $assoc_args ) {
+			global $wpdb;
+			if ( is_multisite() ) {
+				WP_CLI::error( 'Selective table restore is available only on single-site WordPress.' );
+			}
+			if ( count( $args ) !== 1 || empty( $assoc_args['tables'] ) || ! is_string( $assoc_args['tables'] ) ) {
+				WP_CLI::error( 'Usage: wp trasloco restore-tables <archive.wpress> --tables=posts,postmeta [--yes]' );
+			}
+			if ( ! preg_match( '/^[A-Za-z0-9_.-]+\.wpress$/D', $args[0] ) ) {
+				WP_CLI::error( 'Specify an archive filename from the local backup directory.' );
+			}
+			$requested = explode( ',', $assoc_args['tables'] );
+			if ( count( $requested ) > 50 ) {
+				WP_CLI::error( 'Select no more than 50 tables per operation.' );
+			}
+			$requested = array_values( array_unique( $requested ) );
+			foreach ( $requested as $table ) {
+				if ( ! preg_match( '/^[A-Za-z0-9_$]{1,180}$/D', $table ) ) {
+					WP_CLI::error( 'Table suffixes may contain only letters, digits, underscore and dollar sign.' );
+				}
+			}
+
+			$archive_path = trasloco_backup_path( array( 'archive' => $args[0] ) );
+			require_once TRASLOCO_LIB_PATH . '/vendor/core/archiver/class-trasloco-integrity.php';
+			require_once TRASLOCO_LIB_PATH . '/vendor/core/archiver/class-trasloco-offline-sql-preview.php';
+			$verification = Trasloco_Integrity::verify( $archive_path );
+			if ( $verification['status'] !== 'verified' ) {
+				WP_CLI::error( 'Selective restore requires a valid SHA-256 manifest for the backup.' );
+			}
+			try {
+				$inventory = Trasloco_Offline_SQL_Preview::preview( $archive_path );
+			} catch ( Throwable $error ) {
+				WP_CLI::error( 'The backup SQL inventory could not be verified safely.' );
+			}
+			if ( $inventory['database_sql'] !== 'present' ) {
+				WP_CLI::error( 'The selected backup has no database SQL to restore.' );
+			}
+
+			$tables = array();
+			$destination_tables = $wpdb->get_col( 'SHOW TABLES' );
+			if ( ! is_array( $destination_tables ) ) {
+				WP_CLI::error( 'Could not read destination table names.' );
+			}
+			foreach ( $requested as $suffix ) {
+				$source_table = 'SERVMASK_PREFIX_' . $suffix;
+				if ( ! isset( $inventory['tables'][ $source_table ] ) ) {
+					WP_CLI::error( 'The selected table is not present in the verified backup: ' . $suffix );
+				}
+				$actions = $inventory['tables'][ $source_table ];
+				if ( $actions['drop'] < 1 || $actions['create'] < 1 ) {
+					WP_CLI::error( 'The backup does not contain a complete DROP/CREATE operation for: ' . $suffix );
+				}
+				$destination_table = $wpdb->prefix . $suffix;
+				if ( strlen( $destination_table ) > 64 ) {
+					WP_CLI::error( 'The destination table name exceeds the MySQL identifier limit.' );
+				}
+				$exists = in_array( $destination_table, $destination_tables, true );
+				$effect = $exists ? 'replace existing table' : 'create table';
+				WP_CLI::line( sprintf( '%s -> %s (%s)', $source_table, $destination_table, $effect ) );
+				$tables[] = $source_table;
+			}
+			WP_CLI::warning( 'This operation replaces selected tables only. Pause site writes first; restoring related tables separately can leave inconsistent data. A verified full-site recovery point is created before SQL changes.' );
+			if ( empty( $assoc_args['yes'] ) ) {
+				WP_CLI::success( 'Read-only plan complete. No tables were changed. Repeat with --yes to apply it.' );
+				return;
+			}
+			if ( ! is_dir( TRASLOCO_STORAGE_PATH ) && ! mkdir( TRASLOCO_STORAGE_PATH, 0700, true ) ) {
+				WP_CLI::error( 'Cannot create the private import storage directory.' );
+			}
+
+			$params = array(
+				'storage' => bin2hex( random_bytes( 16 ) ),
+				'archive' => $args[0],
+				'trasloco_manual_restore' => true,
+				'trasloco_selective_tables' => $tables,
+				'trasloco_selected_tables' => $tables,
+			);
+			WP_CLI::log( 'Creating a verified safety backup, then restoring the selected tables...' );
+			$error = null;
+			add_filter( 'trasloco_completed_timeout', '__return_zero' );
+			remove_filter( 'trasloco_import', 'Trasloco_Import_Upload::execute', 5 );
+			remove_filter( 'trasloco_import', 'Trasloco_Import_Confirm::execute', 100 );
+			remove_filter( 'trasloco_import', 'Trasloco_Import_Content::execute', 250 );
+			remove_filter( 'trasloco_import', 'Trasloco_Import_Mu_Plugins::execute', 270 );
+			remove_filter( 'trasloco_import', 'Trasloco_Import_Clean::execute', 400 );
+			try {
+				$params = apply_filters( 'trasloco_import', $params );
+			} catch ( Throwable $caught ) {
+				$error = $caught;
+			} finally {
+				$storage_path = trasloco_storage_path( $params );
+				if ( is_dir( $storage_path ) ) {
+					Trasloco_Directory::delete( $storage_path );
+				}
+			}
+			if ( $error ) {
+				WP_CLI::error( $error->getMessage() );
+			}
+			WP_CLI::success( 'Selected database tables were restored. Recovery point: ' . basename( $params['recovery_archive'] ) );
+		}
+
+		/**
 		 * Restores a backup.
 		 *
 		 * Example:

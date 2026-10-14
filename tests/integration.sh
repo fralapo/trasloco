@@ -88,6 +88,15 @@ cp "$ROOT/target/wp-content/uploads/target-before-import/safety-marker.txt" "$RO
 
 
 $WP post create --path="$ROOT/source" --post_type=post --post_status=publish --post_title="Trasloco fixture: source post" --post_content="Migration round-trip verified"
+$WP eval '
+global $wpdb;
+$table = $wpdb->prefix . "trasloco_selective_probe";
+if ( $wpdb->query( "CREATE TABLE `" . $table . "` (id bigint NOT NULL PRIMARY KEY, value varchar(64) NOT NULL)" ) === false ||
+     $wpdb->insert( $table, array( "id" => 1, "value" => "from-backup" ) ) !== 1 ) {
+    throw new Exception( "Could not prepare selective database restore fixture" );
+}
+update_option( "trasloco_selective_restore_guard", "keep-live-value" );
+' --path="$ROOT/source"
 mkdir -p "$ROOT/source/wp-content/uploads/test-fixtures"
 printf 'media is preserved\n' > "$ROOT/source/wp-content/uploads/test-fixtures/fixture.txt"
 # File and directory symlinks must not pull secrets from outside wp-content.
@@ -114,6 +123,51 @@ if [ ! -s "$ARCHIVE" ]; then
   exit 1
 fi
 $WP trasloco verify "$(basename "$ARCHIVE")" --path="$ROOT/source"
+
+# Selective database restore defaults to a read-only plan, then replaces only
+# the explicitly selected table while preserving site settings and files.
+TRASLOCO_SELECTIVE_EXPECTED_HOME=$($WP option get home --path="$ROOT/source")
+export TRASLOCO_SELECTIVE_EXPECTED_HOME
+$WP eval '
+global $wpdb;
+$wpdb->update( $wpdb->prefix . "trasloco_selective_probe", array( "value" => "changed-live-value" ), array( "id" => 1 ) );
+update_option( "trasloco_selective_restore_guard", "keep-live-value" );
+' --path="$ROOT/source"
+$WP trasloco restore-tables "$(basename "$ARCHIVE")" --tables=trasloco_selective_probe --path="$ROOT/source"
+$WP eval '
+global $wpdb;
+if ( $wpdb->get_var( "SELECT value FROM `" . $wpdb->prefix . "trasloco_selective_probe` WHERE id = 1" ) !== "changed-live-value" ) {
+    throw new Exception( "Selective restore dry run changed the chosen table" );
+}
+if ( get_option( "trasloco_selective_restore_guard" ) !== "keep-live-value" ||
+     file_get_contents( WP_CONTENT_DIR . "/uploads/test-fixtures/fixture.txt" ) !== "media is preserved\n" ) {
+    throw new Exception( "Selective restore dry run changed unrelated site data: " . wp_json_encode( array(
+        "guard" => get_option( "trasloco_selective_restore_guard" ),
+        "fixture" => file_get_contents( WP_CONTENT_DIR . "/uploads/test-fixtures/fixture.txt" ),
+    ) ) );
+}
+' --path="$ROOT/source"
+if [ "$($WP option get home --path="$ROOT/source")" != "$TRASLOCO_SELECTIVE_EXPECTED_HOME" ]; then
+  echo "Selective restore dry run changed the site URL" >&2
+  exit 1
+fi
+$WP trasloco restore-tables "$(basename "$ARCHIVE")" --tables=trasloco_selective_probe --yes --path="$ROOT/source"
+$WP eval '
+global $wpdb;
+if ( $wpdb->get_var( "SELECT value FROM `" . $wpdb->prefix . "trasloco_selective_probe` WHERE id = 1" ) !== "from-backup" ) {
+    throw new Exception( "Selected database table was not restored from the archive" );
+}
+if ( get_option( "trasloco_selective_restore_guard" ) !== "keep-live-value" ||
+     file_get_contents( WP_CONTENT_DIR . "/uploads/test-fixtures/fixture.txt" ) !== "media is preserved\n" ||
+     ! is_plugin_active( "trasloco/trasloco.php" ) ) {
+    throw new Exception( "Selective restore changed unrelated options, files or plugin state" );
+}
+' --path="$ROOT/source"
+if [ "$($WP option get home --path="$ROOT/source")" != "$TRASLOCO_SELECTIVE_EXPECTED_HOME" ]; then
+  echo "Selective restore changed the site URL" >&2
+  exit 1
+fi
+
 # Exercise a real source-side manifest/chunk REST request and the local
 # resumable downloader against an intercepted HTTPS peer.
 $WP eval '
@@ -854,7 +908,7 @@ $result = Trasloco_Job_Worker::run( $id );
 if ( $result["status"] !== "completed" ) { throw new Exception( "Scheduled export failed: " . wp_json_encode( Trasloco_Job_Store::get( $id ) ) ); }
 $archive = trasloco_backup_path( array( "archive" => $result["archive"] ) );
 if ( Trasloco_Integrity::verify( $archive )["status"] !== "verified" ) { throw new Exception( "Scheduled archive is corrupt" ); }
-if ( count( (new Trasloco_Backups())->get_files() ) > 2 ) { throw new Exception( "Retention failed" ); }
+if ( count( (new Trasloco_Backups())->get_retention_files() ) > 2 ) { throw new Exception( "Retention failed" ); }
 update_option( Trasloco_Scheduled_Backups::OPTION, array( "frequency" => "weekly", "keep" => 2, "upload_offsite" => true ) );
 wp_clear_scheduled_hook( Trasloco_Scheduled_Backups::HOOK );
 Trasloco_Scheduled_Backups::sync();
