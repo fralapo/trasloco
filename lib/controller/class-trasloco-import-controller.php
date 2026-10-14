@@ -61,6 +61,40 @@ class Trasloco_Import_Controller {
 			exit;
 		}
 
+		require_once TRASLOCO_LIB_PATH . '/model/class-trasloco-selective-restore-lock.php';
+		if ( ! empty( $params['trasloco_selective_tables'] ) ) {
+			$owner = isset( $params['trasloco_selective_owner'] ) ? $params['trasloco_selective_owner'] : '';
+			$locked = $priority <= 10
+				? Trasloco_Selective_Restore_Lock::acquire( $owner )
+				: Trasloco_Selective_Restore_Lock::renew( $owner );
+			if ( ! $locked ) {
+				status_header( 409 );
+				Trasloco_Status::error(
+					__( 'The import stopped', TRASLOCO_PLUGIN_NAME ),
+					__( 'Another selective database restore is active or its safety lease expired. Check the site and retry only after reviewing recovery status.', TRASLOCO_PLUGIN_NAME )
+				);
+				echo json_encode( array( 'errors' => array( array( 'code' => 409, 'message' => 'Selective restore lease unavailable.' ) ) ) );
+				exit;
+			}
+		} elseif ( Trasloco_Selective_Restore_Lock::active() ) {
+			status_header( 409 );
+			Trasloco_Status::error(
+				__( 'The import stopped', TRASLOCO_PLUGIN_NAME ),
+				__( 'A selective database restore is active. Wait for it to finish before starting another import.', TRASLOCO_PLUGIN_NAME )
+			);
+			echo json_encode( array( 'errors' => array( array( 'code' => 409, 'message' => 'Selective restore already active.' ) ) ) );
+			exit;
+		}
+
+		// Selected-table restore deliberately excludes archive files and plugin
+		// payloads. The database preflight revalidates the table allowlist before
+		// the recovery snapshot or any SQL statements are applied.
+		if ( ! empty( $params['trasloco_selective_tables'] ) ) {
+			remove_filter( 'trasloco_import', 'Trasloco_Import_Confirm::execute', 100 );
+			remove_filter( 'trasloco_import', 'Trasloco_Import_Content::execute', 250 );
+			remove_filter( 'trasloco_import', 'Trasloco_Import_Mu_Plugins::execute', 270 );
+		}
+
 		// Get hook
 		if ( isset( $wp_filter['trasloco_import'] ) && ( $filters = $wp_filter['trasloco_import'] ) ) {
 			// WordPress 4.7 introduces new class for working with filters/actions called WP_Hook
@@ -88,6 +122,9 @@ class Trasloco_Import_Controller {
 							echo json_encode( array( 'errors' => array( array( 'code' => $e->getCode(), 'message' => $e->getMessage() ) ) ) );
 							exit;
 						} catch ( Exception $e ) {
+							if ( ! empty( $params['trasloco_selective_owner'] ) ) {
+								Trasloco_Selective_Restore_Lock::release( $params['trasloco_selective_owner'] );
+							}
 							Trasloco_Status::error( __( 'The import stopped', TRASLOCO_PLUGIN_NAME ), trasloco_error_message( $e, 'import' ) );
 							Trasloco_Notification::error( __( 'The import stopped', TRASLOCO_PLUGIN_NAME ), $e->getMessage() );
 							// The storage parameter may be the invalid part of the request

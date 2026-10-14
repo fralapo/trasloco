@@ -26,6 +26,10 @@
 class Trasloco_Import_Clean {
 
 	public static function execute( $params ) {
+		if ( ! empty( $params['trasloco_selective_owner'] ) ) {
+			require_once TRASLOCO_LIB_PATH . '/model/class-trasloco-selective-restore-lock.php';
+			Trasloco_Selective_Restore_Lock::release( $params['trasloco_selective_owner'] );
+		}
 		Trasloco_Directory::delete( trasloco_storage_path( $params ) );
 		exit;
 	}

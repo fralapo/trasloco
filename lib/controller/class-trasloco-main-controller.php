@@ -782,6 +782,37 @@ class Trasloco_Main_Controller {
 			array( 'trasloco_util' )
 		);
 
+		wp_enqueue_style(
+			'trasloco_selective_restore',
+			Trasloco_Template::asset_link( 'css/selective-restore.css' )
+		);
+		wp_enqueue_script(
+			'trasloco_selective_restore',
+			Trasloco_Template::asset_link( 'javascript/selective-restore.js' ),
+			array( 'trasloco_backups' )
+		);
+		require_once TRASLOCO_LIB_PATH . '/model/class-trasloco-selective-restore-lock.php';
+		wp_localize_script( 'trasloco_selective_restore', 'trasloco_selective_restore', array(
+			'rest_base' => trailingslashit( rest_url( 'trasloco/v1/backups/' ) ),
+			'rest_nonce' => wp_create_nonce( 'wp_rest' ),
+			'active' => Trasloco_Selective_Restore_Lock::active(),
+			'strings' => array(
+				'preview_failed' => __( 'Could not load a verified table preview.', TRASLOCO_PLUGIN_NAME ),
+				'preview_required' => __( 'Table preview requires a SHA-256-verified archive.', TRASLOCO_PLUGIN_NAME ),
+				'loading' => __( 'Checking the verified backup and destination tables…', TRASLOCO_PLUGIN_NAME ),
+				'no_tables' => __( 'No safely mappable tables with complete restore operations were found.', TRASLOCO_PLUGIN_NAME ),
+				'source' => __( 'Backup table', TRASLOCO_PLUGIN_NAME ),
+				'destination' => __( 'Site table', TRASLOCO_PLUGIN_NAME ),
+				'effect' => __( 'Expected action', TRASLOCO_PLUGIN_NAME ),
+				'replace' => __( 'Replace existing table', TRASLOCO_PLUGIN_NAME ),
+				'create' => __( 'Create table', TRASLOCO_PLUGIN_NAME ),
+				'unknown' => __( 'Mapping unavailable', TRASLOCO_PLUGIN_NAME ),
+				'select_one' => __( 'Select at least one table to continue.', TRASLOCO_PLUGIN_NAME ),
+				'active' => __( 'A selective restore is already running. Wait for it to finish.', TRASLOCO_PLUGIN_NAME ),
+				'restoring' => __( 'Restoring selected database tables. Keep this tab open until the result appears.', TRASLOCO_PLUGIN_NAME ),
+			)
+		) );
+
 		wp_localize_script( 'trasloco_backups', 'trasloco_feedback', array(
 			'ajax'       => array(
 				'url' => wp_make_link_relative( admin_url( 'admin-ajax.php?action=trasloco_feedback' ) ),

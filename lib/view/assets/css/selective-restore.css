@@ -1,0 +1,43 @@
+#trasloco-selective-restore-dialog {
+	width: min(900px, calc(100vw - 32px));
+	max-height: min(85vh, 800px);
+	padding: 0;
+	border: 1px solid #c3c4c7;
+	border-radius: 4px;
+	box-shadow: 0 10px 35px rgba(0, 0, 0, .25);
+}
+
+#trasloco-selective-restore-dialog::backdrop {
+	background: rgba(0, 0, 0, .55);
+}
+
+.tr-selective-restore-dialog {
+	padding: 24px;
+}
+
+.tr-selective-restore-dialog h2 {
+	margin-top: 0;
+}
+
+.tr-selective-restore-table-wrap {
+	max-height: 45vh;
+	overflow: auto;
+}
+
+.tr-selective-restore-table-wrap table {
+	border-collapse: collapse;
+}
+
+.tr-selective-restore-status.is-error {
+	color: #b32d2e;
+}
+
+.tr-selective-restore-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+}
+
+.trasloco-backup-actions .trasloco-backup-selective-restore {
+	margin-top: 4px;
+}

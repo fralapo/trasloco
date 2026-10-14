@@ -26,8 +26,12 @@
 class Trasloco_Backups_Controller {
 
 	public static function index() {
-		// Forget the status of the previous run, or the progress window shows it and stops
-		delete_option( TRASLOCO_STATUS );
+		require_once TRASLOCO_LIB_PATH . '/model/class-trasloco-selective-restore-lock.php';
+		$selective_restore_active = Trasloco_Selective_Restore_Lock::active();
+		// Preserve the progress report if a selective restore is still running.
+		if ( ! $selective_restore_active ) {
+			delete_option( TRASLOCO_STATUS );
+		}
 
 		$model = new Trasloco_Backups;
 
@@ -35,6 +39,7 @@ class Trasloco_Backups_Controller {
 			'backups/index',
 			array(
 				'backups'  => $model->get_files(),
+				'selective_restore_active' => $selective_restore_active,
 			)
 		);
 	}

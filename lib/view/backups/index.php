@@ -29,6 +29,9 @@
 		<h1><span class="dashicons dashicons-backup" aria-hidden="true"></span> <?php esc_html_e( 'Backups', TRASLOCO_PLUGIN_NAME ); ?></h1>
 		<p class="tr-lead"><?php echo wp_kses( sprintf( __( 'Every export is saved on this server, in the %s folder. Here you can download, restore or delete each file.', TRASLOCO_PLUGIN_NAME ), '<code>' . esc_html( TRASLOCO_BACKUPS_PATH ) . '</code>' ), array( 'code' => array() ) ); ?></p>
 	</header>
+	<?php if ( ! empty( $selective_restore_active ) ) : ?>
+		<p role="status" class="notice notice-warning"><?php esc_html_e( 'A selected-table restore is running. Wait for it to finish before starting another import or restore.', TRASLOCO_PLUGIN_NAME ); ?></p>
+	<?php endif; ?>
 
 	<section class="tr-card" aria-labelledby="tr-automatic-backups">
 		<h2 id="tr-automatic-backups"><?php esc_html_e( 'Automatic backups', TRASLOCO_PLUGIN_NAME ); ?></h2>
@@ -158,6 +161,7 @@
 								</thead>
 								<tbody>
 									<?php foreach ( $backups as $backup ) : ?>
+						<?php $tr_still_verified = false; ?>
 									<tr>
 										<th scope="row" class="trasloco-column-name">
 											<?php if ( $backup['path'] ) : ?>
@@ -214,6 +218,7 @@
 													(int) $manifest_stat['ino'] === (int) $proof['manifest_inode'] &&
 													(int) $manifest_stat['dev'] === (int) $proof['manifest_device'];
 												if ( $still_verified ) {
+													$tr_still_verified = true;
 													esc_html_e( 'Verified', TRASLOCO_PLUGIN_NAME );
 												} else {
 													// A manifest alone is not proof of integrity. Avoid hashing
@@ -250,6 +255,11 @@
 												<i class="trasloco-icon-cloud-upload" aria-hidden="true"></i>
 												<span><?php _e( 'Restore', TRASLOCO_PLUGIN_NAME ); ?></span>
 											</button>
+											<?php if ( $tr_still_verified && ! is_multisite() ) : ?>
+												<button type="button" data-archive="<?php echo esc_attr( $backup['filename'] ); ?>" class="tr-btn tr-btn-ghost trasloco-backup-selective-restore" aria-label="<?php echo esc_attr( sprintf( __( 'Restore selected tables from %s', TRASLOCO_PLUGIN_NAME ), basename( $backup['filename'] ) ) ); ?>">
+													<span><?php esc_html_e( 'Restore tables', TRASLOCO_PLUGIN_NAME ); ?></span>
+												</button>
+											<?php endif; ?>
 											<button type="button" data-archive="<?php echo esc_attr( $backup['filename'] ); ?>" class="tr-btn tr-btn-danger trasloco-backup-delete" aria-label="<?php echo esc_attr( sprintf( __( 'Delete %s', TRASLOCO_PLUGIN_NAME ), basename( $backup['filename'] ) ) ); ?>">
 												<i class="trasloco-icon-close" aria-hidden="true"></i>
 												<span><?php _e( 'Delete', TRASLOCO_PLUGIN_NAME ); ?></span>
@@ -285,6 +295,30 @@
 					<input type="hidden" name="trasloco_manual_restore" value="1" />
 
 				</form>
+
+	<dialog id="trasloco-selective-restore-dialog" aria-labelledby="trasloco-selective-restore-title">
+		<form method="dialog" class="tr-selective-restore-dialog">
+			<h2 id="trasloco-selective-restore-title"><?php esc_html_e( 'Restore selected database tables', TRASLOCO_PLUGIN_NAME ); ?></h2>
+			<p class="tr-selective-restore-status" role="status" aria-live="polite"></p>
+			<div class="tr-selective-restore-table-wrap">
+				<table class="widefat striped">
+					<thead><tr>
+						<th scope="col"><span class="screen-reader-text"><?php esc_html_e( 'Select', TRASLOCO_PLUGIN_NAME ); ?></span></th>
+						<th scope="col"><?php esc_html_e( 'Backup table', TRASLOCO_PLUGIN_NAME ); ?></th>
+						<th scope="col"><?php esc_html_e( 'Site table', TRASLOCO_PLUGIN_NAME ); ?></th>
+						<th scope="col"><?php esc_html_e( 'Expected action', TRASLOCO_PLUGIN_NAME ); ?></th>
+					</tr></thead>
+					<tbody></tbody>
+				</table>
+			</div>
+			<p class="tr-hint"><?php esc_html_e( 'Selected tables are replaced from the backup. Pause writes to the affected parts of your site first. A verified recovery point is created before changes are applied.', TRASLOCO_PLUGIN_NAME ); ?></p>
+			<p><label><input type="checkbox" class="tr-selective-restore-confirm" /> <?php esc_html_e( 'I understand that selected tables will be replaced and have paused writes to them.', TRASLOCO_PLUGIN_NAME ); ?></label></p>
+			<div class="tr-selective-restore-actions">
+				<button type="button" class="button tr-selective-restore-cancel"><?php esc_html_e( 'Cancel', TRASLOCO_PLUGIN_NAME ); ?></button>
+				<button type="button" class="button button-primary tr-selective-restore-submit" disabled><?php esc_html_e( 'Restore selected tables', TRASLOCO_PLUGIN_NAME ); ?></button>
+			</div>
+		</form>
+	</dialog>
 
 	<?php include TRASLOCO_TEMPLATES_PATH . '/backups/safety.php'; ?>
 </div>

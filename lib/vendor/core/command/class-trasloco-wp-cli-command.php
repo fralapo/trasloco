@@ -561,6 +561,10 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 		 */
 		public function restore_tables( array $args, array $assoc_args ) {
 			global $wpdb;
+			require_once TRASLOCO_LIB_PATH . '/model/class-trasloco-selective-restore-lock.php';
+			if ( Trasloco_Selective_Restore_Lock::active() ) {
+				WP_CLI::error( 'A selective restore is already running. Wait for it to finish before starting another restore.' );
+			}
 			if ( is_multisite() ) {
 				WP_CLI::error( 'Selective table restore is available only on single-site WordPress.' );
 			}
@@ -636,6 +640,10 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 				'trasloco_selective_tables' => $tables,
 				'trasloco_selected_tables' => $tables,
 			);
+			$lock_owner = bin2hex( random_bytes( 16 ) );
+			if ( ! Trasloco_Selective_Restore_Lock::acquire( $lock_owner ) ) {
+				WP_CLI::error( 'Could not acquire the selective restore lease. No tables were changed.' );
+			}
 			WP_CLI::log( 'Creating a verified safety backup, then restoring the selected tables...' );
 			$error = null;
 			add_filter( 'trasloco_completed_timeout', '__return_zero' );
@@ -649,6 +657,7 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 			} catch ( Throwable $caught ) {
 				$error = $caught;
 			} finally {
+				Trasloco_Selective_Restore_Lock::release( $lock_owner );
 				$storage_path = trasloco_storage_path( $params );
 				if ( is_dir( $storage_path ) ) {
 					Trasloco_Directory::delete( $storage_path );
@@ -671,6 +680,10 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 		 * @subcommand restore
 		 */
 		public function restore( array $args, array $assoc_args ) {
+			require_once TRASLOCO_LIB_PATH . '/model/class-trasloco-selective-restore-lock.php';
+			if ( Trasloco_Selective_Restore_Lock::active() ) {
+				WP_CLI::error( 'A selective restore is already running. Wait for it to finish before starting another restore.' );
+			}
 			if ( is_multisite() ) {
 				WP_CLI::error( __( 'WP-CLI is not supported in Multisite mode. Please use the web interface to restore a backup.', TRASLOCO_PLUGIN_NAME ) );
 			}

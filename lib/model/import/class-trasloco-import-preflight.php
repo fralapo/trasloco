@@ -46,6 +46,27 @@ class Trasloco_Import_Preflight {
             ? @file_get_contents( $package_path ) : false;
         $config = is_string( $encoded ) ? json_decode( $encoded, true ) : null;
         self::assert_required_payload( $summary, $config );
+        if ( ! empty( $params['trasloco_selective_tables'] ) ) {
+            $requested = isset( $params['trasloco_selected_tables'] ) ? $params['trasloco_selected_tables'] : null;
+            if ( ! is_array( $requested ) ) {
+                throw new Trasloco_Import_Exception( 'Selective restore stopped: the selected table list is invalid.' );
+            }
+            $suffixes = array();
+            foreach ( $requested as $table ) {
+                if ( is_string( $table ) && strpos( $table, 'SERVMASK_PREFIX_' ) === 0 ) {
+                    $table = substr( $table, strlen( 'SERVMASK_PREFIX_' ) );
+                }
+                $suffixes[] = $table;
+            }
+            require_once TRASLOCO_LIB_PATH . '/model/class-trasloco-selective-database-restore.php';
+            try {
+                $plan = Trasloco_Selective_Database_Restore::plan( $params['archive'], $suffixes );
+            } catch ( Throwable $error ) {
+                throw new Trasloco_Import_Exception( 'Selective restore stopped: ' . $error->getMessage() );
+            }
+            $params['trasloco_selected_tables'] = $plan['source_tables'];
+            $params['trasloco_selective_tables'] = $plan['source_tables'];
+        }
         return $params;
     }
 }

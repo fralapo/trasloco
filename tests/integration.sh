@@ -956,11 +956,25 @@ $schedule_html = ob_get_clean();
 if ( strpos( $schedule_html, "Encrypt and upload each scheduled backup to remote storage" ) === false ||
     strpos( $schedule_html, "S3 also requires its optional runtime and PHP 8.1 or later" ) === false ||
     strpos( $schedule_html, "Verified" ) === false ||
+    strpos( $schedule_html, "trasloco-backup-selective-restore" ) === false ||
+    strpos( $schedule_html, "Restore selected database tables" ) === false ||
+    strpos( $schedule_html, "have paused writes to them" ) === false ||
     strpos( $schedule_html, "Encrypt backup" ) === false ||
     strpos( $schedule_html, "action=trasloco_encrypt_backup" ) === false ||
     strpos( $schedule_html, "Download encrypted backup" ) === false ||
     strpos( $schedule_html, "to WebDAV" ) !== false ) {
     throw new Exception( "Backup UI does not show archive verification, manual encryption or remote delivery" );
+}
+require_once TRASLOCO_LIB_PATH . "/model/class-trasloco-selective-restore-lock.php";
+$lock_a = "integration-selective-lock-a";
+$lock_b = "integration-selective-lock-b";
+if ( ! Trasloco_Selective_Restore_Lock::acquire( $lock_a ) ||
+    Trasloco_Selective_Restore_Lock::acquire( $lock_b ) ||
+    ! Trasloco_Selective_Restore_Lock::renew( $lock_a ) ||
+    ! Trasloco_Selective_Restore_Lock::active() ||
+    ! Trasloco_Selective_Restore_Lock::release( $lock_a ) ||
+    Trasloco_Selective_Restore_Lock::active() ) {
+    throw new Exception( "Selective restore lease did not exclude concurrent owners or release cleanly" );
 }
 $view_archive_path = trasloco_backup_path( array( "archive" => $view_archive ) );
 $view_archive_mtime = filemtime( $view_archive_path );
