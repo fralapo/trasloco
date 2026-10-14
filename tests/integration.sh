@@ -861,6 +861,39 @@ if ( ! Trasloco_Export_Lock::release( $holder, $holder_owner ) ) {
 $next = Trasloco_Export_Lock::acquire( $other_owner );
 if ( ! is_resource( $next ) ) { throw new Exception( "Export lock did not become available after release" ); }
 Trasloco_Export_Lock::release( $next, $other_owner );
+
+// A hostile lock path must fail closed without changing a linked target.
+$lock_path = TRASLOCO_BACKUPS_PATH . "/.trasloco-export.lock";
+$saved_lock_path = $lock_path . ".integration-saved";
+$canary_path = TRASLOCO_BACKUPS_PATH . "/.trasloco-lock-canary-" . wp_generate_password( 12, false );
+if ( file_exists( $saved_lock_path ) || ! rename( $lock_path, $saved_lock_path ) ) {
+    throw new Exception( "Could not prepare export lock path safety fixture" );
+}
+try {
+    file_put_contents( $canary_path, "canary" );
+    chmod( $canary_path, 0644 );
+    if ( ! symlink( $canary_path, $lock_path ) ) { throw new Exception( "Could not create symlink safety fixture" ); }
+    try {
+        Trasloco_Export_Lock::acquire( str_repeat( "c", 64 ) );
+        throw new Exception( "Export lock accepted a symbolic link" );
+    } catch ( RuntimeException $expected ) {}
+    if ( ( fileperms( $canary_path ) & 0777 ) !== 0644 ) {
+        throw new Exception( "Symbolic-link lock validation changed target permissions" );
+    }
+    unlink( $lock_path );
+    if ( ! link( $canary_path, $lock_path ) ) { throw new Exception( "Could not create hard-link safety fixture" ); }
+    try {
+        Trasloco_Export_Lock::acquire( str_repeat( "c", 64 ) );
+        throw new Exception( "Export lock accepted a hard link" );
+    } catch ( RuntimeException $expected ) {}
+    if ( ( fileperms( $canary_path ) & 0777 ) !== 0644 ) {
+        throw new Exception( "Hard-link lock validation changed target permissions" );
+    }
+} finally {
+    if ( is_link( $lock_path ) || is_file( $lock_path ) ) { unlink( $lock_path ); }
+    if ( is_file( $canary_path ) ) { unlink( $canary_path ); }
+    if ( is_file( $saved_lock_path ) ) { rename( $saved_lock_path, $lock_path ); }
+}
 ' --path="$ROOT/source"
 
 # Failed scheduled jobs fire an alert hook without deleting good backups.
