@@ -550,6 +550,31 @@ unlink( $journal_dir . '/.trasloco-recovery-' . $crash_id . '.json' );
 rmdir( $journal_dir );
 
 
+// A network archive is rejected before the importer can proceed to recovery,
+// content replacement or SQL replacement. Multisite stays unsupported.
+require dirname( __DIR__ ) . '/lib/model/class-trasloco-status.php';
+require dirname( __DIR__ ) . '/lib/model/import/class-trasloco-import-blogs.php';
+define( 'TRASLOCO_STORAGE_PATH', sys_get_temp_dir() . '/trasloco-multisite-' . bin2hex( random_bytes( 8 ) ) );
+define( 'TRASLOCO_MULTISITE_NAME', 'multisite.json' );
+define( 'TRASLOCO_BLOGS_NAME', 'blogs.json' );
+$multisite_dir = TRASLOCO_STORAGE_PATH . '/network-source';
+mkdir( $multisite_dir, 0700, true );
+file_put_contents( $multisite_dir . '/multisite.json', '{"Network":true,"Sites":[{},{}]}' );
+$GLOBALS['trasloco_recovery_export_active'] = true;
+try {
+    Trasloco_Import_Blogs::execute( array( 'storage' => 'network-source' ) );
+    ensure( false, 'network archive was allowed into a single-site restore' );
+} catch ( Trasloco_Import_Exception $expected ) {
+    ensure( strpos( $expected->getMessage(), 'Multisite' ) !== false,
+        'network archive receives an explicit unsupported diagnostic' );
+}
+unset( $GLOBALS['trasloco_recovery_export_active'] );
+ensure( ! is_file( $multisite_dir . '/blogs.json' ), 'network rejection happens before importer metadata is published' );
+unlink( $multisite_dir . '/multisite.json' );
+rmdir( $multisite_dir );
+rmdir( TRASLOCO_STORAGE_PATH );
+
+
 // Offline recovery comparison: verified bytes, altered content, missing files,
 // symlink defenses and bounded work, without WordPress or MySQL.
 require dirname( __DIR__ ) . '/lib/vendor/core/archiver/class-trasloco-offline-recovery-diff.php';
