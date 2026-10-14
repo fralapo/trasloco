@@ -801,6 +801,10 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 		 *
 		 * Example:
 		 * $ wp trasloco restore migration-wp-20170913-095743-931.wpress
+		 *
+		 * [--exclude-paths=<paths>]
+		 * Skip comma-separated paths relative to wp-content (uploads, plugins, themes, mu-plugins).
+		 * Example: wp trasloco restore site.wpress --exclude-paths=uploads/cache,plugins/example/generated
 		 * Restore in progress...
 		 * Restore complete.
 		 *
@@ -831,6 +835,21 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 					'archive'              => $args[0],
 					'trasloco_manual_restore' => true,
 				);
+				if ( isset( $assoc_args['exclude-paths'] ) ) {
+					if ( is_array( $assoc_args['exclude-paths'] ) ) {
+						$raw_excludes = $assoc_args['exclude-paths'];
+					} elseif ( is_string( $assoc_args['exclude-paths'] ) ) {
+						$raw_excludes = explode( ',', $assoc_args['exclude-paths'] );
+					} else {
+						WP_CLI::error( 'Excluded paths must be a comma-separated list of wp-content-relative paths.' );
+					}
+					foreach ( $raw_excludes as $exclude_path ) {
+						if ( ! is_string( $exclude_path ) ) {
+							WP_CLI::error( 'Excluded paths must be a comma-separated list of wp-content-relative paths.' );
+						}
+					}
+					$params['options']['exclude_paths'] = array_map( 'trim', $raw_excludes );
+				}
 			} else {
 				WP_CLI::error_multi_line( array(
 					__( 'A valid backup name must be provided in order to proceed with the restore process.', TRASLOCO_PLUGIN_NAME ),

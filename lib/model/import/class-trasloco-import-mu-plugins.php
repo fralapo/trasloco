@@ -41,7 +41,10 @@ class Trasloco_Import_Mu_Plugins {
 		$archive = new Trasloco_Extractor( trasloco_archive_path( $params ) );
 
 		// Unpack mu-plugins files
-		$archive->extract_by_files_array( WP_CONTENT_DIR, array( TRASLOCO_MUPLUGINS_NAME ), $exclude_files );
+		$file_written = 0;
+		$file_offset = 0;
+		$exclude_paths = isset( $params['options']['exclude_paths'] ) ? $params['options']['exclude_paths'] : array();
+		$archive->extract_by_files_array( WP_CONTENT_DIR, array( TRASLOCO_MUPLUGINS_NAME ), $exclude_files, $file_written, $file_offset, $exclude_paths );
 
 		// Close the archive file
 		$archive->close();

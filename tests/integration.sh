@@ -99,6 +99,8 @@ update_option( "trasloco_selective_restore_guard", "keep-live-value" );
 ' --path="$ROOT/source"
 mkdir -p "$ROOT/source/wp-content/uploads/test-fixtures"
 printf 'media is preserved\n' > "$ROOT/source/wp-content/uploads/test-fixtures/fixture.txt"
+mkdir -p "$ROOT/source/wp-content/uploads/cache"
+printf 'source cache must be excluded\n' > "$ROOT/source/wp-content/uploads/cache/excluded.txt"
 # File and directory symlinks must not pull secrets from outside wp-content.
 mkdir -p "$ROOT/private-outside-wp"
 printf 'TRASLOCO_OUTSIDE_SECRET_GUARD_20261012\n' > "$ROOT/private-outside-wp/private.txt"
@@ -581,6 +583,9 @@ mkdir -p "$ROOT/target/wp-content/trasloco-backups"
 mkdir -p "$ROOT/target/wp-content/uploads/target-before-import"
 printf 'target media survived independent rescue\n' > "$ROOT/target/wp-content/uploads/target-before-import/safety-marker.txt"
 cp "$ROOT/target/wp-content/uploads/target-before-import/safety-marker.txt" "$ROOT/target-safety-marker.expected"
+mkdir -p "$ROOT/target/wp-content/uploads/cache"
+printf 'destination cache stays untouched\n' > "$ROOT/target/wp-content/uploads/cache/excluded.txt"
+cp "$ROOT/target/wp-content/uploads/cache/excluded.txt" "$ROOT/target-cache.expected"
 cp "$ARCHIVE" "$ROOT/target/wp-content/trasloco-backups/"
 cp "$ARCHIVE.manifest.json" "$ROOT/target/wp-content/trasloco-backups/"
 # A damaged local backup with a sidecar must not enter destructive restore.
@@ -597,7 +602,8 @@ if [ "$($WP option get home --path="$ROOT/target")" != "$EXPECTED_HOME" ]; then
   exit 1
 fi
 rm "$BAD_DIR/corrupted.wpress" "$BAD_DIR/corrupted.wpress.manifest.json"
-$WP trasloco restore "$(basename "$ARCHIVE")" --path="$ROOT/target"
+$WP trasloco restore "$(basename "$ARCHIVE")" --exclude-paths=uploads/cache --path="$ROOT/target"
+cmp -s "$ROOT/target-cache.expected" "$ROOT/target/wp-content/uploads/cache/excluded.txt"
 # Multiple legitimate restore attempts now create multiple recovery files.
 # Select the receipt belonging to THIS successful restore, not the first
 # filesystem entry (directory iteration order is not stable).

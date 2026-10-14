@@ -115,7 +115,7 @@ At the end it switches on the theme and the plugins that were active on the old 
 By default archives sit in `wp-content/trasloco-backups`. In the hardened branch the Backups screen downloads them via an authenticated WordPress endpoint. Apache and IIS rules block direct archive requests; Nginx requires a separate server rule. For stronger protection, configure an absolute private directory outside the document root with `TRASLOCO_BACKUPS_DIR` in `wp-config.php`. See [security](docs/SECURITY.md).
 
 ### Can I restore a site from the command line?
-Yes, with WP-CLI: `wp trasloco backup` creates a backup (it takes the same options as the Export page, such as `--exclude-media` or `--replace "old" "new"`), `wp trasloco backup --list` lists the backups, and `wp trasloco restore <file>` restores one from the `wp-content/trasloco-backups` folder.
+Yes, with WP-CLI: `wp trasloco backup` creates a backup (it takes the same options as the Export page, such as `--exclude-media` or `--replace "old" "new"`), `wp trasloco backup --list` lists the backups, and `wp trasloco restore <file>` restores one from the `wp-content/trasloco-backups` folder. To preserve generated or environment-specific files, pass comma-separated wp-content-relative paths such as `wp trasloco restore <file> --exclude-paths=uploads/cache,plugins/example/generated`; exclusions may target uploads, plugins, themes or must-use plugins and never bypass archive security checks.
 
 ### What does a Trasloco backup contain?
 One `.wpress` file holds the database dump, the `wp-content` uploads, themes, plugins and must-use plugins. Spam comments, post revisions, media, themes, plugins, cache or the database can each be left out on the Export page.

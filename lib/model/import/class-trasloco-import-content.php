@@ -92,6 +92,7 @@ class Trasloco_Import_Content {
 
 		$old_paths = array();
 		$new_paths = array();
+		$exclude_paths = isset( $params['options']['exclude_paths'] ) ? $params['options']['exclude_paths'] : array();
 
 		// Set extract paths
 		foreach ( $blogs as $blog ) {
@@ -154,7 +155,7 @@ class Trasloco_Import_Content {
 			) );
 
 			// Extract a file from archive to WP_CONTENT_DIR
-			if ( ( $completed = $archive->extract_one_file_to( WP_CONTENT_DIR, $exclude_files, $old_paths, $new_paths, $file_bytes_written, $file_bytes_offset ) ) ) {
+			if ( ( $completed = $archive->extract_one_file_to( WP_CONTENT_DIR, $exclude_files, $old_paths, $new_paths, $file_bytes_written, $file_bytes_offset, $exclude_paths ) ) ) {
 				$file_bytes_offset = 0;
 			}
 

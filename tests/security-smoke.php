@@ -15,6 +15,7 @@ function current_user_can( $capability ) { return $GLOBALS['allow_admin'] && $ca
 function get_option( $name ) { return $name === TRASLOCO_SECRET_KEY ? 'a-mock-secret-123' : ( $name === TRASLOCO_AUTH_PASSWORD ? ( $GLOBALS['encrypted_password'] ?? false ) : false ); }
 function wp_salt( $scheme = 'auth' ) { return 'fixed-test-salt'; }
 function __( $message, $domain = '' ) { return $message; }
+function apply_filters( $tag, $value ) { return $value; }
 function admin_url( $path ) { return 'https://example.test/wp-admin/' . $path; }
 function wp_nonce_url( $url, $action ) { return $url . '&_wpnonce=mock'; }
 function validate_file( $name ) {
@@ -93,6 +94,7 @@ unlink( $path );
 
 // Regression for on-disk symlinks redirecting an otherwise safe archive path.
 require dirname( __DIR__ ) . '/lib/vendor/core/archiver/class-trasloco-extractor.php';
+require dirname( __DIR__ ) . '/lib/model/import/class-trasloco-import-preflight.php';
 $root = sys_get_temp_dir() . '/trasloco-symlink-' . bin2hex( random_bytes( 8 ) );
 $destination = $root . '/destination';
 $outside = $root . '/outside';
@@ -127,6 +129,44 @@ rmdir( $destination . '/uploads' );
 rmdir( $destination );
 rmdir( $outside );
 rmdir( $root );
+
+// Import exclusions match complete wp-content-relative files and subtrees.
+$exclude_root = sys_get_temp_dir() . '/trasloco-exclusions-' . bin2hex( random_bytes( 8 ) );
+mkdir( $exclude_root . '/destination', 0700, true );
+$exclude_archive = $exclude_root . '/exclude.wpress';
+$entries = array(
+    array( 'cached.txt', '4', 'uploads/cache', 'SKIP' ),
+    array( 'keep.txt', '4', 'uploads', 'KEEP' ),
+    array( 'plugin-cache.php', '4', 'plugins/example/cache', 'SKIP' ),
+);
+$bytes = '';
+foreach ( $entries as $entry ) {
+    $bytes .= pack( 'a255a14a12a4096', $entry[0], $entry[1], '0', $entry[2] ) . $entry[3];
+}
+file_put_contents( $exclude_archive, $bytes . str_repeat( chr( 0 ), 4377 ) );
+$file_written = 0;
+$file_offset = 0;
+$extract = new Trasloco_Extractor( $exclude_archive );
+while ( $extract->has_not_reached_eof() ) {
+    $extract->extract_one_file_to( $exclude_root . '/destination', array(), array(), array(), $file_written, $file_offset, array( 'uploads/cache', 'plugins/example/cache' ) );
+}
+$extract->close();
+ensure( ! file_exists( $exclude_root . '/destination/uploads/cache/cached.txt' ), 'excluded upload subtree was restored' );
+ensure( file_get_contents( $exclude_root . '/destination/uploads/keep.txt' ) === 'KEEP', 'non-excluded upload was not restored' );
+ensure( ! file_exists( $exclude_root . '/destination/plugins/example/cache/plugin-cache.php' ), 'excluded plugin subtree was restored' );
+$exclude_paths = Trasloco_Import_Preflight::normalize_excluded_paths( array( 'uploads/cache', 'themes/generated' ) );
+ensure( $exclude_paths === array( 'uploads/cache', 'themes/generated' ), 'valid import exclusions were not normalized' );
+foreach ( array( '../plugins', 'uploads/../plugins', '/etc/passwd', 'database.sql', "uploads/bad\npath" ) as $bad_exclusion ) {
+    try {
+        Trasloco_Import_Preflight::normalize_excluded_paths( array( $bad_exclusion ) );
+        ensure( false, 'unsafe import exclusion was accepted' );
+    } catch ( Trasloco_Import_Exception $expected ) {}
+}
+unlink( $exclude_root . '/destination/uploads/keep.txt' );
+rmdir( $exclude_root . '/destination/uploads' );
+rmdir( $exclude_root . '/destination' );
+unlink( $exclude_archive );
+rmdir( $exclude_root );
 
 require dirname( __DIR__ ) . '/lib/vendor/core/archiver/class-trasloco-integrity.php';
 $integrity_archive = tempnam( sys_get_temp_dir(), 'trasloco-integrity-' );
@@ -465,7 +505,6 @@ try {
 
 // Mandatory restore inputs must be checked before a safety snapshot or file
 // replacement. An archive may be structurally valid but lack database.sql.
-require dirname( __DIR__ ) . '/lib/model/import/class-trasloco-import-preflight.php';
 $make = function ( $include_database, $no_database ) {
     $package = json_encode( array( 'NoDatabase' => $no_database ) );
     $body = pack( 'a255a14a12a4096', 'package.json', (string) strlen( $package ), '0', '.' ) . $package;

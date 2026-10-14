@@ -6,6 +6,36 @@
  */
 class Trasloco_Import_Preflight {
     /**
+     * Validate optional file exclusions without weakening archive validation.
+     * Paths are relative to wp-content and are matched against archive names.
+     */
+    public static function normalize_excluded_paths( $paths ) {
+        if ( ! is_array( $paths ) || count( $paths ) > 64 ) {
+            throw new Trasloco_Import_Exception( 'Import stopped: excluded file paths are invalid.' );
+        }
+        $allowed_roots = array( 'uploads', 'plugins', 'themes', 'mu-plugins' );
+        $normalized = array();
+        foreach ( $paths as $path ) {
+            if ( ! is_string( $path ) || $path === '' || strlen( $path ) > 512 ||
+                 strpos( $path, '/' ) === 0 || substr( $path, -1 ) === '/' ||
+                 strpos( $path, "\\" ) !== false || preg_match( '/[\x00-\x1f\x7f]/', $path ) ) {
+                throw new Trasloco_Import_Exception( 'Import stopped: excluded file paths are invalid.' );
+            }
+            $parts = explode( '/', $path );
+            if ( $path === '' || in_array( $parts[0], array( '.', '..' ), true ) ||
+                 ! in_array( $parts[0], $allowed_roots, true ) ) {
+                throw new Trasloco_Import_Exception( 'Import stopped: excluded file paths must be relative to uploads, plugins, themes, or mu-plugins.' );
+            }
+            foreach ( $parts as $part ) {
+                if ( $part === '' || $part === '.' || $part === '..' ) {
+                    throw new Trasloco_Import_Exception( 'Import stopped: excluded file paths are invalid.' );
+                }
+            }
+            $normalized[] = $path;
+        }
+        return array_values( array_unique( $normalized ) );
+    }
+    /**
      * Precondition for destructive file/database replacement. An archive may
      * have a valid header and footer but still omit essential SQL metadata.
      * Legacy files-only exports explicitly opt out with NoDatabase=true.
@@ -30,6 +60,9 @@ class Trasloco_Import_Preflight {
             throw new Trasloco_Import_Exception( 'Import archive is not available for preflight.' );
         }
         $path = trasloco_archive_path( $params );
+        if ( isset( $params['options']['exclude_paths'] ) ) {
+            $params['options']['exclude_paths'] = self::normalize_excluded_paths( $params['options']['exclude_paths'] );
+        }
         try {
             $summary = Trasloco_Archive_Inspector::inspect( $path, 0 );
             if ( ! is_array( $summary ) || $summary['files_in_archive'] < 1 ) {

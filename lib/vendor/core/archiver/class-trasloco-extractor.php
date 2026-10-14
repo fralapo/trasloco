@@ -158,7 +158,7 @@ class Trasloco_Extractor extends Trasloco_Archiver {
 	 *
 	 * @return bool
 	 */
-	public function extract_one_file_to( $location, $exclude = array(), $old_paths = array(), $new_paths = array(), &$file_written = 0, &$file_offset = 0 ) {
+	public function extract_one_file_to( $location, $exclude = array(), $old_paths = array(), $new_paths = array(), &$file_written = 0, &$file_offset = 0, $exclude_paths = array() ) {
 		if ( false === is_dir( $location ) ) {
 			throw new Trasloco_Not_Directory_Exception( sprintf( 'Location is not a directory: %s', $location ) );
 		}
@@ -214,6 +214,9 @@ class Trasloco_Extractor extends Trasloco_Archiver {
 							$should_exclude_file = true;
 							break;
 						}
+					}
+					if ( ! $should_exclude_file && $this->should_exclude_archive_path( $file_path, $file_name, $exclude_paths ) ) {
+						$should_exclude_file = true;
 					}
 
 					// Do we have a match?
@@ -277,7 +280,7 @@ class Trasloco_Extractor extends Trasloco_Archiver {
 	 *
 	 * @return bool
 	 */
-	public function extract_by_files_array( $location, $files = array(), $exclude = array(), &$file_written = 0, &$file_offset = 0 ) {
+	public function extract_by_files_array( $location, $files = array(), $exclude = array(), &$file_written = 0, &$file_offset = 0, $exclude_paths = array() ) {
 		if ( false === is_dir( $location ) ) {
 			throw new Trasloco_Not_Directory_Exception( sprintf( 'Location is not a directory: %s', $location ) );
 		}
@@ -345,6 +348,9 @@ class Trasloco_Extractor extends Trasloco_Archiver {
 							break;
 						}
 					}
+					if ( $should_include_file && $this->should_exclude_archive_path( $file_path, $file_name, $exclude_paths ) ) {
+						$should_include_file = false;
+					}
 
 					// Do we have a match?
 					if ( $should_include_file === true ) {
@@ -390,6 +396,29 @@ class Trasloco_Extractor extends Trasloco_Archiver {
 		}
 
 		return $completed;
+	}
+
+	/**
+	 * Check whether an archive-relative file path matches an excluded subtree.
+	 *
+	 * @param string $file_path     Archive directory path
+	 * @param string $file_name     Archive file name
+	 * @param array  $exclude_paths Relative paths to exclude
+	 * @return bool
+	 */
+	private function should_exclude_archive_path( $file_path, $file_name, $exclude_paths ) {
+		if ( ! is_array( $exclude_paths ) || empty( $exclude_paths ) ) {
+			return false;
+		}
+		$path = trim( ( '.' === $file_path ? '' : $file_path . '/' ) . $file_name, '/' );
+		$path = str_replace( '\\', '/', $path );
+		foreach ( $exclude_paths as $excluded ) {
+			$excluded = trim( str_replace( '\\', '/', (string) $excluded ), '/' );
+			if ( $excluded !== '' && ( $path === $excluded || strpos( $path, $excluded . '/' ) === 0 ) ) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/**
