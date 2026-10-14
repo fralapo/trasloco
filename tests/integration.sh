@@ -830,6 +830,7 @@ try {
 } catch ( InvalidArgumentException $expected ) {}
 if ( ! $store->delete( "fixture.wpress" ) || $store->exists( "fixture.wpress" ) ) { throw new Exception( "Delete failed" ); }
 unlink( $root . "/alias.wpress" );
+if ( ! $store->delete( "fixture.wpress.enc" ) ) { throw new Exception( "Encrypted fixture cleanup failed" ); }
 rmdir( $root );
 ' --path="$ROOT/source"
 
