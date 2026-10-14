@@ -1,10 +1,8 @@
 <?php
 /**
- * Persistent, single-owner job ledger used by upcoming asynchronous stages.
- *
- * A job is not a queue worker by itself. A future worker can atomically claim
- * it, checkpoint progress and release ownership. Every mutating operation is
- * conditional on its lease owner so two workers cannot finish the same job.
+ * Persistent, single-owner job ledger for asynchronous backup, verification
+ * and resumable transfer stages. Every mutation is conditional on the lease
+ * owner so two workers cannot finish the same job.
  */
 class Trasloco_Job_Store {
     const SCHEMA = 1;
@@ -57,14 +55,21 @@ class Trasloco_Job_Store {
             ! preg_match( '/^[a-zA-Z0-9:_-]{12,64}$/D', $key ) ) {
             return new WP_Error( 'trasloco_invalid_job', 'Invalid job request.' );
         }
-        // Only verified downloads have crash-safe replay semantics. Never put
-        // provider credentials in a job payload or queue an upload here.
-        if ( $kind === 'transfer' && ( ! isset( $payload['operation'], $payload['archive'] ) ||
-            $payload['operation'] !== 'download' || ! is_string( $payload['archive'] ) ||
-            strlen( $payload['archive'] ) > 206 ||
-            ! preg_match( '/^[A-Za-z0-9][A-Za-z0-9_.-]*\.wpress(?:\.enc)?$/D', $payload['archive'] ) ||
-            strpos( $payload['archive'], '..' ) !== false || count( $payload ) !== 2 ) ) {
-            return new WP_Error( 'trasloco_invalid_job', 'Only safe offsite download jobs are supported.' );
+        // Transfer requests contain names and explicit user consent only; they
+        // never persist provider URLs, passwords or other credentials.
+        if ( $kind === 'transfer' ) {
+            $archive_valid = isset( $payload['archive'] ) && is_string( $payload['archive'] ) &&
+                strlen( $payload['archive'] ) <= 206 &&
+                preg_match( '/^[A-Za-z0-9][A-Za-z0-9_.-]*\.wpress(?:\.enc)?$/D', $payload['archive'] ) &&
+                strpos( $payload['archive'], '..' ) === false;
+            $download_valid = isset( $payload['operation'] ) && $payload['operation'] === 'download' &&
+                count( $payload ) === 2;
+            $upload_valid = isset( $payload['operation'], $payload['allow_unencrypted'] ) &&
+                $payload['operation'] === 'upload' && is_bool( $payload['allow_unencrypted'] ) &&
+                count( $payload ) === 3;
+            if ( ! $archive_valid || ( ! $download_valid && ! $upload_valid ) ) {
+                return new WP_Error( 'trasloco_invalid_job', 'Invalid or unsupported offsite transfer job.' );
+            }
         }
         $table = self::table();
         $now = gmdate( 'Y-m-d H:i:s' );

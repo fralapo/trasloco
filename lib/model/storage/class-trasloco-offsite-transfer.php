@@ -133,10 +133,18 @@ class Trasloco_Offsite_Transfer {
         return true;
     }
 
-    private function upload_one_attempt( $key, $path ) {
+    private function upload_one_attempt( $key, $path, $progress_callback = null ) {
         $expected = $this->file_digest( $path );
         if ( $this->remote_matches( $key, $expected ) ) {
             return false;
+        }
+        if ( $this->remote instanceof Trasloco_Resumable_Storage_Adapter &&
+            preg_match( '/\.wpress(?:\.enc)?$/D', $key ) ) {
+            $published = $this->remote->put_resumable( $key, $path, $expected[0], $expected[1], $progress_callback );
+            if ( ! $this->remote_matches( $key, $expected ) ) {
+                throw new RuntimeException( 'Remote upload did not publish the complete object.' );
+            }
+            return (bool) $published;
         }
         $input = @fopen( $path, 'rb' );
         if ( $input === false ) {
@@ -168,13 +176,16 @@ class Trasloco_Offsite_Transfer {
         return true;
     }
 
-    private function upload_one( $key, $path ) {
-        return $this->retry_transient( function () use ( $key, $path ) {
-            return $this->upload_one_attempt( $key, $path );
+    private function upload_one( $key, $path, $progress_callback = null ) {
+        return $this->retry_transient( function () use ( $key, $path, $progress_callback ) {
+            return $this->upload_one_attempt( $key, $path, $progress_callback );
         } );
     }
 
-    public function upload( $archive, $allow_unencrypted = false ) {
+    public function upload( $archive, $allow_unencrypted = false, $progress_callback = null ) {
+        if ( $progress_callback !== null && ! is_callable( $progress_callback ) ) {
+            throw new InvalidArgumentException( 'Invalid offsite upload progress callback.' );
+        }
         $archive = $this->archive_name( $archive );
         $encrypted = substr( $archive, -4 ) === '.enc';
         if ( ! $encrypted && ! $allow_unencrypted ) {
@@ -185,7 +196,7 @@ class Trasloco_Offsite_Transfer {
         if ( Trasloco_Integrity::verify( $path )['status'] !== 'verified' ) {
             throw new RuntimeException( 'Only a backup with a verified integrity manifest can be uploaded.' );
         }
-        $archive_uploaded = $this->upload_one( $archive, $path );
+        $archive_uploaded = $this->upload_one( $archive, $path, $progress_callback );
         // Publish the manifest last. Readers must treat it as the completeness
         // marker for a pair interrupted between the archive and sidecar writes.
         $manifest_uploaded = $this->upload_one( $archive . '.manifest.json', $manifest );

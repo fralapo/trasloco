@@ -25,11 +25,29 @@ if ( ! is_array( $record ) || $record['kind'] !== 'transfer' ||
 	throw new RuntimeException( 'Offsite job payload is invalid or contains unexpected data.' );
 }
 $unsupported = Trasloco_Job_Store::create( 'transfer',
-	array( 'operation' => 'upload', 'archive' => $archive ),
+	array( 'operation' => 'download', 'archive' => $archive, 'credentials' => 'must-not-persist' ),
 	wp_generate_password( 32, false, false ) );
 if ( ! is_wp_error( $unsupported ) ) {
-	throw new RuntimeException( 'Non-resumable offsite upload was incorrectly accepted as a job.' );
+	throw new RuntimeException( 'Offsite job accepted an unexpected or secret-bearing payload.' );
 }
+$plaintext_without_consent = Trasloco_Job_Worker::enqueue_offsite_upload( $archive, false );
+if ( ! is_wp_error( $plaintext_without_consent ) ||
+	$plaintext_without_consent->get_error_code() !== 'trasloco_plaintext_consent' ) {
+	throw new RuntimeException( 'Plaintext offsite upload was queued without explicit consent.' );
+}
+$local_upload = Trasloco_Job_Worker::enqueue_offsite_upload( 'fixture.wpress.enc', false );
+if ( ! is_wp_error( $local_upload ) ||
+	$local_upload->get_error_code() !== 'trasloco_storage_not_resumable' ) {
+	throw new RuntimeException( 'A non-resumable storage provider accepted a durable upload job.' );
+}
+$safe_upload_payload = array( 'operation' => 'upload', 'archive' => $archive, 'allow_unencrypted' => true );
+$safe_upload_job = Trasloco_Job_Store::create( 'transfer', $safe_upload_payload,
+	wp_generate_password( 32, false, false ) );
+if ( is_wp_error( $safe_upload_job ) ||
+	Trasloco_Job_Store::workload( $safe_upload_job )['payload'] !== $safe_upload_payload ) {
+	throw new RuntimeException( 'Credential-free resumable upload payload was not persisted correctly.' );
+}
+Trasloco_Job_Store::cancel( $safe_upload_job );
 
 $test_owner = 'worker-restart-test';
 if ( ! Trasloco_Job_Store::claim( $job_id, $test_owner, 30 ) ) {

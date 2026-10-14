@@ -250,7 +250,7 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 		 * Transfer a verified archive through a configured private storage adapter.
 		 *
 		 * ## OPTIONS
-		 * <upload|download|queue-download|retry-download|status>
+		 * <upload|download|queue-upload|queue-download|retry-upload|retry-download|status>
 		 * [<archive>]
 		 * [<job-id>]
 		 * [--allow-unencrypted]
@@ -261,17 +261,27 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 		 *     wp trasloco offsite upload backup.wpress.enc
 		 *     wp trasloco offsite upload backup.wpress --allow-unencrypted
 		 *     wp trasloco offsite download backup.wpress.enc
+		 *     wp trasloco offsite queue-upload backup.wpress.enc
 		 *     wp trasloco offsite queue-download backup.wpress.enc
+		 *     wp trasloco offsite retry-upload 123
 		 *     wp trasloco offsite retry-download 123
 		 *     wp trasloco offsite status
 		 *
 		 * @subcommand offsite
 		 */
 		public function offsite( array $args, array $assoc_args ) {
-			$operations = array( 'upload', 'download', 'queue-download', 'retry-download', 'status' );
+			$operations = array( 'upload', 'download', 'queue-upload', 'queue-download', 'retry-upload', 'retry-download', 'status' );
 			if ( empty( $args[0] ) || ! in_array( $args[0], $operations, true ) ||
 				( $args[0] === 'status' ? count( $args ) !== 1 : count( $args ) !== 2 ) ) {
-				WP_CLI::error( 'Usage: wp trasloco offsite <upload|download|queue-download> <archive> [--allow-unencrypted] | retry-download <job-id> | status.' );
+				WP_CLI::error( 'Usage: wp trasloco offsite <upload|download|queue-upload|queue-download> <archive> [--allow-unencrypted] | <retry-upload|retry-download> <job-id> | status.' );
+				return;
+			}
+			if ( $args[0] === 'queue-upload' ) {
+				$id = Trasloco_Job_Worker::enqueue_offsite_upload( $args[1], isset( $assoc_args['allow-unencrypted'] ) );
+				if ( is_wp_error( $id ) ) {
+					WP_CLI::error( $id->get_error_message() );
+				}
+				WP_CLI::success( sprintf( 'Offsite upload queued as job %d. Check progress in the Trasloco jobs panel.', $id ) );
 				return;
 			}
 			if ( $args[0] === 'queue-download' ) {
@@ -282,12 +292,12 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 				WP_CLI::success( sprintf( 'Offsite download queued as job %d. Check progress in the Trasloco jobs panel.', $id ) );
 				return;
 			}
-			if ( $args[0] === 'retry-download' ) {
+			if ( in_array( $args[0], array( 'retry-upload', 'retry-download' ), true ) ) {
 				$id = ctype_digit( (string) $args[1] ) ? (int) $args[1] : 0;
 				if ( $id <= 0 || ! Trasloco_Job_Store::retry_transfer( $id ) || ! Trasloco_Job_Worker::schedule( $id ) ) {
-					WP_CLI::error( 'Unable to retry this offsite download job.' );
+					WP_CLI::error( 'Unable to retry this offsite transfer job.' );
 				}
-				WP_CLI::success( sprintf( 'Offsite download job %d queued for retry.', $id ) );
+				WP_CLI::success( sprintf( 'Offsite transfer job %d queued for retry.', $id ) );
 				return;
 			}
 			if ( ! wp_mkdir_p( TRASLOCO_BACKUPS_PATH ) ) {
