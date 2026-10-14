@@ -934,6 +934,33 @@ if ( $result["status"] !== "completed" ) { throw new Exception( "Scheduled expor
 $archive = trasloco_backup_path( array( "archive" => $result["archive"] ) );
 if ( Trasloco_Integrity::verify( $archive )["status"] !== "verified" ) { throw new Exception( "Scheduled archive is corrupt" ); }
 if ( count( (new Trasloco_Backups())->get_retention_files() ) > 2 ) { throw new Exception( "Retention failed" ); }
+$mail_attempts = 0;
+$mail_filter = function ( $short_circuit, $atts ) use ( &$mail_attempts ) {
+    $mail_attempts++;
+    return false;
+};
+update_option( Trasloco_Scheduled_Backups::OPTION, array(
+    "frequency" => "daily", "keep" => 2, "notify_alerts" => true,
+    "notification_email" => "trasloco-test@example.com",
+) );
+add_filter( "pre_wp_mail", $mail_filter, 10, 2 );
+Trasloco_Scheduled_Backups::notify_failure( 123 );
+remove_filter( "pre_wp_mail", $mail_filter, 10 );
+$retry = wp_get_scheduled_event( Trasloco_Scheduled_Backups::NOTIFICATION_HOOK, array( "backup_failed", 1 ) );
+if ( $mail_attempts !== 1 || ! $retry || $retry->args !== array( "backup_failed", 1 ) ||
+    $retry->timestamp < time() + 55 || $retry->timestamp > time() + 65 ) {
+    throw new Exception( "Failed alert mail did not queue a bounded first retry: " . wp_json_encode( array(
+        "mail_attempts" => $mail_attempts, "event" => $retry ? $retry->args : null,
+        "timestamp" => $retry ? $retry->timestamp : null, "now" => time(),
+    ) ) );
+}
+wp_unschedule_event( $retry->timestamp, Trasloco_Scheduled_Backups::NOTIFICATION_HOOK, $retry->args );
+add_filter( "pre_wp_mail", $mail_filter, 10, 2 );
+Trasloco_Scheduled_Backups::retry_notification( "backup_failed", 3 );
+remove_filter( "pre_wp_mail", $mail_filter, 10 );
+if ( $mail_attempts !== 2 || wp_next_scheduled( Trasloco_Scheduled_Backups::NOTIFICATION_HOOK ) ) {
+    throw new Exception( "Exhausted alert delivery kept retrying" );
+}
 update_option( Trasloco_Scheduled_Backups::OPTION, array( "frequency" => "weekly", "keep" => 2, "upload_offsite" => true ) );
 wp_clear_scheduled_hook( Trasloco_Scheduled_Backups::HOOK );
 Trasloco_Scheduled_Backups::sync();
@@ -1019,6 +1046,7 @@ if ( strpos( $schedule_html, "Encrypt and upload each scheduled backup to remote
     strpos( $schedule_html, "action=trasloco_encrypt_backup" ) === false ||
     strpos( $schedule_html, "Decrypt backup" ) === false ||
     strpos( $schedule_html, "action=trasloco_decrypt_backup" ) === false ||
+    strpos( $schedule_html, "Email me about scheduled backup failures and offsite storage status changes" ) === false ||
     strpos( $schedule_html, "Download encrypted backup" ) === false ||
     strpos( $schedule_html, "to WebDAV" ) !== false ) {
     throw new Exception( "Backup UI does not show archive verification, manual encryption or remote delivery" );

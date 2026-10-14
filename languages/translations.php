@@ -337,6 +337,24 @@ return array(
 		'fr' => 'Conserver les dernières sauvegardes',
 		'de' => 'Neueste Backups behalten',
 	),
+	'Email me about scheduled backup failures and offsite storage status changes' => array(
+		'it' => 'Inviami un’email se un backup pianificato non riesce o cambia lo stato dello storage remoto',
+		'es' => 'Envíame un correo si falla una copia programada o cambia el estado del almacenamiento remoto',
+		'fr' => 'Envoyez-moi un e-mail en cas d’échec d’une sauvegarde planifiée ou de changement du stockage distant',
+		'de' => 'Bei fehlgeschlagenen geplanten Backups oder Statusänderungen des Remotespeichers eine E-Mail senden',
+	),
+	'Alert email address' => array(
+		'it' => 'Indirizzo email per gli avvisi',
+		'es' => 'Correo para alertas',
+		'fr' => 'Adresse e-mail des alertes',
+		'de' => 'E-Mail-Adresse für Warnungen',
+	),
+	'Failed email deliveries are retried up to three times. Delivery depends on WordPress mail and cron configuration.' => array(
+		'it' => 'Gli invii email non riusciti vengono ritentati fino a tre volte. La consegna dipende dalla configurazione di posta e cron di WordPress.',
+		'es' => 'Los envíos fallidos se reintentan hasta tres veces. La entrega depende del correo y cron de WordPress.',
+		'fr' => 'Les envois échoués sont retentés jusqu’à trois fois. La livraison dépend du courrier et de cron WordPress.',
+		'de' => 'Fehlgeschlagene E-Mails werden bis zu dreimal erneut versucht. Die Zustellung hängt von WordPress-Mail und Cron ab.',
+	),
 	'WordPress scheduled tasks depend on site traffic. Configure system cron for reliable timing on low-traffic sites.' => array(
 		'it' => 'Le attività pianificate dipendono dalle visite al sito. Per orari affidabili configura cron di sistema.',
 		'es' => 'Las tareas dependen del tráfico del sitio. Configura cron del sistema para cumplir los horarios.',

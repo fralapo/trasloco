@@ -92,13 +92,13 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 - [ ] Phase 2B: independent one-click rescue handler and tested true rollback, including large hosting environments. `wp trasloco restore-recovery <receipt-id>` resolves and verifies the exact pending receipt's archive, shows a no-write plan by default and requires `--yes` to run the normal restore with a fresh safety snapshot. Afterward, `wp trasloco prepare-recovery-files <receipt-id> --workspace=...` stages and reviews file restoration and archive-absent quarantine from that same receipt; applying quarantine still requires inspecting the report and explicitly approving its fingerprint. This is an operator-guided staged recovery, not globally atomic rollback.
 
 - [x] Phase 10A: optional verified recovery point before core/plugin/theme updates, fail closed when backup fails.
-- [ ] Phase 10B: automated rollback, failure alerts and cross-host upgrade checks.
+- [ ] Phase 10B: automated rollback and cross-host upgrade checks. Scheduled backup and offsite state email alerts are configurable per installation and retry failed WordPress mail delivery up to three times; restoring a safety point still requires operator action.
 
 - [x] Initial feature 11 integration: private read-only site-health endpoint for future agency monitoring.
 - [ ] Multi-site coordinator with mutual trust, reconciliation, notifications, permissions and site onboarding.
 
 - [x] Scheduled backup failure alert hook with administrator email notification (subject to WordPress mail delivery).
-- [ ] Per-site notification settings, webhook integrations and delivery retries.
+- [ ] Webhook notifications and provider delivery certification. Backup/offsite email alerts now have per-installation enablement and recipient settings, plus three bounded WP-Cron retries after mail transport failure. Webhooks and retry-delivery tests against external providers remain open.
 
 - [x] Phase 9A: read-only archive file inventory and admin REST preview with explicit database-diff limitations.
 - [x] Phase 9B file checksum diff: `php tools/recovery-diff.php` compares actual bytes from a verified `.wpress` against destination `wp-content` files, with bounded inventory and no writes. Integration covers missing, modified and archive-absent paths.

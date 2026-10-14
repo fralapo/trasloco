@@ -4,6 +4,7 @@ class Trasloco_Scheduled_Backups {
     const OPTION = 'trasloco_automatic_backup_settings';
     const HOOK = 'trasloco_scheduled_backup_tick';
     const HEALTH_HOOK = 'trasloco_offsite_health_check';
+    const NOTIFICATION_HOOK = 'trasloco_retry_notification';
     const HEALTH_OPTION = 'trasloco_offsite_health_state';
 
     public static function register() {
@@ -12,6 +13,7 @@ class Trasloco_Scheduled_Backups {
         add_action( self::HOOK, array( __CLASS__, 'enqueue' ) );
         add_action( 'trasloco_scheduled_backup_failed', array( __CLASS__, 'notify_failure' ) );
         add_action( 'trasloco_offsite_transfer_failed', array( __CLASS__, 'notify_offsite_failure' ) );
+        add_action( self::NOTIFICATION_HOOK, array( __CLASS__, 'retry_notification' ), 10, 2 );
         add_action( 'init', array( __CLASS__, 'sync_health_check' ), 31 );
         add_action( self::HEALTH_HOOK, array( __CLASS__, 'health_check' ) );
     }
@@ -22,14 +24,50 @@ class Trasloco_Scheduled_Backups {
      * Delivery depends on the site's mail configuration.
      */
     public static function notify_failure( $job_id ) {
-        $email = get_option( 'admin_email' );
-        if ( ! is_email( $email ) ) {
-            return;
+        self::send_alert( 'backup_failed' );
+    }
+
+    /** Send a minimal site alert, retrying transient mail failures via WP-Cron. */
+    private static function send_alert( $event, $attempt = 0 ) {
+        $allowed = array( 'backup_failed', 'offsite_attention', 'offsite_recovered' );
+        if ( ! in_array( $event, $allowed, true ) || $attempt < 0 || $attempt > 3 ) {
+            return false;
         }
-        wp_mail( $email,
-            __( 'Trasloco automatic backup failed', TRASLOCO_PLUGIN_NAME ),
-            __( 'An automatic site backup failed. Open WordPress administration and review Trasloco backups and job status. Your previous backups have not been removed.', TRASLOCO_PLUGIN_NAME )
+        $settings = self::settings();
+        $email = $settings['notification_email'];
+        if ( ! $settings['notify_alerts'] || ! is_email( $email ) ) {
+            return false;
+        }
+        $messages = array(
+            'backup_failed' => array(
+                __( 'Trasloco automatic backup failed', TRASLOCO_PLUGIN_NAME ),
+                __( 'An automatic site backup failed. Open WordPress administration and review Trasloco backups and job status. Your previous backups have not been removed.', TRASLOCO_PLUGIN_NAME ),
+            ),
+            'offsite_attention' => array(
+                __( 'Trasloco offsite storage needs attention', TRASLOCO_PLUGIN_NAME ),
+                __( 'Trasloco could not confirm that offsite storage is healthy. Check the provider configuration and recent transfer jobs in WordPress administration.', TRASLOCO_PLUGIN_NAME ),
+            ),
+            'offsite_recovered' => array(
+                __( 'Trasloco offsite storage recovered', TRASLOCO_PLUGIN_NAME ),
+                __( 'Trasloco can reach offsite storage again and its archive inventory is complete.', TRASLOCO_PLUGIN_NAME ),
+            ),
         );
+        if ( wp_mail( $email, $messages[ $event ][0], $messages[ $event ][1] ) ) {
+            return true;
+        }
+        if ( $attempt < 3 ) {
+            $delays = array( 60, 300, 900 );
+            wp_schedule_single_event( time() + $delays[ $attempt ], self::NOTIFICATION_HOOK, array( $event, $attempt + 1 ) );
+        }
+        return false;
+    }
+
+    /** Retry only known, credential-free alert types and bounded attempts. */
+    public static function retry_notification( $event, $attempt ) {
+        if ( ! is_string( $event ) || ! is_int( $attempt ) ) {
+            return false;
+        }
+        return self::send_alert( $event, $attempt );
     }
 
     /** Notify only on a health-state transition; never include credentials or endpoints. */
@@ -39,20 +77,10 @@ class Trasloco_Scheduled_Backups {
             return;
         }
         update_option( self::HEALTH_OPTION, $state, false );
-        $email = get_option( 'admin_email' );
-        if ( ! is_email( $email ) ) {
-            return;
-        }
         if ( $state === 'attention' ) {
-            wp_mail( $email,
-                __( 'Trasloco offsite storage needs attention', TRASLOCO_PLUGIN_NAME ),
-                __( 'Trasloco could not confirm that offsite storage is healthy. Check the provider configuration and recent transfer jobs in WordPress administration.', TRASLOCO_PLUGIN_NAME )
-            );
+            self::send_alert( 'offsite_attention' );
         } elseif ( $state === 'healthy' && $previous === 'attention' ) {
-            wp_mail( $email,
-                __( 'Trasloco offsite storage recovered', TRASLOCO_PLUGIN_NAME ),
-                __( 'Trasloco can reach offsite storage again and its archive inventory is complete.', TRASLOCO_PLUGIN_NAME )
-            );
+            self::send_alert( 'offsite_recovered' );
         }
     }
 
@@ -100,6 +128,11 @@ class Trasloco_Scheduled_Backups {
         $value = is_array( $value ) ? $value : array();
         $frequency = isset( $value['frequency'] ) ? $value['frequency'] : 'off';
         $keep = isset( $value['keep'] ) ? (int) $value['keep'] : 7;
+        $notification_email = isset( $value['notification_email'] ) && is_string( $value['notification_email'] )
+            ? $value['notification_email'] : get_option( 'admin_email' );
+        if ( ! is_email( $notification_email ) ) {
+            $notification_email = get_option( 'admin_email' );
+        }
         if ( ! in_array( $frequency, array( 'off', 'hourly', 'daily', 'weekly', 'monthly' ), true ) ) {
             $frequency = 'off';
         }
@@ -108,6 +141,8 @@ class Trasloco_Scheduled_Backups {
             'keep' => max( 1, min( 100, $keep ) ),
             'before_updates' => ! empty( $value['before_updates'] ),
             'upload_offsite' => ! empty( $value['upload_offsite'] ),
+            'notify_alerts' => ! array_key_exists( 'notify_alerts', $value ) || ! empty( $value['notify_alerts'] ),
+            'notification_email' => $notification_email,
         );
     }
 
@@ -153,11 +188,19 @@ class Trasloco_Scheduled_Backups {
         }
         $before_updates = isset( $_POST['before_updates'] ) && $_POST['before_updates'] === '1';
         $upload_offsite = isset( $_POST['upload_offsite'] ) && $_POST['upload_offsite'] === '1';
+        $notify_alerts = isset( $_POST['notify_alerts'] ) && $_POST['notify_alerts'] === '1';
+        $notification_email = isset( $_POST['notification_email'] ) && is_string( $_POST['notification_email'] )
+            ? sanitize_email( wp_unslash( $_POST['notification_email'] ) ) : get_option( 'admin_email' );
+        if ( ! is_email( $notification_email ) ) {
+            wp_die( 'A valid alert email address is required.', '', array( 'response' => 400 ) );
+        }
         update_option( self::OPTION, array(
             'frequency' => $frequency,
             'keep' => $keep,
             'before_updates' => $before_updates,
             'upload_offsite' => $upload_offsite,
+            'notify_alerts' => $notify_alerts,
+            'notification_email' => $notification_email,
         ), false );
         wp_clear_scheduled_hook( self::HOOK );
         self::sync();

@@ -57,6 +57,10 @@
 			<p class="tr-hint"><?php esc_html_e( 'Requires configured WebDAV or S3-compatible storage and TRASLOCO_ARCHIVE_PASSPHRASE in the worker environment or wp-config.php. S3 also requires its optional runtime and PHP 8.1 or later. The passphrase is never stored in WordPress options or job records.', TRASLOCO_PLUGIN_NAME ); ?></p>
 			<p><label><input type="checkbox" name="before_updates" value="1" <?php checked( $tr_schedule['before_updates'] ); ?> /> <?php esc_html_e( 'Create a verified recovery point before updating WordPress, plugins or themes', TRASLOCO_PLUGIN_NAME ); ?></label></p>
 			<p class="tr-hint"><?php esc_html_e( 'If a safety backup fails, Trasloco stops the update. A recovery point is not an automatic rollback.', TRASLOCO_PLUGIN_NAME ); ?></p>
+			<p><label><input type="checkbox" name="notify_alerts" value="1" <?php checked( $tr_schedule['notify_alerts'] ); ?> /> <?php esc_html_e( 'Email me about scheduled backup failures and offsite storage status changes', TRASLOCO_PLUGIN_NAME ); ?></label></p>
+			<p><label for="tr-notification-email"><strong><?php esc_html_e( 'Alert email address', TRASLOCO_PLUGIN_NAME ); ?></strong></label></p>
+			<p><input id="tr-notification-email" type="email" name="notification_email" autocomplete="email" required value="<?php echo esc_attr( $tr_schedule['notification_email'] ); ?>" /></p>
+			<p class="tr-hint"><?php esc_html_e( 'Failed email deliveries are retried up to three times. Delivery depends on WordPress mail and cron configuration.', TRASLOCO_PLUGIN_NAME ); ?></p>
 			<p class="tr-hint"><?php esc_html_e( 'WordPress scheduled tasks depend on site traffic. Configure system cron for reliable timing on low-traffic sites.', TRASLOCO_PLUGIN_NAME ); ?></p>
 			<p><button type="submit" class="button button-primary"><?php esc_html_e( 'Save schedule', TRASLOCO_PLUGIN_NAME ); ?></button></p>
 		</form>
