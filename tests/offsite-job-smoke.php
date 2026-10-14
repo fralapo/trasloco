@@ -89,4 +89,18 @@ if ( ! is_array( $result ) || $result['status'] !== 'completed' ||
 	throw new RuntimeException( 'Persistent offsite download job did not finish with verified bytes.' );
 }
 
+$private_checkpoint = array(
+	'phase' => 'uploading',
+	'provider_state' => array( 'provider' => 's3-multipart-v1', 'upload_id' => 'fixture-upload-capability' ),
+);
+$wpdb->update( Trasloco_Job_Store::table(), array( 'checkpoint' => wp_json_encode( $private_checkpoint ) ),
+	array( 'id' => $job_id ), array( '%s' ), array( '%d' ) );
+$public_job = Trasloco_Job_Store::get( $job_id );
+$internal_job = Trasloco_Job_Store::get_internal( $job_id );
+if ( isset( $public_job['checkpoint']['provider_state'] ) ||
+	! isset( $internal_job['checkpoint']['provider_state']['upload_id'] ) ||
+	$internal_job['checkpoint']['provider_state']['upload_id'] !== 'fixture-upload-capability' ) {
+	throw new RuntimeException( 'Provider upload checkpoint was exposed in public job status or lost for workers.' );
+}
+
 echo "Persistent offsite download job passed.\n";

@@ -133,6 +133,71 @@ s3_assert( $multipart_commands[4]->getName() === 'CompleteMultipartUpload', 'Lar
 s3_assert( $multipart_commands[4]['IfNoneMatch'] === '*', 'S3 multipart completion must be create-only.' );
 s3_assert( $multipart_commands[0]['Key'] === 'large.wpress', 'S3 multipart key mismatch.' );
 
+$resume_path = tempnam( sys_get_temp_dir(), 'trasloco-s3-resume-' );
+$resume_file = fopen( $resume_path, 'wb' );
+$resume_remaining = 17 * 1024 * 1024;
+while ( $resume_remaining > 0 ) {
+    $piece = min( $resume_remaining, strlen( $chunk ) );
+    fwrite( $resume_file, substr( $chunk, 0, $piece ) );
+    $resume_remaining -= $piece;
+}
+fclose( $resume_file );
+$resume_size = filesize( $resume_path );
+$resume_sha256 = hash_file( 'sha256', $resume_path );
+$resume_checkpoint = null;
+$checkpoint_progress = function ( $bytes, $total, $checkpoint ) use ( &$resume_checkpoint ) {
+    if ( is_array( $checkpoint ) ) {
+        $resume_checkpoint = $checkpoint;
+    }
+    return true;
+};
+$interrupted_commands = array();
+$interrupted_client = s3_client( array(
+    new \Aws\Result( array( 'UploadId' => 'durable-upload-id' ) ),
+    new \Aws\Result( array( 'ETag' => '"durable-part-1"' ) ),
+    function ( $command ) {
+        if ( (int) $command['PartNumber'] === 2 ) {
+            return new \Aws\Exception\AwsException( 'temporary fixture interruption', $command, array(
+                'code' => 'SlowDown', 'statusCode' => 503,
+            ) );
+        }
+        return new \Aws\Result( array( 'ETag' => '"durable-part-3"' ) );
+    },
+), $interrupted_commands );
+$interrupted_store = new Trasloco_S3_Storage( array( 'bucket' => 'trasloco-backups', 'region' => 'us-east-1' ), $interrupted_client );
+try {
+    $interrupted_store->put_resumable( 'durable.wpress', $resume_path, $resume_size, $resume_sha256, $checkpoint_progress );
+    throw new RuntimeException( 'S3 multipart interruption was ignored.' );
+} catch ( Throwable $error ) {
+    s3_assert( is_a( $error, 'Aws\\S3\\Exception\\S3MultipartUploadException' ), 'S3 multipart interruption returned an unexpected error.' );
+}
+s3_assert( is_array( $resume_checkpoint ) && $resume_checkpoint['upload_id'] === 'durable-upload-id' &&
+    $resume_checkpoint['part_size'] === 8388608 && $resume_checkpoint['size_bytes'] === $resume_size &&
+    hash_equals( $resume_sha256, $resume_checkpoint['sha256'] ), 'S3 did not persist a validated multipart resume checkpoint.' );
+s3_assert( count( $interrupted_commands ) === 4 && $interrupted_commands[0]->getName() === 'CreateMultipartUpload' &&
+    $interrupted_commands[1]['PartNumber'] === 1 && $interrupted_commands[2]['PartNumber'] === 2 &&
+    $interrupted_commands[3]['PartNumber'] === 3,
+    'S3 multipart interruption did not stop at the expected part.' );
+
+$resumed_commands = array();
+$resumed_client = s3_client( array(
+    new \Aws\Result( array( 'Parts' => array(
+        array( 'PartNumber' => 1, 'ETag' => '"durable-part-1"', 'Size' => 8388608 ),
+        array( 'PartNumber' => 3, 'ETag' => '"durable-part-3"', 'Size' => 1048576 ),
+    ), 'IsTruncated' => false ) ),
+    new \Aws\Result( array( 'ETag' => '"durable-part-2"' ) ),
+    new \Aws\Result( array( 'ETag' => '"durable-complete"' ) ),
+), $resumed_commands );
+$resumed_store = new Trasloco_S3_Storage( array( 'bucket' => 'trasloco-backups', 'region' => 'us-east-1' ), $resumed_client );
+s3_assert( $resumed_store->put_resumable( 'durable.wpress', $resume_path, $resume_size, $resume_sha256,
+    $checkpoint_progress, $resume_checkpoint ), 'S3 did not resume and complete the multipart upload.' );
+s3_assert( $resumed_commands[0]->getName() === 'ListParts' &&
+    $resumed_commands[1]['PartNumber'] === 2 && $resumed_commands[2]->getName() === 'CompleteMultipartUpload',
+    'S3 resume did not reuse completed parts and finish the prior upload.' );
+s3_assert( $resumed_commands[2]['UploadId'] === 'durable-upload-id' &&
+    $resumed_commands[2]['IfNoneMatch'] === '*', 'S3 resume lost its immutable completion conditions.' );
+unlink( $resume_path );
+
 $bad_prefixes = array( '../escape', 'safe//path', 'safe/../escape', 'safe/./path' );
 foreach ( $bad_prefixes as $prefix ) {
     try {

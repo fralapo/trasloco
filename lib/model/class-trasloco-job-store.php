@@ -109,6 +109,17 @@ class Trasloco_Job_Store {
     }
 
     public static function get( $id ) {
+        $row = self::get_internal( $id );
+        if ( is_array( $row ) && isset( $row['checkpoint']['provider_state'] ) ) {
+            // Provider upload IDs can authorize multipart operations. Keep
+            // them out of REST job status and other public job summaries.
+            unset( $row['checkpoint']['provider_state'] );
+        }
+        return $row;
+    }
+
+    /** Internal worker-only read for trusted provider resume checkpoints. */
+    public static function get_internal( $id ) {
         global $wpdb;
         $table = self::table();
         $row = $wpdb->get_row( $wpdb->prepare(

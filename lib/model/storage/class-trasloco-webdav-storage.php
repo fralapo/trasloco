@@ -367,11 +367,12 @@ class Trasloco_WebDAV_Storage implements Trasloco_Storage_Adapter, Trasloco_Resu
         throw new RuntimeException( 'WebDAV resumable part could not be uploaded.' );
     }
 
-    public function put_resumable( $key, $path, $expected_bytes, $expected_sha256, $progress_callback = null ) {
+    public function put_resumable( $key, $path, $expected_bytes, $expected_sha256, $progress_callback = null, $resume_state = null ) {
         $key = $this->validate_key( $key );
         if ( ! $this->is_archive_key( $key ) || ! is_string( $path ) || ! is_int( $expected_bytes ) ||
             $expected_bytes < 0 || ! is_string( $expected_sha256 ) ||
             ! preg_match( '/^[a-f0-9]{64}$/D', $expected_sha256 ) ||
+            $resume_state !== null ||
             ( $progress_callback !== null && ! is_callable( $progress_callback ) ) ) {
             throw new InvalidArgumentException( 'Invalid WebDAV resumable upload request.' );
         }

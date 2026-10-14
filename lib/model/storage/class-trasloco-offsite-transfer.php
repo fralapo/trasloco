@@ -133,14 +133,22 @@ class Trasloco_Offsite_Transfer {
         return true;
     }
 
-    private function upload_one_attempt( $key, $path, $progress_callback = null ) {
+    private function upload_one_attempt( $key, $path, $progress_callback = null, &$resume_state = null ) {
         $expected = $this->file_digest( $path );
         if ( $this->remote_matches( $key, $expected ) ) {
             return false;
         }
         if ( $this->remote instanceof Trasloco_Resumable_Storage_Adapter &&
             preg_match( '/\.wpress(?:\.enc)?$/D', $key ) ) {
-            $published = $this->remote->put_resumable( $key, $path, $expected[0], $expected[1], $progress_callback );
+            $provider_progress = function ( $bytes, $total, $provider_state = null ) use ( $progress_callback, &$resume_state ) {
+                if ( is_array( $provider_state ) ) {
+                    $resume_state = $provider_state;
+                }
+                return $progress_callback === null
+                    ? true
+                    : call_user_func( $progress_callback, $bytes, $total, $provider_state );
+            };
+            $published = $this->remote->put_resumable( $key, $path, $expected[0], $expected[1], $provider_progress, $resume_state );
             if ( ! $this->remote_matches( $key, $expected ) ) {
                 throw new RuntimeException( 'Remote upload did not publish the complete object.' );
             }
@@ -176,13 +184,13 @@ class Trasloco_Offsite_Transfer {
         return true;
     }
 
-    private function upload_one( $key, $path, $progress_callback = null ) {
-        return $this->retry_transient( function () use ( $key, $path, $progress_callback ) {
-            return $this->upload_one_attempt( $key, $path, $progress_callback );
+    private function upload_one( $key, $path, $progress_callback = null, $resume_state = null ) {
+        return $this->retry_transient( function () use ( $key, $path, $progress_callback, &$resume_state ) {
+            return $this->upload_one_attempt( $key, $path, $progress_callback, $resume_state );
         } );
     }
 
-    public function upload( $archive, $allow_unencrypted = false, $progress_callback = null ) {
+    public function upload( $archive, $allow_unencrypted = false, $progress_callback = null, $resume_state = null ) {
         if ( $progress_callback !== null && ! is_callable( $progress_callback ) ) {
             throw new InvalidArgumentException( 'Invalid offsite upload progress callback.' );
         }
@@ -196,7 +204,7 @@ class Trasloco_Offsite_Transfer {
         if ( Trasloco_Integrity::verify( $path )['status'] !== 'verified' ) {
             throw new RuntimeException( 'Only a backup with a verified integrity manifest can be uploaded.' );
         }
-        $archive_uploaded = $this->upload_one( $archive, $path, $progress_callback );
+        $archive_uploaded = $this->upload_one( $archive, $path, $progress_callback, $resume_state );
         // Publish the manifest last. Readers must treat it as the completeness
         // marker for a pair interrupted between the archive and sidecar writes.
         $manifest_uploaded = $this->upload_one( $archive . '.manifest.json', $manifest );

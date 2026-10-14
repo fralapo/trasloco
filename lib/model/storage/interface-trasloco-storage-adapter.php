@@ -19,7 +19,11 @@ interface Trasloco_Resumable_Storage_Adapter {
      * Publish an archive through immutable, verified parts and a final marker.
      * The marker is visible only after every part has been read back and checked.
      */
-    public function put_resumable( $key, $path, $expected_bytes, $expected_sha256, $progress_callback = null );
+    /**
+     * Resume immutable remote parts from an optional provider-specific job
+     * checkpoint. Progress callbacks may receive that checkpoint as argument 3.
+     */
+    public function put_resumable( $key, $path, $expected_bytes, $expected_sha256, $progress_callback = null, $resume_state = null );
 }
 
 /** An adapter may safely retry this failed request without changing its meaning. */

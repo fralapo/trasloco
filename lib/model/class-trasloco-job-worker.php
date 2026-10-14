@@ -198,14 +198,23 @@ class Trasloco_Job_Worker {
         $last_renewal = time();
         $last_checkpoint = $last_renewal;
         $last_checkpoint_bytes = 0;
+        $previous = Trasloco_Job_Store::get_internal( $id );
+        $resume_state = is_array( $previous ) && isset( $previous['checkpoint']['provider_state'] ) &&
+            is_array( $previous['checkpoint']['provider_state'] ) ? $previous['checkpoint']['provider_state'] : null;
+        $last_checkpoint_state = $resume_state;
+        $initial_checkpoint = array( 'phase' => 'uploading', 'archive' => $archive, 'bytes' => 0, 'total_bytes' => 0 );
+        if ( $resume_state !== null ) {
+            $initial_checkpoint['provider_state'] = $resume_state;
+        }
         if ( ! Trasloco_Job_Store::checkpoint( $id, $owner, 1,
-            array( 'phase' => 'uploading', 'archive' => $archive, 'bytes' => 0, 'total_bytes' => 0 ) ) ) {
+            $initial_checkpoint ) ) {
             throw new RuntimeException( 'Offsite upload was cancelled or its lease was lost.' );
         }
-        $result = $transfer->upload( $archive, $payload['allow_unencrypted'], function ( $bytes, $total ) use ( $id, $owner, $archive, &$last_renewal, &$last_checkpoint, &$last_checkpoint_bytes ) {
+        $result = $transfer->upload( $archive, $payload['allow_unencrypted'], function ( $bytes, $total, $provider_state = null ) use ( $id, $owner, $archive, &$last_renewal, &$last_checkpoint, &$last_checkpoint_bytes, &$last_checkpoint_state ) {
             $now = time();
             $bytes = (int) $bytes;
-            if ( $bytes === $last_checkpoint_bytes && $now - $last_checkpoint < 60 && $now - $last_renewal < 120 ) {
+            if ( $bytes === $last_checkpoint_bytes && $provider_state === $last_checkpoint_state &&
+                $now - $last_checkpoint < 60 && $now - $last_renewal < 120 ) {
                 return true;
             }
             if ( $now - $last_renewal >= 120 ) {
@@ -215,16 +224,21 @@ class Trasloco_Job_Worker {
                 $last_renewal = $now;
             }
             $progress = $total > 0 ? min( 95, 5 + (int) floor( ( $bytes / $total ) * 85 ) ) : 90;
-            $saved = Trasloco_Job_Store::checkpoint( $id, $owner, $progress, array(
+            $checkpoint = array(
                 'phase' => 'uploading', 'archive' => $archive,
                 'bytes' => $bytes, 'total_bytes' => (int) $total,
-            ) );
+            );
+            if ( is_array( $provider_state ) ) {
+                $checkpoint['provider_state'] = $provider_state;
+            }
+            $saved = Trasloco_Job_Store::checkpoint( $id, $owner, $progress, $checkpoint );
             if ( $saved ) {
                 $last_checkpoint = $now;
                 $last_checkpoint_bytes = $bytes;
+                $last_checkpoint_state = $provider_state;
             }
             return $saved;
-        } );
+        }, $resume_state );
         if ( ! Trasloco_Job_Store::checkpoint( $id, $owner, 99, array(
             'phase' => 'verified', 'archive' => $archive, 'bytes' => (int) $result['bytes'],
         ) ) ) {

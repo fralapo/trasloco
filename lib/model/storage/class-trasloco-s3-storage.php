@@ -3,7 +3,7 @@
  * S3-compatible object storage. The AWS SDK is an optional runtime dependency.
  * Objects are private and immutable: writes use conditional creation.
  */
-class Trasloco_S3_Storage implements Trasloco_Storage_Adapter {
+class Trasloco_S3_Storage implements Trasloco_Storage_Adapter, Trasloco_Resumable_Storage_Adapter {
     const MAX_INVENTORY_ITEMS = 10000;
     const MEMORY_STREAM_BYTES = 2097152;
     const MULTIPART_THRESHOLD_BYTES = 16777216;
@@ -210,6 +210,198 @@ class Trasloco_S3_Storage implements Trasloco_Storage_Adapter {
             throw $error;
         }
         return $bytes;
+    }
+
+    private function multipart_checkpoint( $state, $key, $size, $sha256 ) {
+        if ( ! is_object( $state ) || ! method_exists( $state, 'getId' ) ||
+            ! method_exists( $state, 'getPartSize' ) || ! method_exists( $state, 'getUploadedParts' ) ) {
+            return null;
+        }
+        $identity = $state->getId();
+        if ( ! is_array( $identity ) || empty( $identity['UploadId'] ) || ! is_string( $identity['UploadId'] ) ) {
+            return null;
+        }
+        $part_size = (int) $state->getPartSize();
+        if ( $part_size < 5242880 || $part_size > self::MAX_MULTIPART_PART_BYTES ||
+            count( $state->getUploadedParts() ) > 10000 ) {
+            throw new RuntimeException( 'S3 multipart state exceeds the supported upload limits.' );
+        }
+        return array(
+            'provider' => 's3-multipart-v1',
+            'bucket' => $this->bucket,
+            'key' => $key,
+            'upload_id' => $identity['UploadId'],
+            'part_size' => $part_size,
+            'size_bytes' => $size,
+            'sha256' => $sha256,
+        );
+    }
+
+    private function restore_multipart_state( $resume_state, $key, $size, $sha256, $part_size ) {
+        if ( ! is_array( $resume_state ) || count( $resume_state ) !== 7 ||
+            ! isset( $resume_state['provider'], $resume_state['bucket'], $resume_state['key'],
+                $resume_state['upload_id'], $resume_state['part_size'], $resume_state['size_bytes'], $resume_state['sha256'] ) ||
+            $resume_state['provider'] !== 's3-multipart-v1' || $resume_state['bucket'] !== $this->bucket ||
+            $resume_state['key'] !== $key || $resume_state['size_bytes'] !== $size ||
+            ! is_string( $resume_state['sha256'] ) || ! hash_equals( $sha256, $resume_state['sha256'] ) ||
+            ! is_string( $resume_state['upload_id'] ) || $resume_state['upload_id'] === '' ||
+            strlen( $resume_state['upload_id'] ) > 2048 || preg_match( '/[\x00-\x1f\x7f]/', $resume_state['upload_id'] ) ||
+            ! is_int( $resume_state['part_size'] ) || $resume_state['part_size'] !== $part_size ) {
+            throw new RuntimeException( 'S3 upload checkpoint does not match this archive.' );
+        }
+        $class = 'Aws\\S3\\MultipartUploader';
+        try {
+            $state = call_user_func( array( $class, 'getStateFromService' ),
+                $this->client, $this->bucket, $key, $resume_state['upload_id'], array( 'part_size' => $part_size ) );
+        } catch ( Throwable $error ) {
+            if ( is_a( $error, 'Aws\\Exception\\AwsException' ) &&
+                ( $error->getAwsErrorCode() === 'NoSuchUpload' || (int) $error->getStatusCode() === 404 ) ) {
+                // The provider no longer has this multipart session (for
+                // example, an abort lifecycle rule ran). Starting a new
+                // session is safe because the source digest was rechecked.
+                return null;
+            }
+            throw $error;
+        }
+        if ( ! is_object( $state ) || ! method_exists( $state, 'setPartSize' ) ) {
+            throw new RuntimeException( 'S3 provider returned invalid multipart resume state.' );
+        }
+        $state->setPartSize( $part_size );
+        return $state;
+    }
+
+    private function resume_upload_bytes( $state, $total ) {
+        $completed = 0;
+        if ( is_object( $state ) && method_exists( $state, 'getUploadedParts' ) && method_exists( $state, 'getPartSize' ) ) {
+            foreach ( $state->getUploadedParts() as $part_number => $part ) {
+                $completed += isset( $part['ContentLength'] ) ? (int) $part['ContentLength'] : (int) $state->getPartSize();
+            }
+        }
+        return min( $total, $completed );
+    }
+
+    /**
+     * Upload an immutable archive through an S3 multipart session that can be
+     * reconstructed from the job's small provider checkpoint after a crash.
+     */
+    public function put_resumable( $key, $path, $expected_bytes, $expected_sha256, $progress_callback = null, $resume_state = null ) {
+        $key = $this->object_key( $key );
+        if ( ! preg_match( '/\.wpress(?:\.enc)?$/D', $key ) || ! is_string( $path ) ||
+            ! is_int( $expected_bytes ) || $expected_bytes < 0 || ! is_string( $expected_sha256 ) ||
+            ! preg_match( '/^[a-f0-9]{64}$/D', $expected_sha256 ) ||
+            ( $progress_callback !== null && ! is_callable( $progress_callback ) ) ) {
+            throw new InvalidArgumentException( 'Invalid S3 resumable upload request.' );
+        }
+        clearstatcache( true, $path );
+        $source_stat = @lstat( $path );
+        $source_digest = @hash_file( 'sha256', $path );
+        if ( ! is_array( $source_stat ) || is_link( $path ) || ! is_file( $path ) ||
+            (int) $source_stat['size'] !== $expected_bytes || ! is_string( $source_digest ) ||
+            ! hash_equals( $expected_sha256, $source_digest ) ) {
+            throw new RuntimeException( 'Local archive changed before S3 resumable upload.' );
+        }
+        if ( $expected_bytes > self::MAX_OBJECT_BYTES ) {
+            throw new InvalidArgumentException( 'S3 object exceeds the 5 TiB provider limit.' );
+        }
+        if ( $expected_bytes <= self::MULTIPART_THRESHOLD_BYTES ) {
+            if ( $resume_state !== null ) {
+                throw new RuntimeException( 'S3 upload checkpoint is unexpected for a single-request upload.' );
+            }
+            if ( $progress_callback !== null && call_user_func( $progress_callback, 0, $expected_bytes, null ) === false ) {
+                throw new RuntimeException( 'S3 upload was cancelled or lost its job lease.' );
+            }
+            $input = @fopen( $path, 'rb' );
+            if ( $input === false ) {
+                throw new RuntimeException( 'Unable to open local archive for S3 upload.' );
+            }
+            try {
+                $this->put_stream( $this->relative_key( $key ), $input );
+            } finally {
+                fclose( $input );
+            }
+            if ( $progress_callback !== null && call_user_func( $progress_callback, $expected_bytes, $expected_bytes, null ) === false ) {
+                throw new RuntimeException( 'S3 upload completed after its job lease was lost.' );
+            }
+            return true;
+        }
+
+        $part_size = max( self::MIN_MULTIPART_PART_BYTES, (int) ceil( $expected_bytes / 10000 ) );
+        if ( $part_size > self::MAX_MULTIPART_PART_BYTES ) {
+            throw new InvalidArgumentException( 'S3 upload would exceed the multipart part limit.' );
+        }
+        $uploader = null;
+        $options = array(
+            'bucket' => $this->bucket,
+            'key' => $key,
+            'part_size' => $part_size,
+            'concurrency' => 1,
+            'before_upload' => function ( $command ) use ( &$uploader, $key, $expected_bytes, $expected_sha256, $progress_callback ) {
+                $state = $uploader->getState();
+                $checkpoint = $this->multipart_checkpoint( $state, $key, $expected_bytes, $expected_sha256 );
+                $bytes = min( $expected_bytes, ( (int) $command['PartNumber'] - 1 ) * $state->getPartSize() );
+                if ( $checkpoint !== null && $progress_callback !== null &&
+                    call_user_func( $progress_callback, $bytes, $expected_bytes, $checkpoint ) === false ) {
+                    throw new RuntimeException( 'S3 multipart upload was cancelled or lost its job lease.' );
+                }
+            },
+            'before_complete' => function ( $command ) use ( &$uploader, $key, $expected_bytes, $expected_sha256, $progress_callback ) {
+                $state = $uploader->getState();
+                $checkpoint = $this->multipart_checkpoint( $state, $key, $expected_bytes, $expected_sha256 );
+                if ( $checkpoint !== null && $progress_callback !== null &&
+                    call_user_func( $progress_callback, $expected_bytes, $expected_bytes, $checkpoint ) === false ) {
+                    throw new RuntimeException( 'S3 multipart completion was cancelled or lost its job lease.' );
+                }
+                $command['IfNoneMatch'] = '*';
+            },
+        );
+        if ( $resume_state !== null ) {
+            $options['state'] = $this->restore_multipart_state(
+                $resume_state, $key, $expected_bytes, $expected_sha256, $part_size );
+            if ( $options['state'] === null ) {
+                unset( $options['state'] );
+            }
+        }
+        $input = @fopen( $path, 'rb' );
+        if ( $input === false ) {
+            throw new RuntimeException( 'Unable to open local archive for S3 multipart upload.' );
+        }
+        $class = 'Aws\\S3\\MultipartUploader';
+        try {
+            $uploader = new $class( $this->client, $input, $options );
+            $uploader->upload();
+        } catch ( Throwable $error ) {
+            if ( is_a( $error, 'Aws\\S3\\Exception\\S3MultipartUploadException' ) ) {
+                $state = $error->getState();
+                $checkpoint = $this->multipart_checkpoint( $state, $key, $expected_bytes, $expected_sha256 );
+                if ( $checkpoint !== null && $progress_callback !== null ) {
+                    call_user_func( $progress_callback, $this->resume_upload_bytes( $state, $expected_bytes ),
+                        $expected_bytes, $checkpoint );
+                }
+            }
+            if ( is_a( $error, 'Aws\\Exception\\AwsException' ) ) {
+                $this->s3_error( $error, 'multipart upload' );
+            }
+            throw $error;
+        } finally {
+            fclose( $input );
+        }
+        clearstatcache( true, $path );
+        $after_stat = @lstat( $path );
+        $after_digest = @hash_file( 'sha256', $path );
+        if ( ! is_array( $after_stat ) || $after_stat['dev'] !== $source_stat['dev'] ||
+            $after_stat['ino'] !== $source_stat['ino'] || $after_stat['size'] !== $source_stat['size'] ||
+            $after_stat['mtime'] !== $source_stat['mtime'] || ! is_string( $after_digest ) ||
+            ! hash_equals( $expected_sha256, $after_digest ) ) {
+            throw new RuntimeException( 'Local archive changed during S3 multipart upload.' );
+        }
+        return true;
+    }
+
+    private function relative_key( $key ) {
+        if ( strpos( $key, $this->prefix ) !== 0 ) {
+            throw new InvalidArgumentException( 'Invalid S3 storage key.' );
+        }
+        return substr( $key, strlen( $this->prefix ) );
     }
 
     public function open_read( $key, $max_bytes = null ) {

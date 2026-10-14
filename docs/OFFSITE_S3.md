@@ -1,6 +1,6 @@
 # S3-compatible offsite storage
 
-Trasloco includes an S3-compatible storage adapter for AWS S3 and services that implement its object API. It supports private objects, create-only uploads, multipart uploads for large archives, exact byte-range downloads, bounded inventory and the standard AWS credential provider chain. S3 uploads run synchronously; only adapters with durable upload checkpoints can accept queued upload jobs, so queue-upload and scheduled encrypted delivery remain WebDAV-only.
+Trasloco includes an S3-compatible storage adapter for AWS S3 and services that implement its object API. It supports private objects, create-only uploads, multipart uploads for large archives, exact byte-range downloads, bounded inventory and the standard AWS credential provider chain. Multipart upload IDs are checkpointed on durable transfer jobs, and workers recover uploaded-part lists from the provider after interruption. Queued multipart uploads and scheduled encrypted S3 delivery are therefore available alongside WebDAV delivery.
 
 ## Requirements and installation
 
@@ -43,9 +43,9 @@ The adapter verifies TLS certificates, uses Signature Version 4, rejects HTTP en
 
 ## Transfer behavior and limits
 
-Normal WP-CLI `offsite upload`, `offsite download`, `offsite status`, and queued downloads can use S3. Transfers verify the local integrity manifest and read the completed remote object back before reporting success. Writes use conditional create-only requests for both single-part upload and multipart completion; if the provider does not implement those conditions, uploads fail closed. Existing objects are never replaced by Trasloco.
+Normal WP-CLI `offsite upload`, `offsite download`, `offsite status`, `queue-upload`, and `queue-download` can use S3. Scheduled backups can also request encrypted offsite delivery. Durable job checkpoints retain only the bucket, object key, multipart upload ID, part size and verified local archive digest; the upload ID is omitted from public job status. On replay, the AWS SDK lists remote parts and uploads only the missing ones. Transfers verify the local integrity manifest and read the completed remote object back before reporting success. Writes use conditional create-only requests for both single-part upload and multipart completion; if the provider does not implement those conditions, uploads fail closed. Existing objects are never replaced by Trasloco.
 
-The adapter does not implement `Trasloco_Resumable_Storage_Adapter`. A stopped S3 multipart upload is not resumed by a later Trasloco worker, and the plugin does not yet persist multipart upload IDs or part checkpoints. Abandoned parts therefore need the provider's multipart lifecycle cleanup. S3 queue-upload jobs and scheduled encrypted S3 delivery are unavailable until durable replay is implemented. Local SDK and HTTP wire fixtures exercise signed S3 requests, create-only writes, downloads, ranges, inventory, deletion and error handling. A real AWS/S3-compatible provider, permission policies, failure replay and durability still need separate validation.
+Abandoned parts from exhausted or deleted jobs still need the provider's multipart lifecycle cleanup. Local SDK fixtures interrupt an upload after a completed part and resume it from `ListParts`; HTTP wire fixtures exercise signed S3 requests, create-only writes, downloads, ranges, inventory, deletion and error handling. A real AWS/S3-compatible provider, permission policies, host restart replay and provider durability still need separate validation.
 
 Run the local SDK fixtures with:
 

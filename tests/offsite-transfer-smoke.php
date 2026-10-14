@@ -89,6 +89,53 @@ class Trasloco_Tracking_Range_Storage implements Trasloco_Storage_Adapter {
     public function enumerate() { return $this->storage->enumerate(); }
 }
 
+class Trasloco_Checkpoint_Storage implements Trasloco_Storage_Adapter, Trasloco_Resumable_Storage_Adapter {
+    private $storage;
+    public $interrupt_once = true;
+    public $transient_once = false;
+    public $received_checkpoint = null;
+    public $received_resume_state = null;
+
+    public function __construct( $storage ) { $this->storage = $storage; }
+    public function put_stream( $key, $handle ) { return $this->storage->put_stream( $key, $handle ); }
+    public function open_read( $key, $max_bytes = null ) { return $this->storage->open_read( $key, $max_bytes ); }
+    public function open_read_range( $key, $offset, $length, $total_bytes ) {
+        return $this->storage->open_read_range( $key, $offset, $length, $total_bytes );
+    }
+    public function exists( $key ) { return $this->storage->exists( $key ); }
+    public function delete( $key ) { return $this->storage->delete( $key ); }
+    public function enumerate() { return $this->storage->enumerate(); }
+    public function put_resumable( $key, $path, $expected_bytes, $expected_sha256, $progress_callback = null, $resume_state = null ) {
+        $this->received_resume_state = $resume_state;
+        $this->received_checkpoint = array(
+            'provider' => 'fixture-resume-v1', 'key' => $key,
+            'size_bytes' => $expected_bytes, 'sha256' => $expected_sha256,
+        );
+        if ( $progress_callback !== null && call_user_func( $progress_callback, 0, $expected_bytes, $this->received_checkpoint ) === false ) {
+            throw new RuntimeException( 'Fixture upload lease was lost.' );
+        }
+        if ( $this->transient_once ) {
+            $this->transient_once = false;
+            throw new Trasloco_Storage_Transient_Exception( 'Fixture transient failure after checkpoint.' );
+        }
+        if ( $this->interrupt_once ) {
+            $this->interrupt_once = false;
+            throw new RuntimeException( 'Fixture worker stopped after saving its provider checkpoint.' );
+        }
+        $input = fopen( $path, 'rb' );
+        if ( $input === false ) { throw new RuntimeException( 'Fixture archive could not be opened.' ); }
+        try {
+            $this->storage->put_stream( $key, $input );
+        } finally {
+            fclose( $input );
+        }
+        if ( $progress_callback !== null && call_user_func( $progress_callback, $expected_bytes, $expected_bytes, $this->received_checkpoint ) === false ) {
+            throw new RuntimeException( 'Fixture upload lease was lost after storing the object.' );
+        }
+        return true;
+    }
+}
+
 $root = sys_get_temp_dir() . '/trasloco-offsite-' . bin2hex( random_bytes( 8 ) );
 $local_source = $root . '/source';
 $local_target = $root . '/target';
@@ -118,6 +165,39 @@ try {
     offsite_assert( Trasloco_Integrity::verify( $local_target . '/fixture.wpress' )['status'] === 'verified', 'Downloaded backup manifest did not verify.' );
 
     offsite_assert( $source_transfer->upload( 'fixture.wpress', true )['status'] === 'already_present', 'Identical remote retry was not idempotent.' );
+
+    $checkpoint_archive = $local_source . '/checkpoint-resume.wpress.enc';
+    file_put_contents( $checkpoint_archive, 'checkpoint transfer fixture' );
+    Trasloco_Integrity::create( $checkpoint_archive );
+    $checkpoint_store = new Trasloco_Checkpoint_Storage( $remote_store );
+    $checkpoint_transfer = new Trasloco_Offsite_Transfer( $checkpoint_store, $local_source );
+    offsite_throws(
+        function () use ( $checkpoint_transfer ) {
+            $checkpoint_transfer->upload( 'checkpoint-resume.wpress.enc', false, function () { return true; } );
+        },
+        'provider checkpoint',
+        'Interrupted resumable upload did not preserve its provider checkpoint.'
+    );
+    offsite_assert( is_array( $checkpoint_store->received_checkpoint ), 'Provider checkpoint callback did not receive resume state.' );
+    $checkpoint_result = $checkpoint_transfer->upload( 'checkpoint-resume.wpress.enc', false, function () { return true; },
+        $checkpoint_store->received_checkpoint );
+    offsite_assert( $checkpoint_result['status'] === 'uploaded' &&
+        $checkpoint_store->received_resume_state === $checkpoint_store->received_checkpoint,
+        'Offsite transfer did not pass a durable provider checkpoint into the resumed upload.' );
+
+    $transient_checkpoint_archive = $local_source . '/transient-checkpoint.wpress.enc';
+    file_put_contents( $transient_checkpoint_archive, 'transient checkpoint fixture' );
+    Trasloco_Integrity::create( $transient_checkpoint_archive );
+    $transient_checkpoint_store = new Trasloco_Checkpoint_Storage( $remote_store );
+    $transient_checkpoint_store->interrupt_once = false;
+    $transient_checkpoint_store->transient_once = true;
+    $transient_checkpoint_transfer = new Trasloco_Offsite_Transfer( $transient_checkpoint_store, $local_source );
+    $transient_checkpoint_result = $transient_checkpoint_transfer->upload( 'transient-checkpoint.wpress.enc' );
+    offsite_assert( $transient_checkpoint_result['status'] === 'uploaded' &&
+        is_array( $transient_checkpoint_store->received_resume_state ) &&
+        $transient_checkpoint_store->received_resume_state === $transient_checkpoint_store->received_checkpoint,
+        'Transient upload retry did not reuse the provider checkpoint from the failed attempt.' );
+
     $transient_archive = $local_source . '/transient-retry.wpress';
     file_put_contents( $transient_archive, "transient retry fixture\n" );
     Trasloco_Integrity::create( $transient_archive );
