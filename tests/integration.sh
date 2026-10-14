@@ -1094,7 +1094,17 @@ $view_verify_id = Trasloco_Job_Store::create( "verify", array( "archive" => $vie
 if ( is_wp_error( $view_verify_id ) || ! $view_verify_id ) {
     throw new Exception( "Could not create the backup-list verification fixture" );
 }
-$view_verify_result = Trasloco_Job_Worker::run( $view_verify_id );
+$view_verify_result = array( "status" => "pending" );
+for ( $view_verify_attempt = 0; $view_verify_attempt < 256; $view_verify_attempt++ ) {
+    $view_verify_result = Trasloco_Job_Worker::run( $view_verify_id );
+    if ( $view_verify_result["status"] === "completed" ) {
+        break;
+    }
+    if ( $view_verify_result["status"] !== "pending" ) {
+        throw new Exception( "Backup-list verification stopped before completion: " .
+            sanitize_text_field( $view_verify_result["status"] ) );
+    }
+}
 $view_status = Trasloco_Job_Store::verification_statuses( array( $view_archive ) );
 if ( $view_verify_result["status"] !== "completed" ||
     ! isset( $view_status[$view_archive]["state"], $view_status[$view_archive]["proof"]["phase"] ) ||
