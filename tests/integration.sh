@@ -20,7 +20,11 @@ fi
 ROOT="$(mktemp -d)"
 cleanup() {
   "${MYSQL[@]}" -e "DROP DATABASE IF EXISTS \`$DB_SOURCE\`; DROP DATABASE IF EXISTS \`$DB_TARGET\`; DROP DATABASE IF EXISTS \`${DB_PREFIX}_disaster_rehearsal\`;" >/dev/null 2>&1 || true
-  rm -rf "$ROOT"
+  if [ "${TRASLOCO_TEST_KEEP:-0}" = 1 ]; then
+    printf 'Preserved integration workspace: %s\n' "$ROOT"
+  else
+    rm -rf "$ROOT"
+  fi
 }
 trap cleanup EXIT
 
@@ -739,7 +743,10 @@ if ( count( (new Trasloco_Backups())->get_retention_files() ) !== count( $before
     throw new Exception( "Recovery checkpoints included in retention" );
 }
 $id = Trasloco_Job_Store::create( "backup", array( "retention" => 1 ), "ci-protect-recovery-0001" );
-$result = Trasloco_Job_Worker::run( $id );
+for ( $attempt = 0; $attempt < 200; $attempt++ ) {
+    $result = Trasloco_Job_Worker::run( $id );
+    if ( $result["status"] !== "pending" ) { break; }
+}
 if ( $result["status"] !== "completed" ) {
     throw new Exception( "Retention regression backup failed: " . wp_json_encode( Trasloco_Job_Store::get( $id ) ) );
 }
@@ -750,6 +757,19 @@ foreach ( $protected as $entry ) {
 }
 if ( count( (new Trasloco_Backups())->get_retention_files() ) !== 1 ) {
     throw new Exception( "Normal backup retention not enforced" );
+}
+global $wpdb;
+$completed = Trasloco_Job_Store::get( $id );
+if ( empty( $completed["checkpoint"]["archive"] ) || $completed["checkpoint"]["phase"] !== "retention" ) {
+    throw new Exception( "Completed backup did not retain its finalization checkpoint" );
+}
+$original_archive = $completed["checkpoint"]["archive"];
+$wpdb->update( Trasloco_Job_Store::table(), array( "state" => "running", "lease_until" => time() - 120,
+    "lease_owner" => "crashed-finalizer", "attempts" => 1 ), array( "id" => $id ) );
+$replayed = Trasloco_Job_Worker::run( $id );
+if ( $replayed["status"] !== "completed" || $replayed["archive"] !== $original_archive ||
+    count( (new Trasloco_Backups())->get_retention_files() ) !== 1 ) {
+    throw new Exception( "Interrupted backup finalization created a duplicate archive" );
 }
 ' --path="$ROOT/target"
 
@@ -828,9 +848,8 @@ if ( Trasloco_Job_Store::claim( $id, "runner-000000002" ) ) { throw new Exceptio
 if ( Trasloco_Job_Store::get( $id )["state"] !== "completed" ) { throw new Exception( "Completion status mismatch" ); }
 ' --path="$ROOT/target"
 
-# Safety regression: an expired backup lease must NEVER be reclaimed.
-# A previous process could still be writing its archive when the scheduler
-# runs, so a second worker would be able to destroy or duplicate work.
+# Backup lease recovery is allowed only after a committed stage checkpoint;
+# repeated hard crashes still end in a bounded terminal state.
 $WP eval '
 global $wpdb;
 $backup = Trasloco_Job_Store::create(
@@ -849,9 +868,20 @@ foreach ( array( $backup, $verify ) as $id ) {
         "lease_owner" => "former-worker-12345", "attempts" => 1,
     ), array( "id" => $id ) );
 }
-if ( Trasloco_Job_Store::claim( $backup, "new-worker-1234567" ) ) {
-    throw new Exception( "An expired backup was dangerously restarted" );
+$wpdb->update( $table, array( "checkpoint" => wp_json_encode( array( "phase" => "export", "priority" => 150 ) ) ), array( "id" => $backup ) );
+if ( ! Trasloco_Job_Store::claim( $backup, "new-worker-1234567" ) ) {
+    throw new Exception( "A checkpointed backup could not recover its expired lease" );
 }
+if ( ! Trasloco_Job_Store::yield_backup( $backup, "new-worker-1234567", 50,
+    array( "phase" => "export", "priority" => 150 ) ) ||
+    Trasloco_Job_Store::get( $backup )["state"] !== "pending" ||
+    ! in_array( $backup, Trasloco_Job_Store::recoverable_backups(), true ) ) {
+    throw new Exception( "Backup checkpoint was not released for replay" );
+}
+if ( ! Trasloco_Job_Store::claim( $backup, "new-worker-7654321" ) ) {
+    throw new Exception( "A yielded backup could not resume" );
+}
+$wpdb->update( $table, array( "lease_until" => time() - 120, "attempts" => Trasloco_Job_Store::MAX_BACKUP_ATTEMPTS ), array( "id" => $backup ) );
 if ( ! Trasloco_Job_Store::claim( $verify, "new-worker-1234567" ) ) {
     throw new Exception( "Read-only verification could not recover an expired lease" );
 }
@@ -863,6 +893,24 @@ if ( Trasloco_Job_Store::fail_abandoned_backups() < 1 ||
      Trasloco_Job_Store::get( $backup )["state"] !== "failed" ||
      Trasloco_Job_Store::claim( $backup, "new-worker-1234567" ) ) {
     throw new Exception( "Abandoned backup was not left in a terminal state" );
+}
+$replay = Trasloco_Job_Store::create( "backup", array( "retention" => 1 ), "ci-backup-byte-replay-00001" );
+$first = Trasloco_Job_Worker::run( $replay );
+$second = Trasloco_Job_Worker::run( $replay );
+$saved = Trasloco_Job_Store::get( $replay );
+if ( $first["status"] !== "pending" || $second["status"] !== "pending" ||
+    empty( $saved["checkpoint"]["params"]["storage"] ) ||
+    empty( $saved["checkpoint"]["params"]["archive"] ) ) {
+    throw new Exception( "Backup did not save a resumable stage checkpoint" );
+}
+$staged = trasloco_archive_path( $saved["checkpoint"]["params"] );
+$safe_size = filesize( $staged );
+file_put_contents( $staged, "interrupted trailing bytes", FILE_APPEND );
+$wpdb->update( $table, array( "state" => "running", "lease_until" => time() - 120,
+    "lease_owner" => "crashed-backup-worker", "attempts" => 1 ), array( "id" => $replay ) );
+$resumed = Trasloco_Job_Worker::run( $replay );
+if ( $resumed["status"] !== "pending" || filesize( $staged ) !== $safe_size ) {
+    throw new Exception( "Backup replay did not truncate uncheckpointed bytes" );
 }
 ' --path="$ROOT/source"
 
@@ -961,7 +1009,10 @@ Trasloco_Scheduled_Backups::sync();
 if ( wp_get_schedule( Trasloco_Scheduled_Backups::HOOK ) !== "daily" ) { throw new Exception( "Recurrence was not restored to daily" ); }
 $id = Trasloco_Scheduled_Backups::enqueue();
 if ( ! is_int( $id ) || $id < 1 ) { throw new Exception( "Schedule failed to enqueue" ); }
-$result = Trasloco_Job_Worker::run( $id );
+for ( $attempt = 0; $attempt < 200; $attempt++ ) {
+    $result = Trasloco_Job_Worker::run( $id );
+    if ( $result["status"] !== "pending" ) { break; }
+}
 if ( $result["status"] !== "completed" ) { throw new Exception( "Scheduled export failed: " . wp_json_encode( Trasloco_Job_Store::get( $id ) ) ); }
 $archive = trasloco_backup_path( array( "archive" => $result["archive"] ) );
 if ( Trasloco_Integrity::verify( $archive )["status"] !== "verified" ) { throw new Exception( "Scheduled archive is corrupt" ); }
@@ -1190,7 +1241,10 @@ if ( ! defined( "TRASLOCO_ARCHIVE_PASSPHRASE" ) ) { define( "TRASLOCO_ARCHIVE_PA
 $fail_closed_id = Trasloco_Job_Store::create( "backup", array( "retention" => 2, "upload_offsite" => true ),
     wp_generate_password( 32, false, false ) );
 if ( is_wp_error( $fail_closed_id ) ) { throw new Exception( "Could not create fail-closed offsite backup fixture" ); }
-$fail_closed = Trasloco_Job_Worker::run( $fail_closed_id );
+for ( $attempt = 0; $attempt < 200; $attempt++ ) {
+    $fail_closed = Trasloco_Job_Worker::run( $fail_closed_id );
+    if ( $fail_closed["status"] !== "pending" ) { break; }
+}
 $failed_record = Trasloco_Job_Store::get( $fail_closed_id );
 $failed_archive = isset( $failed_record["checkpoint"]["archive"] ) ? TRASLOCO_BACKUPS_PATH . DIRECTORY_SEPARATOR . $failed_record["checkpoint"]["archive"] : "";
 if ( $fail_closed["status"] !== "failed" || $failed_record["state"] !== "failed" ||

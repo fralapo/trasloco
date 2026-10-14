@@ -109,7 +109,8 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 - [ ] Phase 8B: selective database table restore, collision handling and live-site consistency checks. The single-site WP-CLI command and Backups-page UI now preview selected table replacements, require explicit confirmation, create a verified full-site recovery point, and import only recognized SQL statements for the server-validated allowlist. A database lease prevents overlapping imports and restores. Automated detection or pausing of concurrent application writes remains open; operators must pause writes to affected tables before applying the restore.
 
 - [x] Bounded scheduled reconciliation of verification jobs, cancellation/retry and safe abandonment of crashed backups.
-- [ ] True byte-level continuation of interrupted local backups and provider-specific crash replay tests against real WebDAV services.
+- [x] True byte-level continuation of interrupted local backup jobs. Export stages persist their parameters and flushed artifact lengths; expired workers resume from the committed checkpoint and truncate uncommitted trailing bytes. A bounded crash retry policy fails closed. This does not provide a transactionally consistent database snapshot while the site is accepting writes.
+- [ ] Provider-specific crash replay tests against real WebDAV services.
 
 - [x] Accessible recent job/progress dashboard and next-backup schedule indicator.
 - [x] Durable offsite transfer jobs: credential-free upload/download payloads, WebDAV part replay, download range checkpoints, byte progress, lease renewal, restart reconciliation and bounded retry budget. Only adapters that explicitly support resumable writes can accept queued uploads.

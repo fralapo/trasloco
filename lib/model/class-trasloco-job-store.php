@@ -8,6 +8,7 @@ class Trasloco_Job_Store {
     const SCHEMA = 1;
     const MAX_VERIFY_ATTEMPTS = 3;
     const MAX_TRANSFER_ATTEMPTS = 3;
+    const MAX_BACKUP_ATTEMPTS = 3;
 
     public static function table() {
         global $wpdb;
@@ -249,16 +250,29 @@ class Trasloco_Job_Store {
         ) );
     }
 
-    /** Mark abandoned backup workers as failed, rather than duplicating a
-     * potentially multi-gigabyte operation automatically. */
+    /** Requeue expired workers only when a durable replay checkpoint exists. */
+    public static function recoverable_backups( $limit = 10 ) {
+        global $wpdb;
+        $table = self::table();
+        $limit = max( 1, min( 50, (int) $limit ) );
+        return array_map( 'intval', $wpdb->get_col( $wpdb->prepare(
+            "SELECT id FROM {$table} WHERE kind = 'backup' AND attempts < %d AND
+            (state = 'pending' OR (state = 'running' AND checkpoint <> '{}' AND lease_until < %d))
+            ORDER BY id ASC LIMIT %d",
+            self::MAX_BACKUP_ATTEMPTS, time(), $limit
+        ) ) );
+    }
+
+    /** Fail an abandoned backup only after its bounded crash-replay budget. */
     public static function fail_abandoned_backups() {
         global $wpdb;
         $table = self::table();
         return (int) $wpdb->query( $wpdb->prepare(
             "UPDATE {$table} SET state = 'failed', lease_owner = '', lease_until = 0,
-            failure = 'Backup worker lease expired; inspect files before retrying.',
-            updated_at = %s WHERE kind = 'backup' AND state = 'running' AND lease_until < %d",
-            gmdate( 'Y-m-d H:i:s' ), time()
+            failure = 'Backup worker stopped before a safe replay point or after repeated interrupted attempts; inspect files before retrying.',
+            updated_at = %s WHERE kind = 'backup' AND state = 'running' AND lease_until < %d
+            AND (checkpoint = '{}' OR attempts >= %d)",
+            gmdate( 'Y-m-d H:i:s' ), time(), self::MAX_BACKUP_ATTEMPTS
         ) );
     }
 
@@ -374,19 +388,20 @@ class Trasloco_Job_Store {
         }
         $now = time();
         $table = self::table();
-        // Atomic acquisition. Only read-only verification and range-resumable
-        // offsite downloads may reclaim expired leases; destructive backups,
-        // restores and uploads remain excluded from automatic replay.
+        // Atomic acquisition. Backups may be reclaimed only after publishing
+        // an explicit archive checkpoint; restores and uploads stay excluded.
         return 1 === $wpdb->query( $wpdb->prepare(
             "UPDATE {$table} SET state = 'running', lease_owner = %s, lease_until = %d,
             attempts = attempts + 1, updated_at = %s
-            WHERE id = %d AND (kind NOT IN ('verify','transfer') OR
+            WHERE id = %d AND (kind NOT IN ('verify','transfer','backup') OR
                  (kind = 'verify' AND attempts < %d) OR
-                 (kind = 'transfer' AND attempts < %d))
+                 (kind = 'transfer' AND attempts < %d) OR
+                 (kind = 'backup' AND attempts < %d))
             AND (state = 'pending' OR
-                 ((kind = 'verify' OR kind = 'transfer') AND state = 'running' AND lease_until < %d))",
+                 ((kind = 'verify' OR kind = 'transfer') AND state = 'running' AND lease_until < %d) OR
+                 (kind = 'backup' AND checkpoint <> '{}' AND state = 'running' AND lease_until < %d))",
             $worker, $now + $lease_seconds, gmdate( 'Y-m-d H:i:s' ), $id,
-            self::MAX_VERIFY_ATTEMPTS, self::MAX_TRANSFER_ATTEMPTS, $now
+            self::MAX_VERIFY_ATTEMPTS, self::MAX_TRANSFER_ATTEMPTS, self::MAX_BACKUP_ATTEMPTS, $now, $now
         ) );
     }
 
@@ -400,6 +415,22 @@ class Trasloco_Job_Store {
             "UPDATE {$table} SET progress = %d, checkpoint = %s, updated_at = %s
             WHERE id = %d AND state = 'running' AND lease_owner = %s AND lease_until >= %d",
             $progress, wp_json_encode( $data ), gmdate( 'Y-m-d H:i:s' ), $id, $worker, time()
+        ) );
+    }
+
+    /** Publish a durable backup checkpoint and release its lease for replay. */
+    public static function yield_backup( $id, $worker, $progress, $checkpoint ) {
+        global $wpdb;
+        if ( ! is_int( $progress ) || $progress < 0 || $progress > 99 || ! is_array( $checkpoint ) ) {
+            return false;
+        }
+        $table = self::table();
+        return 1 === $wpdb->query( $wpdb->prepare(
+            "UPDATE {$table} SET state = 'pending', progress = %d, checkpoint = %s,
+            lease_owner = '', lease_until = 0, attempts = GREATEST(attempts - 1, 0),
+            failure = NULL, updated_at = %s
+            WHERE id = %d AND state = 'running' AND lease_owner = %s AND lease_until >= %d",
+            $progress, wp_json_encode( $checkpoint ), gmdate( 'Y-m-d H:i:s' ), $id, $worker, time()
         ) );
     }
 

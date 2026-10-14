@@ -107,9 +107,38 @@ class Trasloco_Export_Content {
 					is_link( $source ) ) {
 					throw new Trasloco_Archive_Exception( 'Export source path is a symlink or outside WordPress content.' );
 				}
+				$source_stat = @lstat( $source );
+				if ( ! is_array( $source_stat ) || ! is_file( $source ) ) {
+					throw new Trasloco_Archive_Exception( 'Export source changed while the backup was running.' );
+				}
+				$source_identity = array(
+					'size' => (int) $source_stat['size'], 'mtime' => (int) $source_stat['mtime'],
+					'ctime' => (int) $source_stat['ctime'], 'inode' => (int) $source_stat['ino'],
+					'device' => (int) $source_stat['dev'],
+				);
+				if ( $file_bytes_offset > 0 ) {
+					$recorded_identity = array();
+					foreach ( array( 'size', 'mtime', 'ctime', 'inode', 'device' ) as $identity_key ) {
+						$param_key = 'file_source_' . $identity_key;
+						if ( ! isset( $params[ $param_key ] ) ) {
+							throw new Trasloco_Archive_Exception( 'Cannot safely resume a partially exported file.' );
+						}
+						$recorded_identity[ $identity_key ] = (int) $params[ $param_key ];
+					}
+					if ( $recorded_identity !== $source_identity ) {
+						throw new Trasloco_Archive_Exception( 'A source file changed after the backup was interrupted.' );
+					}
+				} else {
+					foreach ( $source_identity as $identity_key => $identity_value ) {
+						$params[ 'file_source_' . $identity_key ] = $identity_value;
+					}
+				}
 				// Add file to archive
 				if ( ( $completed = $archive->add_file( $source, $path, $file_bytes_written, $file_bytes_offset ) ) ) {
 					$file_bytes_offset = 0;
+					foreach ( array( 'size', 'mtime', 'ctime', 'inode', 'device' ) as $identity_key ) {
+						unset( $params[ 'file_source_' . $identity_key ] );
+					}
 
 					// Get filemap bytes offset
 					$filemap_bytes_offset = ftell( $filemap );

@@ -44,7 +44,7 @@ class Trasloco_Import_Recovery {
                 return $params;
             }
         }
-        $result = Trasloco_Job_Worker::run( $id );
+        $result = Trasloco_Job_Worker::run_backup_to_completion( $id );
         if ( $result['status'] !== 'completed' || empty( $result['archive'] ) ) {
             throw new Trasloco_Import_Exception( 'The safety backup failed. The destination has not been replaced.' );
         }

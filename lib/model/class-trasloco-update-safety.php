@@ -26,7 +26,7 @@ class Trasloco_Update_Safety {
             if ( is_wp_error( $id ) || ! $id ) {
                 return new WP_Error( 'trasloco_update_checkpoint_failed', 'Update stopped: a safety backup could not be queued.' );
             }
-            $result = Trasloco_Job_Worker::run( $id );
+            $result = Trasloco_Job_Worker::run_backup_to_completion( $id );
             if ( $result['status'] !== 'completed' ) {
                 return new WP_Error( 'trasloco_update_checkpoint_failed', 'Update stopped: a verified safety backup could not be created.' );
             }

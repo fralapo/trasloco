@@ -72,6 +72,9 @@ class Trasloco_Job_Worker {
         foreach ( Trasloco_Job_Store::recoverable_verifications( 10 ) as $id ) {
             self::schedule( $id );
         }
+        foreach ( Trasloco_Job_Store::recoverable_backups( 10 ) as $id ) {
+            self::schedule( $id );
+        }
         foreach ( Trasloco_Job_Store::recoverable_transfers( 10 ) as $id ) {
             self::schedule( $id );
         }
@@ -96,7 +99,7 @@ class Trasloco_Job_Worker {
     }
 
     /** Persist an upload request only when its provider supports replayable parts. */
-    public static function enqueue_offsite_upload( $archive, $allow_unencrypted = false, $delete_after_upload = false ) {
+    public static function enqueue_offsite_upload( $archive, $allow_unencrypted = false, $delete_after_upload = false, $idempotency_key = null ) {
         if ( ! is_string( $archive ) || strlen( $archive ) > 206 ||
             ! preg_match( '/^[A-Za-z0-9][A-Za-z0-9_.-]*\.wpress(?:\.enc)?$/D', $archive ) ||
             strpos( $archive, '..' ) !== false || ! is_bool( $allow_unencrypted ) ||
@@ -121,7 +124,10 @@ class Trasloco_Job_Worker {
         if ( $delete_after_upload ) {
             $payload['delete_after_upload'] = true;
         }
-        $id = Trasloco_Job_Store::create( 'transfer', $payload, wp_generate_password( 32, false, false ) );
+        if ( $idempotency_key === null ) {
+            $idempotency_key = wp_generate_password( 32, false, false );
+        }
+        $id = Trasloco_Job_Store::create( 'transfer', $payload, $idempotency_key );
         if ( is_wp_error( $id ) ) {
             return $id;
         }
@@ -261,6 +267,18 @@ class Trasloco_Job_Worker {
         return (bool) wp_schedule_single_event( time() + 1, self::HOOK, array( $id ) );
     }
 
+    /** Keep safety-point callers synchronous while sharing the resumable worker stages. */
+    public static function run_backup_to_completion( $id, $max_steps = 10000 ) {
+        $result = array( 'status' => 'invalid' );
+        for ( $step = 0; $step < $max_steps; $step++ ) {
+            $result = self::run( $id );
+            if ( ! isset( $result['status'] ) || $result['status'] !== 'pending' ) {
+                return $result;
+            }
+        }
+        return array( 'status' => 'pending', 'progress' => isset( $result['progress'] ) ? $result['progress'] : 0 );
+    }
+
     /**
      * Return an array for programmatic/CLI inspection; WP-Cron ignores it.
      */
@@ -279,8 +297,8 @@ class Trasloco_Job_Worker {
         return array( $handle, $owner );
     }
 
-    /** Reuse tested synchronous WP-CLI export pipeline without AJAX exits. */
-    private static function backup( $id, $owner, $payload ) {
+    /** Run one resumable export stage and preserve its last durable position. */
+    private static function backup( $id, $owner, $payload, $saved = array() ) {
         $is_recovery = ! empty( $payload['recovery_point'] );
         $keep = isset( $payload['retention'] ) ? (int) $payload['retention'] : 0;
         if ( ! $is_recovery && ( $keep < 1 || $keep > 100 ) ) {
@@ -299,31 +317,53 @@ class Trasloco_Job_Worker {
             @file_put_contents( TRASLOCO_STORAGE_PATH . '/.htaccess',
                 "<IfModule mod_authz_core.c>\nRequire all denied\n</IfModule>\n", LOCK_EX );
         }
-        if ( ! Trasloco_Job_Store::checkpoint( $id, $owner, 10, array( 'phase' => 'export' ) ) ) {
-            throw new RuntimeException( 'Backup cancelled.' );
-        }
         trasloco_setup_environment();
-        $params = $is_recovery
-            ? array( 'archive' => 'recovery-' . trasloco_archive_file() )
-            : array();
+        $checkpoint = is_array( $saved ) && isset( $saved['phase'] ) && $saved['phase'] === 'export'
+            ? $saved : array();
+        $finalizing = is_array( $saved ) && isset( $saved['phase'], $saved['archive'] ) &&
+            in_array( $saved['phase'], array( 'retention', 'recovery' ), true ) &&
+            is_string( $saved['archive'] ) && preg_match( '/^[A-Za-z0-9_.-]+\.wpress$/D', $saved['archive'] );
+        $params = $finalizing
+            ? array( 'archive' => $saved['archive'] )
+            : ( isset( $checkpoint['params'] ) && is_array( $checkpoint['params'] )
+                ? $checkpoint['params'] : ( $is_recovery ? array( 'archive' => 'recovery-' . trasloco_archive_file() ) : array() ) );
+        if ( $finalizing && isset( $saved['storage'] ) && is_string( $saved['storage'] ) &&
+            preg_match( '/^[A-Za-z0-9_-]{1,128}$/D', $saved['storage'] ) ) {
+            $params['storage'] = $saved['storage'];
+        }
+        $priority = $finalizing ? 300 : ( isset( $checkpoint['priority'] ) ? (int) $checkpoint['priority'] : 5 );
+        if ( ! $finalizing && ! empty( $checkpoint['artifacts'] ) ) {
+            self::restore_backup_artifacts( $params, $checkpoint['artifacts'], $priority >= 250 );
+        }
         // Suppress nested export progress while the import displays its
         // recovery-point stage; do not discard the import's own status.
         if ( $is_recovery ) {
             $GLOBALS['trasloco_recovery_export_active'] = true;
         }
         remove_filter( 'trasloco_export', 'Trasloco_Export_Clean::execute', 300 );
-        add_filter( 'trasloco_completed_timeout', '__return_zero' );
         try {
-            $params = apply_filters( 'trasloco_export', $params );
+            if ( $finalizing ) {
+                $next_priority = 300;
+                $complete = true;
+            } else {
+                list( $params, $next_priority, $complete ) = self::run_backup_export_stage( $params, $priority );
+                if ( $priority <= 5 && ! empty( $params['archive'] ) &&
+                    ( file_exists( trasloco_backup_path( $params ) ) || is_link( trasloco_backup_path( $params ) ) ) ) {
+                    throw new RuntimeException( 'A backup with this name already exists.' );
+                }
+            }
         } finally {
             unset( $GLOBALS['trasloco_recovery_export_active'] );
-            remove_filter( 'trasloco_completed_timeout', '__return_zero' );
             add_filter( 'trasloco_export', 'Trasloco_Export_Clean::execute', 300 );
-            if ( ! empty( $params['storage'] ) ) {
-                try {
-                    Trasloco_Directory::delete( trasloco_storage_path( $params ) );
-                } catch ( Exception $ignored ) {}
+        }
+        if ( ! $complete ) {
+            $checkpoint = array( 'phase' => 'export', 'priority' => $next_priority,
+                'params' => $params, 'artifacts' => self::checkpoint_backup_artifacts( $params ) );
+            $progress = min( 89, 10 + max( 0, min( 79, (int) floor( ( $next_priority / 300 ) * 80 ) ) ) );
+            if ( ! Trasloco_Job_Store::yield_backup( $id, $owner, $progress, $checkpoint ) ) {
+                throw new RuntimeException( 'Backup checkpoint could not be committed.' );
             }
+            return array( 'status' => 'pending', 'progress' => $progress );
         }
         if ( empty( $params['archive'] ) ) {
             throw new RuntimeException( 'Export did not return an archive.' );
@@ -333,11 +373,13 @@ class Trasloco_Job_Worker {
         if ( Trasloco_Integrity::verify( $archive )['status'] !== 'verified' ) {
             throw new RuntimeException( 'Backup did not pass integrity verification.' );
         }
-        if ( ! Trasloco_Job_Store::checkpoint( $id, $owner, 95, array( 'phase' => $is_recovery ? 'recovery' : 'retention', 'archive' => $params['archive'] ) ) ) {
+        if ( ! Trasloco_Job_Store::checkpoint( $id, $owner, 95, array( 'phase' => $is_recovery ? 'recovery' : 'retention',
+            'archive' => $params['archive'], 'storage' => isset( $params['storage'] ) ? $params['storage'] : '' ) ) ) {
             throw new RuntimeException( 'Backup cancelled before retention.' );
         }
         if ( $is_recovery ) {
-            return $params['archive'];
+            Trasloco_Directory::delete( trasloco_storage_path( $params ) );
+            return array( 'status' => 'completed', 'archive' => $params['archive'] );
         }
         if ( ! empty( $payload['upload_offsite'] ) ) {
             $passphrase = defined( 'TRASLOCO_ARCHIVE_PASSPHRASE' )
@@ -350,14 +392,21 @@ class Trasloco_Job_Worker {
             $encrypted_manifest = Trasloco_Integrity::manifest_path( $encrypted_path );
             $encrypted_created = false;
             try {
-                if ( file_exists( $encrypted_manifest ) || is_link( $encrypted_manifest ) ) {
-                    throw new RuntimeException( 'Encrypted backup manifest already exists.' );
+                if ( file_exists( $encrypted_path ) || is_link( $encrypted_path ) ||
+                    file_exists( $encrypted_manifest ) || is_link( $encrypted_manifest ) ) {
+                    if ( is_link( $encrypted_path ) || is_link( $encrypted_manifest ) ||
+                        ! is_file( $encrypted_path ) || ! is_file( $encrypted_manifest ) ||
+                        Trasloco_Integrity::verify( $encrypted_path )['status'] !== 'verified' ) {
+                        throw new RuntimeException( 'Existing encrypted backup could not be verified.' );
+                    }
+                } else {
+                    require_once TRASLOCO_LIB_PATH . '/model/class-trasloco-encryption.php';
+                    Trasloco_Encryption::encrypt( $archive, $encrypted_path, $passphrase );
+                    $encrypted_created = true;
+                    Trasloco_Integrity::create_chunked( $encrypted_path );
                 }
-                require_once TRASLOCO_LIB_PATH . '/model/class-trasloco-encryption.php';
-                Trasloco_Encryption::encrypt( $archive, $encrypted_path, $passphrase );
-                $encrypted_created = true;
-                Trasloco_Integrity::create_chunked( $encrypted_path );
-                $upload_id = self::enqueue_offsite_upload( $encrypted_name, false, true );
+                $upload_key = hash( 'sha256', 'scheduled-backup-offsite|' . (int) $id . '|' . $encrypted_name );
+                $upload_id = self::enqueue_offsite_upload( $encrypted_name, false, true, $upload_key );
                 if ( is_wp_error( $upload_id ) || ! $upload_id ) {
                     throw new RuntimeException( 'Unable to queue encrypted offsite backup.' );
                 }
@@ -378,7 +427,142 @@ class Trasloco_Job_Worker {
         foreach ( array_slice( $prior, $keep - 1 ) as $entry ) {
             $model->delete_file( $entry['filename'] );
         }
-        return $params['archive'];
+        Trasloco_Directory::delete( trasloco_storage_path( $params ) );
+        return array( 'status' => 'completed', 'archive' => $params['archive'] );
+    }
+
+    /** Execute all callbacks registered at one export priority. */
+    private static function run_backup_export_stage( $params, $priority ) {
+        global $wp_filter;
+        if ( ! isset( $wp_filter['trasloco_export'] ) ) {
+            throw new RuntimeException( 'Export pipeline is unavailable.' );
+        }
+        $filters = $wp_filter['trasloco_export'];
+        if ( isset( $filters->callbacks ) ) {
+            $filters = $filters->callbacks;
+        }
+        if ( ! is_array( $filters ) ) {
+            throw new RuntimeException( 'Export pipeline is invalid.' );
+        }
+        ksort( $filters, SORT_NUMERIC );
+        $priority = (int) $priority;
+        if ( ! isset( $filters[ $priority ] ) || $priority >= 300 ) {
+            foreach ( array_keys( $filters ) as $candidate ) {
+                if ( (int) $candidate >= $priority && (int) $candidate < 300 ) {
+                    $priority = (int) $candidate;
+                    break;
+                }
+            }
+        }
+        if ( ! isset( $filters[ $priority ] ) || $priority >= 300 ) {
+            return array( $params, $priority, true );
+        }
+        foreach ( $filters[ $priority ] as $hook ) {
+            if ( is_string( $hook['function'] ) && $hook['function'] === 'Trasloco_Export_Download::execute' ) {
+                $published = trasloco_backup_path( $params );
+                if ( is_link( $published ) ) {
+                    throw new RuntimeException( 'Published backup is unsafe.' );
+                }
+                if ( is_file( $published ) ) {
+                    require_once TRASLOCO_LIB_PATH . '/vendor/core/archiver/class-trasloco-integrity.php';
+                    if ( ! is_file( Trasloco_Integrity::manifest_path( $published ) ) ) {
+                        Trasloco_Integrity::create_chunked( $published );
+                    }
+                    if ( Trasloco_Integrity::verify( $published )['status'] !== 'verified' ) {
+                        throw new RuntimeException( 'Published backup could not be verified after interruption.' );
+                    }
+                    continue;
+                }
+            }
+            $params = call_user_func_array( $hook['function'], array( $params ) );
+            if ( ! is_array( $params ) ) {
+                throw new RuntimeException( 'An export stage returned invalid state.' );
+            }
+        }
+        if ( isset( $params['completed'] ) && $params['completed'] === false ) {
+            return array( $params, $priority, false );
+        }
+        $next = $priority;
+        foreach ( array_keys( $filters ) as $candidate ) {
+            if ( (int) $candidate > $priority && (int) $candidate < 300 ) {
+                $next = (int) $candidate;
+                break;
+            }
+        }
+        return array( $params, $next, $next === $priority );
+    }
+
+    /** Flush private staging files before publishing their offsets. */
+    private static function checkpoint_backup_artifacts( $params ) {
+        $sizes = array();
+        foreach ( self::backup_artifact_paths( $params ) as $name => $path ) {
+            clearstatcache( true, $path );
+            if ( ! file_exists( $path ) ) {
+                continue;
+            }
+            if ( is_link( $path ) || ! is_file( $path ) || ! is_readable( $path ) ) {
+                throw new RuntimeException( 'Backup staging artifact is unsafe.' );
+            }
+            $handle = @fopen( $path, 'r+b' );
+            if ( ! is_resource( $handle ) ) {
+                throw new RuntimeException( 'Backup staging artifact cannot be flushed.' );
+            }
+            if ( function_exists( 'fsync' ) && ! @fsync( $handle ) ) {
+                fclose( $handle );
+                throw new RuntimeException( 'Backup staging artifact could not be synchronized.' );
+            }
+            fclose( $handle );
+            $sizes[ $name ] = (int) filesize( $path );
+        }
+        return $sizes;
+    }
+
+    /** Discard bytes appended after the last committed export stage. */
+    private static function restore_backup_artifacts( $params, $sizes, $allow_published_archive = false ) {
+        $paths = self::backup_artifact_paths( $params );
+        foreach ( $sizes as $name => $size ) {
+            if ( ! isset( $paths[ $name ] ) || ! is_int( $size ) || $size < 0 ) {
+                throw new RuntimeException( 'Backup checkpoint is invalid.' );
+            }
+            $path = $paths[ $name ];
+            clearstatcache( true, $path );
+            if ( $name === 'archive' && $allow_published_archive && ! file_exists( $path ) &&
+                is_file( trasloco_backup_path( $params ) ) && ! is_link( trasloco_backup_path( $params ) ) ) {
+                continue;
+            }
+            if ( is_link( $path ) || ! is_file( $path ) || filesize( $path ) < $size ) {
+                throw new RuntimeException( 'Backup staging artifact changed after interruption.' );
+            }
+            $handle = @fopen( $path, 'c+b' );
+            if ( ! is_resource( $handle ) || ! @ftruncate( $handle, $size ) ) {
+                if ( is_resource( $handle ) ) { fclose( $handle ); }
+                throw new RuntimeException( 'Backup staging artifact could not be resumed safely.' );
+            }
+            if ( function_exists( 'fsync' ) ) { @fsync( $handle ); }
+            fclose( $handle );
+        }
+    }
+
+    private static function backup_artifact_paths( $params ) {
+        if ( empty( $params['storage'] ) || ! preg_match( '/^[A-Za-z0-9_-]{1,128}$/D', $params['storage'] ) ) {
+            throw new RuntimeException( 'Backup storage checkpoint is invalid.' );
+        }
+        $storage = TRASLOCO_STORAGE_PATH . DIRECTORY_SEPARATOR . $params['storage'];
+        if ( is_link( $storage ) || ( file_exists( $storage ) && ! is_dir( $storage ) ) ) {
+            throw new RuntimeException( 'Backup storage checkpoint is unsafe.' );
+        }
+        $paths = array();
+        if ( isset( $params['archive'] ) &&
+            ! preg_match( '/^[A-Za-z0-9_.-]+\.wpress$/D', $params['archive'] ) ) {
+            throw new RuntimeException( 'Backup archive checkpoint is invalid.' );
+        }
+        if ( isset( $params['archive'] ) ) {
+            $paths['archive'] = $storage . DIRECTORY_SEPARATOR . $params['archive'];
+        }
+        $paths['database'] = $storage . DIRECTORY_SEPARATOR . TRASLOCO_DATABASE_NAME;
+        $paths['filemap'] = $storage . DIRECTORY_SEPARATOR . TRASLOCO_FILEMAP_NAME;
+        $paths['package'] = $storage . DIRECTORY_SEPARATOR . TRASLOCO_PACKAGE_NAME;
+        return $paths;
     }
 
 
@@ -514,12 +698,19 @@ class Trasloco_Job_Worker {
                         'handle' => $backup_lock, 'owner' => $backup_lock_owner,
                         'lease_seconds' => HOUR_IN_SECONDS, 'last_renew' => time(),
                     );
-                    $name = self::backup( $id, $owner, $record['payload'] );
+                    $internal = Trasloco_Job_Store::get_internal( $id );
+                    $result = self::backup( $id, $owner, $record['payload'],
+                        is_array( $internal ) ? $internal['checkpoint'] : array() );
                 } finally {
                     unset( $GLOBALS['trasloco_active_backup_job'] );
                     unset( $GLOBALS['trasloco_active_export_lock'] );
                     Trasloco_Export_Lock::release( $backup_lock, $backup_lock_owner );
                 }
+                if ( isset( $result['status'] ) && $result['status'] === 'pending' ) {
+                    self::schedule( $id );
+                    return $result;
+                }
+                $name = $result['archive'];
                 if ( ! Trasloco_Job_Store::finish( $id, $owner ) ) {
                     return array( 'status' => 'not_claimed' );
                 }
@@ -570,6 +761,17 @@ class Trasloco_Job_Worker {
             // the durable record secret-free and useful without those values.
             $failure = $record['kind'] === 'transfer' ? 'Offsite transfer failed; inspect provider availability and job history.' : $e->getMessage();
             $failed = Trasloco_Job_Store::fail( $id, $owner, $failure );
+            if ( $record['kind'] === 'backup' && $failed ) {
+                $internal = Trasloco_Job_Store::get_internal( $id );
+                if ( is_array( $internal ) && isset( $internal['checkpoint']['phase'], $internal['checkpoint']['params']['storage'] ) &&
+                    $internal['checkpoint']['phase'] === 'export' &&
+                    preg_match( '/^[A-Za-z0-9_-]{1,128}$/D', $internal['checkpoint']['params']['storage'] ) ) {
+                    $workspace = TRASLOCO_STORAGE_PATH . DIRECTORY_SEPARATOR . $internal['checkpoint']['params']['storage'];
+                    if ( is_dir( $workspace ) && ! is_link( $workspace ) ) {
+                        try { Trasloco_Directory::delete( $workspace ); } catch ( Throwable $ignored ) {}
+                    }
+                }
+            }
             if ( $record['kind'] === 'backup' && empty( $record['payload']['recovery_point'] ) ) {
                 do_action( 'trasloco_scheduled_backup_failed', $id );
             } elseif ( $record['kind'] === 'transfer' && $failed ) {
