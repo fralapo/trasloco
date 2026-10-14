@@ -37,7 +37,7 @@ Run the optional previous-major WordPress fixture with `TRASLOCO_TEST_WORDPRESS_
 - [ ] Repeat the PHP 7.4/8.2/8.4 and MySQL 8.0/MariaDB 11.4 CI matrix after local changes; the locally tested WordPress versions are 7.1.3 and 6.9.10 on PHP 8.5.4 / MariaDB 13.0.2.
 - [ ] Remote storage/cloud adapters and incremental chain delivery on the canonical job/storage contracts.
 - [ ] Consistency of WooCommerce/HPOS data while orders or scheduled actions are changing, plus other versions and order-related extensions. Pinned WooCommerce 11.2.1 restore fixtures for HPOS and legacy order storage pass locally. Multisite remains unsupported; a regression verifies network imports fail closed before importer metadata, files or database replacement.
-- [ ] Accessibility, keyboard/screen-reader audits and independent security review.
+- [ ] Complete keyboard, screen-reader, contrast and responsive accessibility audits, plus independent security review. This local pass now traps Tab focus inside Trasloco's body-level dialogs, including when focus would otherwise reach the separate WordPress admin bar; manual browser and assistive-technology verification remains open.
 - [ ] Module-by-module reconciliation of draft PR #2; textual conflict resolution alone is insufficient.
 
 Green CLI CI is necessary but does not prove complete disaster recovery or host compatibility. Version 1.2.0 does not claim those remaining certification results.
