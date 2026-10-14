@@ -131,7 +131,7 @@ English, Italian, Spanish, French and German. The language follows the WordPress
 
 As of version 1.2.0 (October 2026):
 
-- **Not yet tried on a real host behind a firewall.** So far it has been tested on local WordPress installs with PHP 8.2, including an import of a real 1.64 GB site (12 pages, 73 media files, 19 plugins). The base64 upload was built for hosting firewalls, but it has not been seen working behind one yet. PHP 7.4, 8.2 and 8.4 pass the release CLI integration matrix; real-host HTTP tests remain pending.
+- **Not yet tried on a real host behind a firewall.** So far it has been tested on local WordPress installs, including an import of a real 1.64 GB site (12 pages, 73 media files, 19 plugins). The base64 upload was built for hosting firewalls, but it has not been seen working behind one yet. The published PHP 7.4/8.2/8.4 CLI integration matrix is historical evidence for the last release; after later local changes, PHP 8.2 and 8.4 pass against MySQL 8.0 and MariaDB 11.4, while PHP 7.4 and real-host HTTP tests remain pending.
 - **Full-site rollback is not yet automatic.** File recovery restores planned files in two phases and preserves unrelated destination files; it does not make the entire site restore globally atomic.
 - **Single sites only.** Importing a multisite network is not supported.
 - **PHP's built-in web server is slow with big sites.** This is not a plugin problem, but if you use `php -S` for testing, each import step can take tens of seconds.
