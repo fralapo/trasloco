@@ -15,12 +15,14 @@ class Trasloco_Offline_Recovery_Diff {
     /**
      * @return array Bounded, portable report with relative paths only.
      */
-    public static function compare( $archive, $content_root, $max_bytes = self::DEFAULT_MAX_BYTES, $scan_untracked = false ) {
+    public static function compare( $archive, $content_root, $max_bytes = self::DEFAULT_MAX_BYTES,
+        $scan_untracked = false, $excludes = array() ) {
         if ( ! is_bool( $scan_untracked ) || ! is_int( $max_bytes ) || $max_bytes < 1 ||
              ! is_string( $content_root ) || is_link( $content_root ) ||
              ! is_dir( $content_root ) || ! is_readable( $content_root ) ) {
             throw new InvalidArgumentException( 'A readable, non-symlink wp-content root and a positive byte limit are required.' );
         }
+        $excludes = self::validate_excludes( $excludes );
         $root = realpath( $content_root );
         if ( $root === false ) {
             throw new RuntimeException( 'Unable to inspect the content root.' );
@@ -41,6 +43,8 @@ class Trasloco_Offline_Recovery_Diff {
         $report = array(
             'integrity' => 'sha256_verified',
             'files_compared' => 0,
+            'files_excluded' => 0,
+            'exclusions' => $excludes,
             'content_bytes_checked' => 0,
             'identical' => 0,
             'modified' => 0,
@@ -92,17 +96,22 @@ class Trasloco_Offline_Recovery_Diff {
                     throw new RuntimeException( 'Invalid recovery entry size.' );
                 }
                 if ( count( $parts ) > 0 && in_array( $parts[0], self::CONTENT_GROUPS, true ) ) {
+                    $relative = $folder . '/' . $name;
+                    if ( isset( $tracked[ $relative ] ) ) {
+                        throw new RuntimeException( 'Duplicate file path in recovery archive.' );
+                    }
+                    $tracked[ $relative ] = true;
+                    if ( self::is_excluded( $relative, $excludes ) ) {
+                        $report['files_excluded']++;
+                        $offset += self::HEADER + $length;
+                        continue;
+                    }
                     if ( $report['files_compared'] >= self::MAX_FILES ||
                          $report['content_bytes_checked'] > $max_bytes - $length ) {
                         throw new RuntimeException( 'Recovery comparison exceeds its file/byte safety limit.' );
                     }
                     $report['files_compared']++;
                     $report['content_bytes_checked'] += $length;
-                    $relative = $folder . '/' . $name;
-                    if ( isset( $tracked[ $relative ] ) ) {
-                        throw new RuntimeException( 'Duplicate file path in recovery archive.' );
-                    }
-                    $tracked[ $relative ] = true;
                     $cursor = $root;
                     $unsafe = false;
                     foreach ( $parts as $part ) {
@@ -167,6 +176,37 @@ class Trasloco_Offline_Recovery_Diff {
             self::scan_untracked( $root, $tracked, $report );
         }
         return $report;
+    }
+
+    /** Validate exact relative paths; an excluded directory matches descendants. */
+    private static function validate_excludes( $excludes ) {
+        if ( ! is_array( $excludes ) || count( $excludes ) > 100 ) {
+            throw new InvalidArgumentException( 'Recovery diff accepts at most 100 relative path exclusions.' );
+        }
+        $validated = array();
+        foreach ( $excludes as $exclude ) {
+            if ( ! is_string( $exclude ) || $exclude === '' || strlen( $exclude ) > 1024 ||
+                strpos( $exclude, '\\' ) !== false || preg_match( '/[\x00-\x1f\x7f]/', $exclude ) ||
+                $exclude[0] === '/' || preg_match( '/^[A-Za-z]:/', $exclude ) ) {
+                throw new InvalidArgumentException( 'Recovery diff exclusions must be safe relative content paths.' );
+            }
+            $parts = explode( '/', $exclude );
+            if ( ! in_array( $parts[0], self::CONTENT_GROUPS, true ) ||
+                in_array( '', $parts, true ) || in_array( '.', $parts, true ) || in_array( '..', $parts, true ) ) {
+                throw new InvalidArgumentException( 'Recovery diff exclusions must stay under uploads, themes, plugins or mu-plugins.' );
+            }
+            $validated[ $exclude ] = true;
+        }
+        return array_keys( $validated );
+    }
+
+    private static function is_excluded( $relative, $excludes ) {
+        foreach ( $excludes as $exclude ) {
+            if ( $relative === $exclude || strpos( $relative, $exclude . '/' ) === 0 ) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

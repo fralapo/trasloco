@@ -646,6 +646,28 @@ ensure( $changed['modified'] === 1 && $changed['sample'][0]['relative_path'] ===
 unlink( $diff_file );
 $missing = Trasloco_Offline_Recovery_Diff::compare( $diff_archive, $diff_dir );
 ensure( $missing['missing'] === 1, 'offline diff detects missing recovery content' );
+file_put_contents( $diff_file, 'SAFE' );
+$excluded = Trasloco_Offline_Recovery_Diff::compare( $diff_archive, $diff_dir,
+    Trasloco_Offline_Recovery_Diff::DEFAULT_MAX_BYTES, true, array( 'uploads/docs' ) );
+ensure( $excluded['files_compared'] === 0 && $excluded['files_excluded'] === 1 &&
+    $excluded['missing'] === 0 && $excluded['not_in_snapshot'] === 0 &&
+    $excluded['exclusions'] === array( 'uploads/docs' ),
+    'selected directory exclusion should skip comparison and not misclassify archived files as untracked' );
+$cli_command = escapeshellarg( PHP_BINARY ) . ' ' .
+    escapeshellarg( dirname( __DIR__ ) . '/tools/recovery-diff.php' ) . ' ' .
+    escapeshellarg( $diff_archive ) . ' ' . escapeshellarg( $diff_dir ) .
+    ' --exclude=uploads/docs --json';
+exec( $cli_command, $cli_output, $cli_status );
+$cli_report = json_decode( implode( "\n", $cli_output ), true );
+ensure( $cli_status === 0 && is_array( $cli_report ) &&
+    $cli_report['files_excluded'] === 1 && $cli_report['files_compared'] === 0,
+    'recovery-diff CLI did not apply a validated exclusion' );
+try {
+    Trasloco_Offline_Recovery_Diff::compare( $diff_archive, $diff_dir,
+        Trasloco_Offline_Recovery_Diff::DEFAULT_MAX_BYTES, false, array( 'uploads/../private' ) );
+    ensure( false, 'offline diff accepted a traversal exclusion' );
+} catch ( InvalidArgumentException $expected ) {}
+unlink( $diff_file );
 symlink( '/etc/passwd', $diff_file );
 $unsafe = Trasloco_Offline_Recovery_Diff::compare( $diff_archive, $diff_dir );
 ensure( $unsafe['unsafe_target'] === 1, 'offline diff never follows a symlink' );

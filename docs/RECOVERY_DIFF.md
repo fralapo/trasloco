@@ -9,6 +9,15 @@ php tools/recovery-status.php /private/trasloco-backups --json
 php tools/recovery-diff.php /private/trasloco-backups/recovery-example.wpress /srv/site/wp-content --json
 ```
 
+To omit a noisy path from the content comparison, add one or more exact relative paths. An excluded directory also excludes its descendants:
+
+```bash
+php tools/recovery-diff.php /private/recovery-example.wpress /srv/site/wp-content \
+  --exclude=uploads/cache --exclude=plugins/example-plugin/generated --json
+```
+
+Exclusions must stay under `uploads/`, `themes/`, `plugins/` or `mu-plugins/`; absolute paths, traversal components and control characters are rejected. They skip content comparison only. Trasloco still validates the archive checksum, every archive header, entry length and path, and counts excluded entries in `files_excluded`. This option affects this read-only report only; it does not change an import or authorize file deletion.
+
 The comparison is **read only** and **does not bootstrap WordPress or MySQL**. It validates the backup's versioned SHA-256 manifest, validates archive structure and paths, checks contents in fixed-size chunks, and reports counts plus at most 25 relative file names in states `identical`, `modified`, `missing`, or `unsafe_target`. A symlink or non-file target is never traversed. Archive work is limited to 100,000 content files and 2 GiB by default; larger sites require an explicitly reviewed implementation change.
 
 Limitations: the default mode does not detect files absent from the archive; an explicit optional inventory identifies *untracked* files but cannot prove whether they came from the failed import or legitimate new site activity. It does not inspect database mutations or concurrent live writes. It **does not delete or replace anything** and is not an automated, atomic rollback. Do not use `rsync --delete` against production based only on this report. For a full rollback, stop writes and rehearse disaster recovery on an isolated site; follow the recovery runbook.
