@@ -69,6 +69,18 @@ class Trasloco_Encryption {
         return $temp;
     }
 
+    /** Publish without replacing a destination created after the initial check. */
+    private static function publish_new_file( $temp, $target ) {
+        if ( ! @link( $temp, $target ) ) {
+            @unlink( $temp );
+            throw new RuntimeException( 'Cannot publish archive without replacing an existing file.' );
+        }
+        // Both paths name the same complete file; removing the private staging
+        // link leaves the destination with the original 0600 permissions.
+        @unlink( $temp );
+        return true;
+    }
+
     public static function encrypt( $source, $target, $passphrase ) {
         self::available();
         if ( ! is_file( $source ) || is_link( $source ) ) {
@@ -118,11 +130,7 @@ class Trasloco_Encryption {
         }
         fclose( $in );
         fclose( $out );
-        if ( ! rename( $temp, $target ) ) {
-            @unlink( $temp );
-            throw new RuntimeException( 'Cannot publish encrypted archive.' );
-        }
-        return true;
+        return self::publish_new_file( $temp, $target );
     }
 
     public static function decrypt( $source, $target, $passphrase ) {
@@ -191,10 +199,6 @@ class Trasloco_Encryption {
         }
         fclose( $in );
         fclose( $out );
-        if ( ! rename( $temp, $target ) ) {
-            @unlink( $temp );
-            throw new RuntimeException( 'Cannot publish decrypted archive.' );
-        }
-        return true;
+        return self::publish_new_file( $temp, $target );
     }
 }

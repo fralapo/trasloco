@@ -963,12 +963,43 @@ if ( Trasloco_Integrity::verify( $manual_encrypted_path )["status"] !== "verifie
     hash_file( "sha256", $view_archive_path ) !== $view_archive_sha ) {
     throw new Exception( "Manual UI encryption did not publish a verified sidecar or changed the plaintext source" );
 }
+$manual_decrypted_name = Trasloco_Backups_Controller::decrypt_archive( $manual_encrypted_name,
+    "integration-manual-encryption-secret-2026" );
+$manual_decrypted_path = trasloco_backup_path( array( "archive" => $manual_decrypted_name ) );
+if ( Trasloco_Integrity::verify( $manual_decrypted_path )["status"] !== "verified" ||
+    hash_file( "sha256", $manual_decrypted_path ) !== $view_archive_sha ||
+    Trasloco_Integrity::verify( $manual_encrypted_path )["status"] !== "verified" ) {
+    throw new Exception( "Manual UI decryption did not preserve the encrypted input and publish the verified original bytes" );
+}
+$manual_decrypt_collision = false;
+try {
+    Trasloco_Backups_Controller::decrypt_archive( $manual_encrypted_name,
+        "integration-manual-encryption-secret-2026" );
+} catch ( RuntimeException $expected ) { $manual_decrypt_collision = true; }
+if ( ! $manual_decrypt_collision ) { throw new Exception( "Manual UI decryption replaced an existing plaintext archive" ); }
+$wrong_passphrase_archive = "integration-wrong-passphrase.wpress.enc";
+$wrong_passphrase_path = trasloco_encrypted_backup_path( $wrong_passphrase_archive );
+Trasloco_Encryption::encrypt( $view_archive_path, $wrong_passphrase_path, "another-valid-test-passphrase" );
+Trasloco_Integrity::create_chunked( $wrong_passphrase_path );
+$wrong_passphrase_rejected = false;
+try {
+    Trasloco_Backups_Controller::decrypt_archive( $wrong_passphrase_archive,
+        "integration-manual-encryption-secret-2026" );
+} catch ( RuntimeException $expected ) { $wrong_passphrase_rejected = true; }
+$wrong_passphrase_output = trasloco_backup_path( array( "archive" => "integration-wrong-passphrase-decrypted.wpress" ) );
+if ( ! $wrong_passphrase_rejected || file_exists( $wrong_passphrase_output ) ||
+    file_exists( Trasloco_Integrity::manifest_path( $wrong_passphrase_output ) ) ) {
+    throw new Exception( "Manual UI decryption did not reject a wrong passphrase and clean its partial plaintext" );
+}
 $manual_encrypt_collision = false;
 try {
     Trasloco_Backups_Controller::encrypt_archive( $view_archive, "integration-manual-encryption-secret-2026" );
 } catch ( RuntimeException $expected ) { $manual_encrypt_collision = true; }
 if ( ! $manual_encrypt_collision ) { throw new Exception( "Manual UI encryption replaced an existing encrypted backup" ); }
 putenv( "TRASLOCO_ARCHIVE_PASSPHRASE=integration-manual-encryption-secret-2026" );
+$ui_admins = get_users( array( "role" => "administrator", "number" => 1 ) );
+if ( empty( $ui_admins ) ) { throw new Exception( "Could not load the administrator for backup UI tests" ); }
+wp_set_current_user( $ui_admins[0]->ID );
 ob_start();
 include TRASLOCO_TEMPLATES_PATH . "/backups/index.php";
 $schedule_html = ob_get_clean();
@@ -980,9 +1011,25 @@ if ( strpos( $schedule_html, "Encrypt and upload each scheduled backup to remote
     strpos( $schedule_html, "have paused writes to them" ) === false ||
     strpos( $schedule_html, "Encrypt backup" ) === false ||
     strpos( $schedule_html, "action=trasloco_encrypt_backup" ) === false ||
+    strpos( $schedule_html, "Decrypt backup" ) === false ||
+    strpos( $schedule_html, "action=trasloco_decrypt_backup" ) === false ||
     strpos( $schedule_html, "Download encrypted backup" ) === false ||
     strpos( $schedule_html, "to WebDAV" ) !== false ) {
     throw new Exception( "Backup UI does not show archive verification, manual encryption or remote delivery" );
+}
+$saved_get = $_GET;
+$_GET["trasloco_decrypt_status"] = "complete";
+$_GET["trasloco_decrypted_archive"] = $manual_decrypted_name;
+ob_start();
+include TRASLOCO_TEMPLATES_PATH . "/backups/index.php";
+$decrypted_html = ob_get_clean();
+$_GET = $saved_get;
+if ( strpos( $decrypted_html, "Decrypted backup created in private storage" ) === false ||
+    strpos( $decrypted_html, "Download decrypted backup" ) === false ||
+    strpos( $decrypted_html, "action=trasloco_download" ) === false ||
+    strpos( $decrypted_html, $manual_decrypted_name ) === false ||
+    strpos( $decrypted_html, "_wpnonce=" ) === false ) {
+    throw new Exception( "Backup UI did not show the authenticated download for its verified decrypted archive" );
 }
 require_once TRASLOCO_LIB_PATH . "/model/class-trasloco-selective-restore-lock.php";
 $lock_a = "integration-selective-lock-a";

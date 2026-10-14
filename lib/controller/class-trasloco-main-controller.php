@@ -930,6 +930,7 @@ class Trasloco_Main_Controller {
 		add_action( 'wp_ajax_trasloco_backups', 'Trasloco_Backups_Controller::delete' );
 		add_action( 'admin_post_trasloco_download', 'Trasloco_Backups_Controller::download' );
 		add_action( 'admin_post_trasloco_encrypt_backup', 'Trasloco_Backups_Controller::encrypt' );
+		add_action( 'admin_post_trasloco_decrypt_backup', 'Trasloco_Backups_Controller::decrypt' );
 	}
 
 	/**

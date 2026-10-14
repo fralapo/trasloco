@@ -391,6 +391,24 @@ return array(
 		'fr' => 'Le chiffrement de la sauvegarde a échoué. Vérifiez sa configuration et son intégrité, puis réessayez.',
 		'de' => 'Die Sicherung konnte nicht verschlüsselt werden. Prüfen Sie Konfiguration und Integrität und versuchen Sie es erneut.',
 	),
+	'Backup decryption failed. Check the passphrase configuration and encrypted archive integrity, then try again.' => array(
+		'it' => 'Decifratura del backup non riuscita. Controlla la passphrase configurata e l’integrità dell’archivio cifrato, poi riprova.',
+		'es' => 'No se pudo descifrar la copia. Comprueba la frase de contraseña y la integridad del archivo cifrado, y vuelve a intentarlo.',
+		'fr' => 'Le déchiffrement de la sauvegarde a échoué. Vérifiez la phrase secrète et l’intégrité de l’archive chiffrée, puis réessayez.',
+		'de' => 'Die Sicherung konnte nicht entschlüsselt werden. Prüfen Sie Passphrase und Integrität des verschlüsselten Archivs und versuchen Sie es erneut.',
+	),
+	'Decrypted backup created in private storage. Download it, then secure or remove the plaintext copy.' => array(
+		'it' => 'Backup decifrato creato nell’archivio privato. Scaricalo, poi proteggi o rimuovi la copia in chiaro.',
+		'es' => 'Copia descifrada creada en el almacenamiento privado. Descárgala y protege o elimina la copia sin cifrar.',
+		'fr' => 'Sauvegarde déchiffrée créée dans le stockage privé. Téléchargez-la, puis protégez ou supprimez la copie en clair.',
+		'de' => 'Entschlüsselte Sicherung im privaten Speicher erstellt. Laden Sie sie herunter und schützen oder löschen Sie die Klartextkopie.',
+	),
+	'Download decrypted backup' => array(
+		'it' => 'Scarica backup decifrato', 'es' => 'Descargar copia descifrada', 'fr' => 'Télécharger la sauvegarde déchiffrée', 'de' => 'Entschlüsselte Sicherung herunterladen',
+	),
+	'The decrypted backup is not available for download.' => array(
+		'it' => 'Il backup decifrato non è disponibile per il download.', 'es' => 'La copia descifrada no está disponible para descargar.', 'fr' => 'La sauvegarde déchiffrée n’est pas disponible au téléchargement.', 'de' => 'Die entschlüsselte Sicherung steht nicht zum Download bereit.',
+	),
 	'Encrypted backup created. Download it now and store your passphrase separately.' => array(
 		'it' => 'Backup cifrato creato. Scaricalo e conserva la passphrase separatamente.',
 		'es' => 'Copia cifrada creada. Descárgala y guarda la frase de contraseña por separado.',
@@ -421,12 +439,14 @@ return array(
 		'fr' => 'Le chiffrement crée un fichier séparé. La sauvegarde d’origine reste en clair : protégez-la ou supprimez-la après avoir vérifié la copie chiffrée.',
 		'de' => 'Die Verschlüsselung erstellt eine separate Datei. Das Original bleibt unverschlüsselt: Schützen oder entfernen Sie es nach Prüfung der verschlüsselten Kopie.',
 	),
-	'Encryption runs on the server and may take several minutes. Keep this page open and allow free disk space for another copy of the archive.' => array(
-		'it' => 'La cifratura viene eseguita sul server e può richiedere alcuni minuti. Lascia aperta la pagina e assicurati che ci sia spazio per un’altra copia dell’archivio.',
-		'es' => 'El cifrado se ejecuta en el servidor y puede tardar varios minutos. Mantén abierta esta página y asegúrate de tener espacio para otra copia del archivo.',
-		'fr' => 'Le chiffrement s’effectue sur le serveur et peut prendre plusieurs minutes. Gardez cette page ouverte et prévoyez assez d’espace pour une autre copie de l’archive.',
-		'de' => 'Die Verschlüsselung läuft auf dem Server und kann mehrere Minuten dauern. Lassen Sie diese Seite geöffnet und halten Sie Speicherplatz für eine weitere Archivkopie bereit.',
+	'Encryption and decryption run on the server and may take several minutes. Keep this page open and allow free disk space for another archive copy.' => array(
+		'it' => 'Cifratura e decifratura vengono eseguite sul server e possono richiedere alcuni minuti. Lascia aperta la pagina e assicurati che ci sia spazio per un’altra copia dell’archivio.',
+		'es' => 'El cifrado y el descifrado se ejecutan en el servidor y pueden tardar varios minutos. Mantén esta página abierta y asegúrate de tener espacio para otra copia del archivo.',
+		'fr' => 'Le chiffrement et le déchiffrement s’effectuent sur le serveur et peuvent prendre plusieurs minutes. Gardez cette page ouverte et prévoyez assez d’espace pour une autre copie de l’archive.',
+		'de' => 'Verschlüsselung und Entschlüsselung laufen auf dem Server und können mehrere Minuten dauern. Lassen Sie diese Seite geöffnet und halten Sie Speicherplatz für eine weitere Archivkopie bereit.',
 	),
+	'Decrypt' => array( 'it' => 'Decifra', 'es' => 'Descifrar', 'fr' => 'Déchiffrer', 'de' => 'Entschlüsseln' ),
+	'Decrypt backup %s' => array( 'it' => 'Decifra backup %s', 'es' => 'Descifrar copia %s', 'fr' => 'Déchiffrer la sauvegarde %s', 'de' => 'Sicherung %s entschlüsseln' ),
 	'Encrypt' => array(
 		'it' => 'Cifra',
 		'es' => 'Cifrar',

@@ -78,7 +78,8 @@
 	<?php elseif ( isset( $_GET['trasloco_encrypt_status'] ) && $_GET['trasloco_encrypt_status'] === 'complete' && isset( $_GET['trasloco_encrypted_archive'] ) ) : ?>
 		<?php
 		require_once TRASLOCO_LIB_PATH . '/vendor/core/archiver/class-trasloco-integrity.php';
-		$tr_encrypted_name = sanitize_file_name( wp_unslash( $_GET['trasloco_encrypted_archive'] ) );
+		$tr_encrypted_name = is_string( $_GET['trasloco_encrypted_archive'] )
+			? wp_unslash( $_GET['trasloco_encrypted_archive'] ) : '';
 		$tr_encrypted_path = '';
 		try { $tr_encrypted_path = trasloco_encrypted_backup_path( $tr_encrypted_name ); } catch ( Exception $ignored ) {}
 		?>
@@ -91,11 +92,30 @@
 			<p role="alert" class="notice notice-error"><?php esc_html_e( 'The encrypted backup is not available for download.', TRASLOCO_PLUGIN_NAME ); ?></p>
 		<?php endif; ?>
 	<?php endif; ?>
+	<?php if ( isset( $_GET['trasloco_decrypt_status'] ) && $_GET['trasloco_decrypt_status'] === 'error' ) : ?>
+		<p role="alert" class="notice notice-error"><?php esc_html_e( 'Backup decryption failed. Check the passphrase configuration and encrypted archive integrity, then try again.', TRASLOCO_PLUGIN_NAME ); ?></p>
+	<?php elseif ( isset( $_GET['trasloco_decrypt_status'] ) && $_GET['trasloco_decrypt_status'] === 'complete' && isset( $_GET['trasloco_decrypted_archive'] ) ) : ?>
+		<?php
+		require_once TRASLOCO_LIB_PATH . '/vendor/core/archiver/class-trasloco-integrity.php';
+		$tr_decrypted_name = is_string( $_GET['trasloco_decrypted_archive'] )
+			? wp_unslash( $_GET['trasloco_decrypted_archive'] ) : '';
+		$tr_decrypted_path = '';
+		try { if ( $tr_decrypted_name !== '' ) { $tr_decrypted_path = trasloco_backup_path( array( 'archive' => $tr_decrypted_name ) ); } } catch ( Exception $ignored ) {}
+		?>
+		<?php if ( $tr_decrypted_path && is_file( $tr_decrypted_path ) && ! is_link( $tr_decrypted_path ) &&
+			is_file( Trasloco_Integrity::manifest_path( $tr_decrypted_path ) ) ) : ?>
+			<p role="status" class="notice notice-success"><?php esc_html_e( 'Decrypted backup created in private storage. Download it, then secure or remove the plaintext copy.', TRASLOCO_PLUGIN_NAME ); ?>
+				<a href="<?php echo esc_url( trasloco_backup_url( array( 'archive' => $tr_decrypted_name ) ) ); ?>"><?php esc_html_e( 'Download decrypted backup', TRASLOCO_PLUGIN_NAME ); ?></a>
+			</p>
+		<?php else : ?>
+			<p role="alert" class="notice notice-error"><?php esc_html_e( 'The decrypted backup is not available for download.', TRASLOCO_PLUGIN_NAME ); ?></p>
+		<?php endif; ?>
+	<?php endif; ?>
 	<?php if ( ! $tr_manual_encryption_enabled ) : ?>
 		<p class="tr-hint"><?php esc_html_e( 'To encrypt a backup here, configure TRASLOCO_ARCHIVE_PASSPHRASE (at least 12 characters) in the worker environment or wp-config.php and enable PHP sodium.', TRASLOCO_PLUGIN_NAME ); ?></p>
 	<?php else : ?>
 		<p class="tr-hint"><?php esc_html_e( 'Encryption creates a separate file. The original backup stays unencrypted; protect or remove it yourself after checking the encrypted copy.', TRASLOCO_PLUGIN_NAME ); ?></p>
-		<p class="tr-hint"><?php esc_html_e( 'Encryption runs on the server and may take several minutes. Keep this page open and allow free disk space for another copy of the archive.', TRASLOCO_PLUGIN_NAME ); ?></p>
+		<p class="tr-hint"><?php esc_html_e( 'Encryption and decryption run on the server and may take several minutes. Keep this page open and allow free disk space for another archive copy.', TRASLOCO_PLUGIN_NAME ); ?></p>
 	<?php endif; ?>
 
 	<?php
@@ -238,6 +258,11 @@
 											<a href="<?php echo esc_url( trasloco_encrypted_backup_url( $tr_encrypted_filename ) ); ?>" class="tr-btn tr-btn-ghost" aria-label="<?php echo esc_attr( sprintf( __( 'Download encrypted backup %s', TRASLOCO_PLUGIN_NAME ), basename( $tr_encrypted_filename ) ) ); ?>">
 												<span><?php esc_html_e( 'Encrypted', TRASLOCO_PLUGIN_NAME ); ?></span>
 											</a>
+											<?php if ( $tr_manual_encryption_enabled ) : ?>
+												<button type="submit" name="archive" value="<?php echo esc_attr( $tr_encrypted_filename ); ?>" formaction="<?php echo esc_url( admin_url( 'admin-post.php?action=trasloco_decrypt_backup' ) ); ?>" formmethod="post" class="tr-btn tr-btn-ghost" aria-label="<?php echo esc_attr( sprintf( __( 'Decrypt backup %s', TRASLOCO_PLUGIN_NAME ), basename( $tr_encrypted_filename ) ) ); ?>">
+													<span><?php esc_html_e( 'Decrypt', TRASLOCO_PLUGIN_NAME ); ?></span>
+												</button>
+											<?php endif; ?>
 										<?php endif; ?>
 										<?php if ( $tr_manual_encryption_enabled ) : ?>
 											<button type="submit" name="archive" value="<?php echo esc_attr( $backup['filename'] ); ?>" formaction="<?php echo esc_url( admin_url( 'admin-post.php?action=trasloco_encrypt_backup' ) ); ?>" formmethod="post" class="tr-btn tr-btn-ghost" aria-label="<?php echo esc_attr( sprintf( __( 'Encrypt backup %s', TRASLOCO_PLUGIN_NAME ), basename( $backup['filename'] ) ) ); ?>">
@@ -292,6 +317,7 @@
 
 					<?php wp_nonce_field( 'trasloco_verify_archive', 'trasloco_verify_nonce' ); ?>
 					<?php wp_nonce_field( 'trasloco_encrypt_backup', 'trasloco_encrypt_nonce' ); ?>
+					<?php wp_nonce_field( 'trasloco_decrypt_backup', 'trasloco_decrypt_nonce' ); ?>
 					<input type="hidden" name="trasloco_manual_restore" value="1" />
 
 				</form>
