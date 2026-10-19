@@ -17,7 +17,7 @@ The snapshot store uses batches of eight 4-MiB chunks, resumes from a private jo
 - The v1.5.0 base and S3-enabled release ZIPs passed local archive integrity checks.
 - The v1.6.0 base and S3-enabled packages are built from the tagged source with `tools/build-release.sh`; both pass ZIP integrity checks, and the S3 package contains the pinned runtime autoloader.
 - PR #2 was reconciled to current `main`, narrowed to the Agency overview, locally verified, and squash-merged. Its merge commit includes `[skip ci]`; GitHub Actions were not run.
-- v1.6.1 release packages must be built from the final version tag and checked before publishing. The Agency page is read-only and tested with mocked responses; no real remote agency sites were contacted.
+- The v1.6.1 base and S3-enabled packages were built from tag `v1.6.1` and passed ZIP integrity checks; the S3 package includes the pinned runtime autoloader. Both ZIPs and their SHA-256 manifest are published in the [v1.6.1 release](https://github.com/fralapo/trasloco/releases/tag/v1.6.1). The Agency page is read-only and tested with mocked responses; no real remote agency sites were contacted.
 - These checks use local fixtures. GitHub Actions, real remote providers, real hosting environments and production durability were not tested.
 
 ## PR #2 reconciliation update — 2026-10-19
