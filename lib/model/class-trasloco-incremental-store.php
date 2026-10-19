@@ -293,7 +293,7 @@ class Trasloco_Incremental_Store {
                 if ( ! is_string( $existing_json ) || ! hash_equals( hash( 'sha256', $existing_json ), hash( 'sha256', $canonical_json ) ) ) {
                     throw new RuntimeException( 'A different local snapshot catalog already exists.' );
                 }
-                $this->stream_catalog( $existing, null );
+                $this->stream_catalog( $existing, null, $progress, 'verifying' );
                 return array( 'status' => 'already_present', 'archive' => $archive, 'size_bytes' => $existing['size_bytes'], 'objects' => count( $existing['chunks'] ) );
             }
             $objects = array();
@@ -312,16 +312,19 @@ class Trasloco_Incremental_Store {
                 }
                 ++$completed_objects;
                 $completed_bytes += $size;
-                if ( $progress !== null && call_user_func( $progress, $completed_objects, $total_objects, $completed_bytes ) === false ) {
+                if ( $progress !== null && call_user_func( $progress, $completed_objects, $total_objects, $completed_bytes, 'downloading' ) === false ) {
                     throw new RuntimeException( 'Incremental snapshot import was cancelled or its lease was lost.' );
                 }
             }
             // Check the whole-archive digest before the catalog becomes
             // visible; a structurally valid catalog can still lie about it.
-            $this->stream_catalog( $catalog, null );
+            $this->stream_catalog( $catalog, null, $progress, 'verifying' );
             $this->publish_json( $path, $catalog );
             $published = $this->read_catalog( $archive );
-            $this->stream_catalog( $published, null );
+            $published_json = json_encode( $published, JSON_UNESCAPED_SLASHES );
+            if ( ! is_string( $published_json ) || ! hash_equals( hash( 'sha256', $canonical_json ), hash( 'sha256', $published_json ) ) ) {
+                throw new RuntimeException( 'Published incremental catalog differs from the verified remote catalog.' );
+            }
             return array( 'status' => 'downloaded', 'archive' => $archive, 'size_bytes' => $published['size_bytes'], 'objects' => count( $published['chunks'] ) );
         } );
     }
@@ -645,7 +648,7 @@ class Trasloco_Incremental_Store {
         if ( $total !== $catalog['size_bytes'] ) { throw new RuntimeException( 'Incremental snapshot size is invalid.' ); }
     }
 
-    private function stream_catalog( $catalog, $output, $progress = null ) {
+    private function stream_catalog( $catalog, $output, $progress = null, $phase = null ) {
         $whole = hash_init( 'sha256' );
         $total = 0;
         $completed_chunks = 0;
@@ -680,7 +683,7 @@ class Trasloco_Incremental_Store {
             }
             $total += $object_bytes;
             ++$completed_chunks;
-            if ( $progress !== null && call_user_func( $progress, $completed_chunks, $chunk_count, $total ) === false ) {
+            if ( $progress !== null && call_user_func( $progress, $completed_chunks, $chunk_count, $total, $phase ) === false ) {
                 throw new RuntimeException( 'Incremental snapshot verification was cancelled or its lease was lost.' );
             }
         }

@@ -3,7 +3,7 @@ Tags: backup, migration, migrate, export, import
 Requires at least: 5.5
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.8.0
+Stable tag: 1.8.1
 License: AGPL-3.0-or-later
 License URI: https://www.gnu.org/licenses/agpl-3.0.html
 
@@ -35,6 +35,10 @@ Trasloco exports a whole WordPress site (database, media, themes and plugins) to
 The new address is set by the import: there is nothing to type. Trasloco > Guide explains every option.
 
 == Changelog ==
+
+= 1.8.1 =
+* Keep queued incremental download progress and lease renewal active through whole-archive verification before catalog publication.
+* Avoid a redundant whole-object verification scan after the catalog is atomically published.
 
 = 1.8.0 =
 * Incremental snapshots can now be uploaded and downloaded through durable `wp trasloco incremental queue-upload|queue-download` jobs. Workers checkpoint progress during archive validation and object transfer, recover expired leases, and safely reuse verified immutable objects on retry.

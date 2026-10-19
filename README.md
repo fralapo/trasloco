@@ -7,7 +7,7 @@
 **Trasloco is a free, open source WordPress plugin that backs up and migrates a whole WordPress site.** It exports the database, media library, themes and plugins into a single `.wpress` file, then imports that file on any other WordPress install, with no file size limit, no paid add-ons and no account. It is tested with a real 1.64 GB site.
 
 [![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
-![Version](https://img.shields.io/badge/version-1.8.0-informational.svg)
+![Version](https://img.shields.io/badge/version-1.8.1-informational.svg)
 ![Languages](https://img.shields.io/badge/languages-en%20it%20es%20fr%20de-success.svg)
 ![Tested on PHP 8.4](https://img.shields.io/badge/tested_on-PHP_8.4-777bb4.svg)
 
@@ -34,7 +34,7 @@ I wrote it to move a 1.6 GB site to shared hosting without paying for a "remove 
 - **Five languages:** English, Italian, Spanish, French and German, all in one file. See [Languages](#languages).
 - **PHP 8.2 clean.** The iterators carry `#[\ReturnTypeWillChange]`, so the log is free of deprecation notices.
 - **WP-CLI:** `wp trasloco backup` and `wp trasloco restore <file>`. For scheduled jobs, `wp trasloco backup --keep=7` keeps only the latest seven backups. See [automation](docs/AUTOMATION.md) for cron and offsite storage.
-- **Incremental snapshots:** optional content-addressed snapshots deduplicate matching 4-MiB chunks. List and measure them in **Backups** or with `wp trasloco incremental stats`; reconstruct a missing archive with `wp trasloco restore <file>`. Full archives are kept unless you explicitly run the verified `wp trasloco incremental compact <file>` command. Transfer immutable remote objects directly with `wp trasloco incremental upload|download <file>`, or queue durable transfers with `wp trasloco incremental queue-upload|queue-download <file>`; plaintext upload requires explicit `--allow-unencrypted` consent. Queued jobs checkpoint object progress and can safely retry because objects are immutable and the catalog is published last. See the [snapshot design and operations](docs/INCREMENTAL_BACKUP_DESIGN.md).
+- **Incremental snapshots:** optional content-addressed snapshots deduplicate matching 4-MiB chunks. List and measure them in **Backups** or with `wp trasloco incremental stats`; reconstruct a missing archive with `wp trasloco restore <file>`. Full archives are kept unless you explicitly run the verified `wp trasloco incremental compact <file>` command. Transfer immutable remote objects directly with `wp trasloco incremental upload|download <file>`, or queue durable transfers with `wp trasloco incremental queue-upload|queue-download <file>`; plaintext upload requires explicit `--allow-unencrypted` consent. Queued jobs checkpoint object progress and renew their lease through full archive verification before publishing the catalog. See the [snapshot design and operations](docs/INCREMENTAL_BACKUP_DESIGN.md).
 - **Verified backups and recovery.** SHA-256 manifests, resumable verification and offsite jobs, scheduled backups with verified retention, configurable email and signed webhook alerts with bounded delivery retries, and optional encrypted WebDAV/S3 delivery, in-app and standalone encrypted rescue, and a two-phase offline file recovery workflow. See [webhook notifications](docs/WEBHOOK_NOTIFICATIONS.md). Full-site rollback is not yet automatic.
 - **Admin API.** Authenticated clients can queue durable backups and inspect bounded job and audit history. See the [REST API guide](docs/REST_API.md).
 - **Agency overview (optional).** Administrators can inspect up to 15 separately configured WordPress sites through their read-only health endpoint. Credentials stay in `wp-config.php`; the page cannot start remote backups or restores. See [agency monitoring](docs/AGENCY.md). This is not a multi-tenant management service.
@@ -135,7 +135,7 @@ English, Italian, Spanish, French and German. The language follows the WordPress
 
 ## Known limits
 
-As of version 1.8.0 (October 2026):
+As of version 1.8.1 (October 2026):
 
 - **Not yet tried on a real host behind a firewall.** So far it has been tested on local WordPress installs, including an import of a real 1.64 GB site (12 pages, 73 media files, 19 plugins). The base64 upload was built for hosting firewalls, but it has not been seen working behind one yet. Local CLI and recovery fixtures pass as recorded in the [roadmap](docs/ROADMAP.md); real-host HTTP tests remain pending.
 - **Incremental storage savings depend on repeated data and matching offsets.** A local WordPress fixture measured 36.1% net savings across two controlled repeated exports; a single archive with no repeated chunks can use slightly more storage because of catalog overhead. Edits or new files earlier in an archive can reduce fixed-size chunk reuse. Compaction reports file lengths, not filesystem block allocation or expected savings on other sites.

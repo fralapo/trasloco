@@ -99,8 +99,8 @@ class Trasloco_Incremental_Transfer {
         }
         return $this->store->import_snapshot( $json, function ( $digest, $size ) {
             return $this->remote->open_read( $this->object_key( $digest ), $size );
-        }, $progress === null ? null : function ( $completed, $total, $bytes ) use ( $progress ) {
-            return call_user_func( $progress, $completed, $total, $bytes, 'downloading' );
+        }, $progress === null ? null : function ( $completed, $total, $bytes, $phase = 'downloading' ) use ( $progress ) {
+            return call_user_func( $progress, $completed, $total, $bytes, $phase ? $phase : 'downloading' );
         } );
     }
 }

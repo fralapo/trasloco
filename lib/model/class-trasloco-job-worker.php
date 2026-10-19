@@ -259,6 +259,8 @@ class Trasloco_Job_Worker {
             }
             if ( $total > 0 && $phase === 'validating' ) {
                 $progress = min( 20, 1 + (int) floor( ( $completed / $total ) * 19 ) );
+            } elseif ( $total > 0 && $phase === 'verifying' ) {
+                $progress = min( 95, 90 + (int) floor( ( $completed / $total ) * 5 ) );
             } elseif ( $total > 0 && $operation === 'incremental_upload' ) {
                 $progress = min( 95, 20 + (int) floor( ( $completed / $total ) * 75 ) );
             } else {

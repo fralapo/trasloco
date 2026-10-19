@@ -63,6 +63,11 @@ try {
     catch ( RuntimeException $error ) { $download_interrupted = true; }
     incremental_transfer_assert( $download_interrupted && ! is_file( $target . DIRECTORY_SEPARATOR . '.trasloco-incremental/catalogs/site.wpress.json' ),
         'Interrupted incremental download published a catalog before all objects were accepted.' );
+    $verify_interrupted = false;
+    try { $downloader->download( 'site.wpress', function ( $done, $total, $bytes_done, $phase ) { return $phase !== 'verifying'; } ); }
+    catch ( RuntimeException $error ) { $verify_interrupted = true; }
+    incremental_transfer_assert( $verify_interrupted && ! is_file( $target . DIRECTORY_SEPARATOR . '.trasloco-incremental/catalogs/site.wpress.json' ),
+        'Interrupted whole-archive verification published a local snapshot catalog.' );
     $download_progress = array();
     $result = $downloader->download( 'site.wpress', function ( $done, $total, $bytes_done, $phase ) use ( &$download_progress ) {
         if ( $phase === 'downloading' ) { $download_progress[] = array( $done, $total, $bytes_done ); }
