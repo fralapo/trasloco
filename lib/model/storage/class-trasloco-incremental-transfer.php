@@ -49,18 +49,29 @@ class Trasloco_Incremental_Transfer {
         return true;
     }
 
-    public function upload( $archive ) {
-        $snapshot = $this->store->export_snapshot( $archive );
-        $new_objects = 0; $bytes = 0;
+    public function upload( $archive, $progress = null ) {
+        if ( $progress !== null && ! is_callable( $progress ) ) {
+            throw new InvalidArgumentException( 'Invalid incremental transfer progress callback.' );
+        }
+        $snapshot = $this->store->export_snapshot( $archive, function ( $completed, $total, $bytes ) use ( $progress ) {
+            return $progress === null || call_user_func( $progress, $completed, $total, $bytes, 'validating' ) !== false;
+        } );
+        $new_objects = 0; $bytes = 0; $completed_objects = 0; $completed_bytes = 0;
+        $total_objects = count( $snapshot['objects'] );
         foreach ( $snapshot['objects'] as $digest => $size ) {
             $key = $this->object_key( $digest );
-            if ( $this->matches( $key, $size, $digest ) ) { continue; }
-            $stream = $this->store->open_object_for_transfer( $digest, $size );
-            try { $this->remote->put_stream( $key, $stream ); } catch ( Throwable $error ) {
-                if ( ! $this->matches( $key, $size, $digest ) ) { throw $error; }
-            } finally { fclose( $stream ); }
-            if ( ! $this->matches( $key, $size, $digest ) ) { throw new RuntimeException( 'Remote incremental object failed read-back verification.' ); }
-            ++$new_objects; $bytes += $size;
+            if ( ! $this->matches( $key, $size, $digest ) ) {
+                $stream = $this->store->open_object_for_transfer( $digest, $size );
+                try { $this->remote->put_stream( $key, $stream ); } catch ( Throwable $error ) {
+                    if ( ! $this->matches( $key, $size, $digest ) ) { throw $error; }
+                } finally { fclose( $stream ); }
+                if ( ! $this->matches( $key, $size, $digest ) ) { throw new RuntimeException( 'Remote incremental object failed read-back verification.' ); }
+                ++$new_objects; $bytes += $size;
+            }
+            ++$completed_objects; $completed_bytes += $size;
+            if ( $progress !== null && call_user_func( $progress, $completed_objects, $total_objects, $completed_bytes, 'uploading' ) === false ) {
+                throw new RuntimeException( 'Incremental snapshot upload was cancelled or its lease was lost.' );
+            }
         }
         $catalog_key = $this->catalog_key( $archive );
         $catalog_digest = hash( 'sha256', $snapshot['catalog'] );
@@ -70,7 +81,10 @@ class Trasloco_Incremental_Transfer {
             'catalog_key' => $catalog_key );
     }
 
-    public function download( $archive ) {
+    public function download( $archive, $progress = null ) {
+        if ( $progress !== null && ! is_callable( $progress ) ) {
+            throw new InvalidArgumentException( 'Invalid incremental transfer progress callback.' );
+        }
         $key = $this->catalog_key( $archive );
         $stream = $this->remote->open_read( $key, Trasloco_Incremental_Store::MAX_CATALOG_BYTES );
         try {
@@ -85,6 +99,8 @@ class Trasloco_Incremental_Transfer {
         }
         return $this->store->import_snapshot( $json, function ( $digest, $size ) {
             return $this->remote->open_read( $this->object_key( $digest ), $size );
+        }, $progress === null ? null : function ( $completed, $total, $bytes ) use ( $progress ) {
+            return call_user_func( $progress, $completed, $total, $bytes, 'downloading' );
         } );
     }
 }

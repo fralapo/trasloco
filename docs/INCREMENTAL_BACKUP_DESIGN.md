@@ -44,6 +44,8 @@ wp trasloco incremental stats
 wp trasloco incremental prune --keep=backup.wpress,newer.wpress
 wp trasloco incremental upload backup.wpress --allow-unencrypted
 wp trasloco incremental download backup.wpress
+wp trasloco incremental queue-upload backup.wpress --allow-unencrypted
+wp trasloco incremental queue-download backup.wpress
 ```
 
 The reconstructed file is compatible with the existing importer. `wp trasloco restore backup.wpress` also reconstructs a missing archive from its catalog, verifies the full digest and required restore members, then invokes the existing restore workflow. It never overwrites an existing file. The Backups page lists catalogs, logical sizes, capture dates, restore commands and a storage summary.
@@ -56,7 +58,9 @@ Scheduled backups can opt into the same local snapshot format from **Trasloco â†
 
 Remote transfer uses the configured `local`, WebDAV, or S3 adapter. `wp trasloco incremental upload <archive> --allow-unencrypted` uploads only absent digest-addressed chunks and publishes the catalog after read-back verification; repeats are idempotent. `wp trasloco incremental download <archive>` fetches the catalog, validates it, imports its objects into the local store, and publishes the catalog only after every object and the whole reconstructed archive digest pass. Run `wp trasloco restore <archive>` to use the normal restore flow after downloading. Incremental objects contain original backup bytes, so upload is refused unless the operator explicitly supplies `--allow-unencrypted`; this workflow does not encrypt individual objects. Do not use it where remote plaintext storage is unacceptable.
 
-The local transfer fixture uploads two snapshots with one shared 4-MiB object and confirms that the second upload sends only its new object. It also imports the catalog, reconstructs exact bytes, checks idempotent repeats, and rejects a corrupted remote object before publishing a local catalog. This validates the adapter contract with local storage only, not remote provider behavior.
+The `queue-upload` and `queue-download` variants persist credential-free transfer jobs in the existing job ledger. Workers checkpoint object counts and bytes, renew their lease during long transfers, and publish the catalog only after all objects pass verification. If a worker stops after an object is transferred, a retry verifies and reuses that immutable object before continuing; incomplete downloads never publish a catalog. Upload jobs still require explicit plaintext consent. These job paths use the configured adapter but local tests do not certify provider durability or conditional-write behavior.
+
+The local transfer fixture uploads two snapshots with one shared 4-MiB object and confirms that the second upload sends only its new object. It also imports the catalog, reconstructs exact bytes, checks idempotent repeats, exercises cancellation callbacks before catalog publication, and rejects a corrupted remote object. The WordPress integration fixture queues both transfer directions, expires a worker lease, recovers the job and checks the verified completion checkpoint. These tests validate the adapter and job contracts with local storage only, not remote provider behavior.
 
 Full archives are retained by default. To reclaim space for one ordinary archive, run `wp trasloco incremental compact backup.wpress`. Compaction is explicit and refuses recovery points; it checks the existing integrity manifest, archive structure, catalog objects and exact whole-archive digest, then isolates and rechecks the source before removal. The catalog remains available, and `wp trasloco restore backup.wpress` reconstructs the original archive before starting the existing import; the reconstructed `.wpress` remains available afterward and can be compacted again explicitly. Compaction is not enabled automatically for scheduled or manual backups.
 

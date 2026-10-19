@@ -72,8 +72,17 @@ class Trasloco_Job_Store {
                     ( count( $payload ) === 4 && isset( $payload['delete_after_upload'] ) &&
                         $payload['delete_after_upload'] === true && $payload['allow_unencrypted'] === false &&
                         substr( $payload['archive'], -4 ) === '.enc' ) );
-            if ( ! $archive_valid || ( ! $download_valid && ! $upload_valid ) ) {
-                return new WP_Error( 'trasloco_invalid_job', 'Invalid or unsupported offsite transfer job.' );
+            $incremental_download_valid = isset( $payload['operation'] ) &&
+                isset( $payload['archive'] ) &&
+                $payload['operation'] === 'incremental_download' && count( $payload ) === 2 &&
+                substr( $payload['archive'], -7 ) === '.wpress';
+            $incremental_upload_valid = isset( $payload['operation'], $payload['allow_unencrypted'] ) &&
+                isset( $payload['archive'] ) &&
+                $payload['operation'] === 'incremental_upload' && $payload['allow_unencrypted'] === true &&
+                count( $payload ) === 3 && substr( $payload['archive'], -7 ) === '.wpress';
+            if ( ! $archive_valid || ( ! $download_valid && ! $upload_valid &&
+                ! $incremental_download_valid && ! $incremental_upload_valid ) ) {
+                return new WP_Error( 'trasloco_invalid_job', 'Invalid or unsupported transfer job.' );
             }
         }
         if ( $kind === 'crypto' ) {
@@ -225,7 +234,7 @@ class Trasloco_Job_Store {
         ) );
     }
 
-    /** Recover interrupted offsite downloads; private range checkpoints make replay safe. */
+    /** Recover interrupted offsite and incremental transfers from replay-safe checkpoints. */
     public static function recoverable_transfers( $limit = 10 ) {
         global $wpdb;
         $table = self::table();
@@ -264,13 +273,13 @@ class Trasloco_Job_Store {
         ) );
     }
 
-    /** Stop crash-looping downloads after the bounded automatic retry budget. */
+    /** Stop crash-looping transfers after the bounded automatic retry budget. */
     public static function fail_exhausted_transfers() {
         global $wpdb;
         $table = self::table();
         return (int) $wpdb->query( $wpdb->prepare(
             "UPDATE {$table} SET state = 'failed', lease_owner = '', lease_until = 0,
-            failure = 'Offsite download stopped after repeated interrupted attempts.',
+            failure = 'Transfer stopped after repeated interrupted attempts.',
             updated_at = %s WHERE kind = 'transfer' AND state = 'running'
             AND attempts >= %d AND lease_until < %d",
             gmdate( 'Y-m-d H:i:s' ), self::MAX_TRANSFER_ATTEMPTS, time()

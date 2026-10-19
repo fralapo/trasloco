@@ -3,7 +3,7 @@ Tags: backup, migration, migrate, export, import
 Requires at least: 5.5
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.7.0
+Stable tag: 1.8.0
 License: AGPL-3.0-or-later
 License URI: https://www.gnu.org/licenses/agpl-3.0.html
 
@@ -35,6 +35,11 @@ Trasloco exports a whole WordPress site (database, media, themes and plugins) to
 The new address is set by the import: there is nothing to type. Trasloco > Guide explains every option.
 
 == Changelog ==
+
+= 1.8.0 =
+* Incremental snapshots can now be uploaded and downloaded through durable `wp trasloco incremental queue-upload|queue-download` jobs. Workers checkpoint progress during archive validation and object transfer, recover expired leases, and safely reuse verified immutable objects on retry.
+* Remote downloads verify the full reconstructed archive digest before publishing the local snapshot catalog; failed or interrupted transfers leave no visible incomplete snapshot.
+* Full local PHP syntax, translation and standalone quality checks passed on PHP 8.4; focused transfer tests also passed on PHP 7.4 and 8.2. WordPress 6.9.10/MariaDB 11.4 integration and recovery rehearsal passed locally. GitHub Actions and real providers were not used.
 
 = 1.7.0 =
 * Content-addressed snapshots can be uploaded and downloaded through the configured local, WebDAV or S3 storage adapter. Missing digest-addressed chunks are transferred once; catalogs publish only after read-back verification, and downloads verify every object before making a snapshot available to restore.

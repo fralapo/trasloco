@@ -14,6 +14,7 @@ namespace {
         public static function error( $message ) { throw new RuntimeException( $message ); }
         public static function line( $message ) {}
     }
+    function wp_mkdir_p( $path ) { return is_dir( $path ) || mkdir( $path, 0700, true ); }
     function size_format( $size, $decimals = 0 ) { return (string) $size; }
 
     $root = sys_get_temp_dir() . '/trasloco-incremental-cli-' . bin2hex( random_bytes( 8 ) );
@@ -43,6 +44,10 @@ namespace {
         $failed = false;
         try { $command->incremental( array( 'compact', $name ), array() ); } catch ( RuntimeException $error ) { $failed = true; }
         incremental_cli_assert( $failed && is_file( $path ), 'WP-CLI compact removed an archive without valid restore structure.' );
+        $failed = false;
+        try { $command->incremental( array( 'queue-upload', $name ), array() ); }
+        catch ( RuntimeException $error ) { $failed = strpos( $error->getMessage(), '--allow-unencrypted' ) !== false; }
+        incremental_cli_assert( $failed, 'WP-CLI queued a plaintext incremental upload without explicit consent.' );
         $output = 'cli-restored.wpress';
         $command->incremental( array( 'materialize', $name ), array( 'output' => $output ) );
         incremental_cli_assert( hash_file( 'sha256', $path ) === hash_file( 'sha256', $backup_dir . '/' . $output ),

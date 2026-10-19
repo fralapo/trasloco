@@ -310,6 +310,8 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 		 *     wp trasloco incremental compact backup.wpress
 		 *     wp trasloco incremental upload backup.wpress --allow-unencrypted
 		 *     wp trasloco incremental download backup.wpress
+		 *     wp trasloco incremental queue-upload backup.wpress --allow-unencrypted
+		 *     wp trasloco incremental queue-download backup.wpress
 		 *
 		 * Captured snapshots are stored privately under the backup directory. They
 		 * remain independently reconstructible and do not depend on source files.
@@ -329,6 +331,23 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 					WP_CLI::line( sprintf( 'Snapshots: %d; logical bytes: %d; object bytes: %d; catalog bytes: %d; source archive bytes: %d; manifest bytes: %d; physical bytes: %d; net saved bytes: %d',
 						$stats['snapshots'], $stats['logical_bytes'], $stats['object_bytes'], $stats['catalog_bytes'],
 						$stats['source_archive_bytes'], $stats['source_manifest_bytes'], $stats['physical_bytes'], $stats['net_saved_bytes'] ) );
+					return;
+				}
+				if ( in_array( $action, array( 'queue-upload', 'queue-download' ), true ) ) {
+					$name = isset( $args[1] ) ? $args[1] : '';
+					if ( ! is_string( $name ) || strlen( $name ) > 206 || basename( $name ) !== $name ||
+						! preg_match( '/^[A-Za-z0-9][A-Za-z0-9_.-]*\.wpress$/D', $name ) || strpos( $name, '..' ) !== false ) {
+						WP_CLI::error( 'Specify a valid backup filename ending in .wpress.' );
+					}
+					$upload = $action === 'queue-upload';
+					if ( $upload && ! isset( $assoc_args['allow-unencrypted'] ) ) {
+						WP_CLI::error( 'Incremental objects contain the original backup bytes; use --allow-unencrypted only when remote plaintext storage is acceptable.' );
+					}
+					$id = Trasloco_Job_Worker::enqueue_incremental_transfer(
+						$upload ? 'incremental_upload' : 'incremental_download', $name, $upload
+					);
+					if ( is_wp_error( $id ) ) { WP_CLI::error( $id->get_error_message() ); }
+					WP_CLI::success( sprintf( 'Queued incremental %s job %d for %s.', $upload ? 'upload' : 'download', $id, $name ) );
 					return;
 				}
 				if ( $action === 'upload' || $action === 'download' ) {

@@ -283,6 +283,12 @@ if $WP trasloco incremental upload "$OFFSITE_NAME" --path="$ROOT/source"; then
   exit 1
 fi
 $WP trasloco incremental upload "$OFFSITE_NAME" --allow-unencrypted --path="$ROOT/source"
+if $WP trasloco incremental queue-upload "$OFFSITE_NAME" --path="$ROOT/source"; then
+  echo "ERROR: queued plaintext incremental upload did not require explicit consent" >&2
+  exit 1
+fi
+$WP trasloco incremental queue-upload "$OFFSITE_NAME" --allow-unencrypted --path="$ROOT/source"
+$WP eval-file "$GITHUB_WORKSPACE/tests/incremental-job-smoke.php" incremental_upload --path="$ROOT/source"
 test -n "$(find "$ROOT/offsite" -maxdepth 1 -name 'tro-*.obj' -print -quit)"
 test -n "$(find "$ROOT/offsite" -maxdepth 1 -name 'trc-*.json' -print -quit)"
 if $WP trasloco offsite upload "$OFFSITE_NAME" --path="$ROOT/source"; then
@@ -301,6 +307,8 @@ fi
 rm "$ROOT/offsite/partial.wpress"
 $WP config set TRASLOCO_REMOTE_DRIVER local --type=constant --path="$ROOT/target"
 $WP config set TRASLOCO_REMOTE_DIRECTORY "$ROOT/offsite" --type=constant --path="$ROOT/target"
+$WP trasloco incremental queue-download "$OFFSITE_NAME" --path="$ROOT/target"
+$WP eval-file "$GITHUB_WORKSPACE/tests/incremental-job-smoke.php" incremental_download --path="$ROOT/target"
 $WP trasloco incremental download "$OFFSITE_NAME" --path="$ROOT/target"
 $WP trasloco incremental verify "$OFFSITE_NAME" --path="$ROOT/target"
 $WP trasloco offsite queue-download "$OFFSITE_NAME" --path="$ROOT/target"

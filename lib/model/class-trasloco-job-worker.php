@@ -202,6 +202,94 @@ class Trasloco_Job_Worker {
         return $id;
     }
 
+    /** Queue a resumable, idempotent transfer of a local incremental snapshot. */
+    public static function enqueue_incremental_transfer( $operation, $archive, $allow_unencrypted = false ) {
+        if ( ! in_array( $operation, array( 'incremental_upload', 'incremental_download' ), true ) ||
+            ! is_string( $archive ) || strlen( $archive ) > 206 ||
+            ! preg_match( '/^[A-Za-z0-9][A-Za-z0-9_.-]*\.wpress$/D', $archive ) ||
+            strpos( $archive, '..' ) !== false || ! is_bool( $allow_unencrypted ) ||
+            ( $operation === 'incremental_upload' && ! $allow_unencrypted ) ||
+            ( $operation === 'incremental_download' && $allow_unencrypted ) ) {
+            return new WP_Error( 'trasloco_invalid_incremental_transfer', 'Invalid incremental transfer request.' );
+        }
+        try {
+            if ( ! Trasloco_Storage_Factory::configured() instanceof Trasloco_Storage_Adapter ) {
+                return new WP_Error( 'trasloco_storage_unavailable', 'The configured storage provider is unavailable.' );
+            }
+        } catch ( Throwable $error ) {
+            return new WP_Error( 'trasloco_storage_unavailable', 'The configured storage provider is unavailable.' );
+        }
+        $payload = array( 'operation' => $operation, 'archive' => $archive );
+        if ( $operation === 'incremental_upload' ) {
+            $payload['allow_unencrypted'] = true;
+        }
+        $id = Trasloco_Job_Store::create( 'transfer', $payload, wp_generate_password( 32, false, false ) );
+        if ( is_wp_error( $id ) ) { return $id; }
+        self::schedule( $id );
+        return $id;
+    }
+
+    /** Run an incremental object transfer with durable per-object progress. */
+    private static function transfer_incremental( $id, $owner, $payload, $operation ) {
+        $upload = $operation === 'incremental_upload';
+        $expected = $upload ? array( 'operation', 'archive', 'allow_unencrypted' ) : array( 'operation', 'archive' );
+        $actual = is_array( $payload ) ? array_keys( $payload ) : array();
+        sort( $expected ); sort( $actual );
+        if ( $actual !== $expected || ! isset( $payload['operation'], $payload['archive'] ) ||
+            $payload['operation'] !== $operation || ! is_string( $payload['archive'] ) ||
+            ! preg_match( '/^[A-Za-z0-9][A-Za-z0-9_.-]*\.wpress$/D', $payload['archive'] ) ||
+            strpos( $payload['archive'], '..' ) !== false ||
+            ( $upload && ( $payload['allow_unencrypted'] !== true ) ) ) {
+            throw new RuntimeException( 'Invalid incremental transfer job.' );
+        }
+        if ( ! wp_mkdir_p( TRASLOCO_BACKUPS_PATH ) ) {
+            throw new RuntimeException( 'Unable to prepare the local backup directory.' );
+        }
+        require_once TRASLOCO_LIB_PATH . '/model/class-trasloco-incremental-store.php';
+        require_once TRASLOCO_LIB_PATH . '/model/storage/class-trasloco-incremental-transfer.php';
+        $store = new Trasloco_Incremental_Store( rtrim( TRASLOCO_BACKUPS_PATH, DIRECTORY_SEPARATOR ) . DIRECTORY_SEPARATOR . '.trasloco-incremental' );
+        $transfer = new Trasloco_Incremental_Transfer( Trasloco_Storage_Factory::configured(), $store );
+        $archive = $payload['archive'];
+        $last_renewal = time();
+        $last_progress = array( 'objects' => 0, 'total_objects' => 0, 'bytes' => 0 );
+        $checkpoint = function ( $completed, $total, $bytes, $phase = 'transferring' ) use ( $id, $owner, $archive, $operation, &$last_renewal, &$last_progress ) {
+            if ( time() - $last_renewal >= 120 ) {
+                if ( ! Trasloco_Job_Store::renew( $id, $owner, 300 ) ) { return false; }
+                $last_renewal = time();
+            }
+            if ( $total > 0 && $phase === 'validating' ) {
+                $progress = min( 20, 1 + (int) floor( ( $completed / $total ) * 19 ) );
+            } elseif ( $total > 0 && $operation === 'incremental_upload' ) {
+                $progress = min( 95, 20 + (int) floor( ( $completed / $total ) * 75 ) );
+            } else {
+                $progress = $total > 0 ? min( 95, 5 + (int) floor( ( $completed / $total ) * 85 ) ) : 90;
+            }
+            $last_progress = array( 'objects' => (int) $completed, 'total_objects' => (int) $total, 'bytes' => (int) $bytes );
+            return Trasloco_Job_Store::checkpoint( $id, $owner, $progress, array(
+                'phase' => $phase === 'validating' ? 'validating' : ( $operation === 'incremental_upload' ? 'incremental_upload' : 'incremental_download' ),
+                'archive' => $archive, 'objects' => $last_progress['objects'], 'total_objects' => $last_progress['total_objects'],
+                'bytes' => (int) $bytes,
+            ) );
+        };
+        if ( ! Trasloco_Job_Store::checkpoint( $id, $owner, 1, array(
+            'phase' => $operation, 'archive' => $archive, 'objects' => 0, 'total_objects' => 0, 'bytes' => 0,
+        ) ) ) {
+            throw new RuntimeException( 'Incremental transfer was cancelled or its lease was lost.' );
+        }
+        $result = $upload
+            ? $transfer->upload( $archive, $checkpoint )
+            : $transfer->download( $archive, $checkpoint );
+        if ( ! Trasloco_Job_Store::checkpoint( $id, $owner, 99, array(
+            'phase' => 'verified', 'archive' => $archive,
+            'objects' => $last_progress['objects'] > 0 ? $last_progress['objects'] : ( isset( $result['objects'] ) ? (int) $result['objects'] : 0 ),
+            'total_objects' => $last_progress['total_objects'] > 0 ? $last_progress['total_objects'] : ( isset( $result['objects'] ) ? (int) $result['objects'] : 0 ),
+            'bytes' => $last_progress['bytes'] > 0 ? $last_progress['bytes'] : ( isset( $result['size_bytes'] ) ? (int) $result['size_bytes'] : 0 ),
+        ) ) ) {
+            throw new RuntimeException( 'Incremental transfer was cancelled or its lease was lost.' );
+        }
+        return $archive;
+    }
+
     /** Run a leased offsite download and persist byte-level progress. */
     private static function transfer_download( $id, $owner, $payload ) {
         if ( ! isset( $payload['operation'], $payload['archive'] ) ||
@@ -976,9 +1064,14 @@ class Trasloco_Job_Worker {
                 return array( 'status' => 'completed', 'archive' => $name );
             }
             if ( $record['kind'] === 'transfer' ) {
-                $name = isset( $record['payload']['operation'] ) && $record['payload']['operation'] === 'upload'
-                    ? self::transfer_upload( $id, $owner, $record['payload'] )
-                    : self::transfer_download( $id, $owner, $record['payload'] );
+                $operation = isset( $record['payload']['operation'] ) ? $record['payload']['operation'] : '';
+                if ( $operation === 'incremental_upload' || $operation === 'incremental_download' ) {
+                    $name = self::transfer_incremental( $id, $owner, $record['payload'], $operation );
+                } else {
+                    $name = $operation === 'upload'
+                        ? self::transfer_upload( $id, $owner, $record['payload'] )
+                        : self::transfer_download( $id, $owner, $record['payload'] );
+                }
                 if ( ! Trasloco_Job_Store::finish( $id, $owner ) ) {
                     return array( 'status' => 'not_claimed' );
                 }
