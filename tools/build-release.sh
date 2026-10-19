@@ -15,7 +15,7 @@ if ! git -C "$ROOT" diff --quiet || ! git -C "$ROOT" diff --cached --quiet; then
   exit 1
 fi
 
-VERSION="$(sed -n 's/^ \* Version: //p' "$ROOT/trasloco.php" | head -n 1)"
+VERSION="$(sed -n 's/^ \* Version: //p' "$ROOT/trasloco.php" | tr -d '\r' | head -n 1)"
 if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   printf 'Could not read a stable plugin version from trasloco.php.\n' >&2
   exit 1
