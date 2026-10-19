@@ -39,7 +39,20 @@ $wpdb->update( Trasloco_Job_Store::table(), array( 'lease_until' => 1 ), array( 
 if ( ! in_array( $job_id, Trasloco_Job_Store::recoverable_transfers(), true ) ) {
 	throw new RuntimeException( 'Expired incremental transfer lease was not recoverable.' );
 }
+$verification_checkpoint_seen = false;
+$observed_transfer_checkpoints = array();
+$observe_verification_checkpoint = function ( $query ) use ( &$verification_checkpoint_seen, &$observed_transfer_checkpoints ) {
+	if ( stripos( $query, 'UPDATE' ) !== false && stripos( $query, 'trasloco_jobs' ) !== false ) {
+		$observed_transfer_checkpoints[] = substr( $query, 0, 600 );
+		if ( stripos( $query, 'verifying' ) !== false ) {
+			$verification_checkpoint_seen = true;
+		}
+	}
+	return $query;
+};
+add_filter( 'query', $observe_verification_checkpoint );
 $result = Trasloco_Job_Worker::run( $job_id );
+remove_filter( 'query', $observe_verification_checkpoint );
 $job = Trasloco_Job_Store::get( $job_id );
 if ( ! is_array( $result ) || $result['status'] !== 'completed' || ! is_array( $job ) ||
 	$job['state'] !== 'completed' || $job['progress'] !== 100 ||
@@ -48,6 +61,9 @@ if ( ! is_array( $result ) || $result['status'] !== 'completed' || ! is_array( $
 	throw new RuntimeException( 'Durable incremental transfer did not resume and finish with a verified checkpoint.' );
 }
 if ( $operation === 'incremental_download' ) {
+	if ( ! $verification_checkpoint_seen ) {
+		throw new RuntimeException( 'Incremental download did not persist a distinct whole-archive verification checkpoint. Observed job updates: ' . implode( ' | ', $observed_transfer_checkpoints ) );
+	}
 	$store = new Trasloco_Incremental_Store( rtrim( TRASLOCO_BACKUPS_PATH, DIRECTORY_SEPARATOR ) . DIRECTORY_SEPARATOR . '.trasloco-incremental' );
 	$proof = $store->verify( $archive );
 	$materialized = TRASLOCO_BACKUPS_PATH . DIRECTORY_SEPARATOR . $archive;

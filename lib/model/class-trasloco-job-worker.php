@@ -268,7 +268,8 @@ class Trasloco_Job_Worker {
             }
             $last_progress = array( 'objects' => (int) $completed, 'total_objects' => (int) $total, 'bytes' => (int) $bytes );
             return Trasloco_Job_Store::checkpoint( $id, $owner, $progress, array(
-                'phase' => $phase === 'validating' ? 'validating' : ( $operation === 'incremental_upload' ? 'incremental_upload' : 'incremental_download' ),
+                'phase' => in_array( $phase, array( 'validating', 'verifying' ), true ) ? $phase :
+                    ( $operation === 'incremental_upload' ? 'incremental_upload' : 'incremental_download' ),
                 'archive' => $archive, 'objects' => $last_progress['objects'], 'total_objects' => $last_progress['total_objects'],
                 'bytes' => (int) $bytes,
             ) );
