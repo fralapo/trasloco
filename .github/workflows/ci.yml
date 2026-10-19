@@ -28,6 +28,8 @@ jobs:
         run: php tests/security-smoke.php
       - name: Offline recovery payload and permission regressions
         run: php tests/offline-file-recovery-smoke.php
+      - name: Bounded resumable archive inspection
+        run: php tests/offline-inspect-smoke.php
       - name: Offline SQL preview regressions
         run: php tests/sql-preview-smoke.php
       - name: Feature branch integrity manifest compatibility

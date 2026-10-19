@@ -3,7 +3,7 @@ Tags: backup, migration, migrate, export, import
 Requires at least: 5.5
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.8.2
+Stable tag: 1.8.3
 License: AGPL-3.0-or-later
 License URI: https://www.gnu.org/licenses/agpl-3.0.html
 
@@ -35,6 +35,11 @@ Trasloco exports a whole WordPress site (database, media, themes and plugins) to
 The new address is set by the import: there is nothing to type. Trasloco > Guide explains every option.
 
 == Changelog ==
+
+= 1.8.3 =
+* Large queued web decryptions now validate archive structure in resumable batches of at most 256 entries before publishing the plaintext archive.
+* Private structural-inspection checkpoints bind to the exact archive identity and are not exposed through public job status.
+* Local PHP smoke and WordPress/MariaDB integration tests cover multi-batch resume, expired-lease recovery, tampered checkpoint rejection, source mutation and exact archive publication. GitHub Actions were not run.
 
 = 1.8.2 =
 * Persist the distinct whole-archive verification phase in queued incremental download checkpoints.

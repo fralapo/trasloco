@@ -1313,6 +1313,65 @@ if ( $crypto_decrypt_result["status"] !== "completed" ||
 @unlink( Trasloco_Integrity::manifest_path( trasloco_encrypted_backup_path( $crypto_job_decrypt_encrypted_name ) ) );
 @unlink( $crypto_job_decrypt_source );
 @unlink( Trasloco_Integrity::manifest_path( $crypto_job_decrypt_source ) );
+$inspection_source_name = "integration-structural-checkpoint.wpress";
+$inspection_source = trasloco_backup_path( array( "archive" => $inspection_source_name ) );
+$inspection_output = fopen( $inspection_source, "wb" );
+$inspection_header = function( $name, $size, $folder = "." ) {
+    return pack( "a255a14a12a4096", $name, (string) $size, "0", $folder );
+};
+fwrite( $inspection_output, $inspection_header( "package.json", 2 ) . "{}" );
+for ( $inspection_index = 0; $inspection_index < 600; $inspection_index++ ) {
+    fwrite( $inspection_output, $inspection_header( "entry-" . $inspection_index . ".bin", 1, "wp-content/uploads" ) . "x" );
+}
+fwrite( $inspection_output, str_repeat( "\0", 4377 ) );
+fclose( $inspection_output );
+Trasloco_Integrity::create_chunked( $inspection_source );
+$inspection_digest = hash_file( "sha256", $inspection_source );
+Trasloco_Encryption::encrypt( $inspection_source,
+    trasloco_encrypted_backup_path( $inspection_source_name . ".enc" ), "integration-manual-encryption-secret-2026" );
+Trasloco_Integrity::create_chunked( trasloco_encrypted_backup_path( $inspection_source_name . ".enc" ) );
+$inspection_job = Trasloco_Job_Worker::enqueue_crypto( "decrypt", $inspection_source_name . ".enc" );
+if ( ! is_int( $inspection_job ) ) { throw new Exception( "Could not queue large structural-inspection fixture" ); }
+$inspection_phase_seen = false;
+for ( $inspection_step = 0; $inspection_step < 32; $inspection_step++ ) {
+    $inspection_result = Trasloco_Job_Worker::run( $inspection_job );
+    $inspection_internal = Trasloco_Job_Store::get_internal( $inspection_job );
+    if ( isset( $inspection_internal["checkpoint"]["phase"] ) &&
+        $inspection_internal["checkpoint"]["phase"] === "inspecting" ) {
+        $inspection_phase_seen = true;
+        if ( ! isset( $inspection_internal["checkpoint"]["inspection_state"]["position"] ) ||
+            $inspection_internal["checkpoint"]["inspection_state"]["position"] <= 0 ||
+            isset( Trasloco_Job_Store::get( $inspection_job )["checkpoint"]["inspection_state"] ) ) {
+            throw new Exception( "Structural inspection checkpoint was missing or exposed publicly" );
+        }
+        $wpdb->update( Trasloco_Job_Store::table(), array(
+            "state" => "running", "lease_owner" => "interrupted-inspection-worker", "lease_until" => time() - 1,
+        ), array( "id" => $inspection_job ) );
+        break;
+    }
+    if ( ! isset( $inspection_result["status"] ) || $inspection_result["status"] !== "pending" ) {
+        throw new Exception( "Structural inspection fixture stopped before its first checkpoint" );
+    }
+}
+if ( ! $inspection_phase_seen ) { throw new Exception( "Large decrypted archive did not yield structural inspection" ); }
+$inspection_result = array( "status" => "pending" );
+for ( $inspection_step = 0; $inspection_step < 32; $inspection_step++ ) {
+    $inspection_result = Trasloco_Job_Worker::run( $inspection_job );
+    if ( isset( $inspection_result["status"] ) && $inspection_result["status"] === "completed" ) { break; }
+    if ( ! isset( $inspection_result["status"] ) || $inspection_result["status"] !== "pending" ) {
+        throw new Exception( "Structural inspection did not resume after lease expiry" );
+    }
+}
+$inspection_decrypted = trasloco_backup_path( array( "archive" => "integration-structural-checkpoint-decrypted.wpress" ) );
+if ( $inspection_result["status"] !== "completed" || ! $inspection_phase_seen ||
+    Trasloco_Integrity::verify( $inspection_decrypted )["status"] !== "verified" ||
+    hash_file( "sha256", $inspection_decrypted ) !== $inspection_digest ) {
+    throw new Exception( "Resumed structural inspection did not publish the exact verified archive" );
+}
+@unlink( $inspection_decrypted ); @unlink( Trasloco_Integrity::manifest_path( $inspection_decrypted ) );
+@unlink( trasloco_encrypted_backup_path( $inspection_source_name . ".enc" ) );
+@unlink( Trasloco_Integrity::manifest_path( trasloco_encrypted_backup_path( $inspection_source_name . ".enc" ) ) );
+@unlink( $inspection_source ); @unlink( Trasloco_Integrity::manifest_path( $inspection_source ) );
 $manual_decrypted_name = Trasloco_Backups_Controller::decrypt_archive( $manual_encrypted_name,
     "integration-manual-encryption-secret-2026" );
 $manual_decrypted_path = trasloco_backup_path( array( "archive" => $manual_decrypted_name ) );

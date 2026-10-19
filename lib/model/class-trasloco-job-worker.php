@@ -453,6 +453,8 @@ class Trasloco_Job_Worker {
         $previous = Trasloco_Job_Store::get_internal( $id );
         $state = is_array( $previous ) && isset( $previous['checkpoint']['crypto_state'] ) &&
             is_array( $previous['checkpoint']['crypto_state'] ) ? $previous['checkpoint']['crypto_state'] : null;
+        $inspection_state = is_array( $previous ) && isset( $previous['checkpoint']['inspection_state'] ) &&
+            is_array( $previous['checkpoint']['inspection_state'] ) ? $previous['checkpoint']['inspection_state'] : null;
         if ( is_file( $target ) || is_link( $target ) || is_file( Trasloco_Integrity::manifest_path( $target ) ) ) {
             if ( ! $state || empty( $state['complete'] ) || is_link( $target ) || ! is_file( $target ) ||
                 ! is_file( $temp ) || is_link( $temp ) ) {
@@ -484,7 +486,15 @@ class Trasloco_Job_Worker {
             throw new RuntimeException( 'Encryption cancelled or worker lease lost before publication.' );
         }
         if ( $operation === 'decrypt' ) {
-            Trasloco_Offline_Recovery::inspect( $temp );
+            $inspection = Trasloco_Offline_Recovery::inspect_step( $temp, $inspection_state, 256 );
+            if ( empty( $inspection['complete'] ) ) {
+                $checkpoint['phase'] = 'inspecting';
+                $checkpoint['inspection_state'] = $inspection['checkpoint'];
+                if ( ! Trasloco_Job_Store::yield_crypto( $id, $owner, 99, $checkpoint ) ) {
+                    throw new RuntimeException( 'Decryption cancelled or worker lease lost during archive inspection.' );
+                }
+                return array( 'status' => 'pending', 'progress' => 99 );
+            }
         }
         $published_here = false;
         if ( ! file_exists( $target ) && ! @link( $temp, $target ) ) {

@@ -10,6 +10,124 @@ class Trasloco_Offline_Recovery {
     const MAX_ENTRIES = 1000000;
     const MAX_MANIFEST = 33554432;
 
+    /**
+     * Validate a bounded number of archive entries and return a resumable
+     * cursor. The cursor contains only file identity, offsets, counts and the
+     * three root metadata entries needed by the rescue workflow.
+     */
+    public static function inspect_step( $archive, $checkpoint = null, $max_entries = 256 ) {
+        if ( ! is_string( $archive ) || ! preg_match( '/\.wpress$/D', $archive ) ||
+            ! is_file( $archive ) || ! is_readable( $archive ) || is_link( $archive ) ||
+            ! is_int( $max_entries ) || $max_entries < 1 || $max_entries > 4096 ) {
+            throw new RuntimeException( 'Use a readable regular .wpress archive.' );
+        }
+        clearstatcache( true, $archive );
+        $stat = @lstat( $archive );
+        if ( ! is_array( $stat ) || $stat['size'] < self::HEADER_BYTES ) {
+            throw new RuntimeException( 'Archive is too small.' );
+        }
+        $identity = array( 'size' => (int) $stat['size'], 'mtime' => (int) $stat['mtime'],
+            'ctime' => (int) $stat['ctime'], 'ino' => (int) $stat['ino'], 'dev' => (int) $stat['dev'] );
+        if ( $checkpoint === null ) {
+            $checkpoint = array( 'identity' => $identity, 'position' => 0, 'entries' => 0, 'files' => array() );
+        }
+        if ( ! is_array( $checkpoint ) || ! isset( $checkpoint['identity'], $checkpoint['position'],
+                $checkpoint['entries'], $checkpoint['files'] ) ||
+            $checkpoint['identity'] !== $identity || ! is_int( $checkpoint['position'] ) ||
+            $checkpoint['position'] < 0 || $checkpoint['position'] > $identity['size'] - self::HEADER_BYTES ||
+            ! is_int( $checkpoint['entries'] ) || $checkpoint['entries'] < 0 ||
+            $checkpoint['entries'] > self::MAX_ENTRIES || ! is_array( $checkpoint['files'] ) ||
+            count( $checkpoint['files'] ) > 3 ) {
+            throw new RuntimeException( 'Archive changed or structural inspection checkpoint is invalid.' );
+        }
+        clearstatcache( true, $archive );
+        $latest = @lstat( $archive );
+        if ( ! is_array( $latest ) || $identity !== array( 'size' => (int) $latest['size'],
+                'mtime' => (int) $latest['mtime'], 'ctime' => (int) $latest['ctime'],
+                'ino' => (int) $latest['ino'], 'dev' => (int) $latest['dev'] ) ) {
+            throw new RuntimeException( 'Archive changed during structural inspection.' );
+        }
+        $input = @fopen( $archive, 'rb' );
+        if ( $input === false ) { throw new RuntimeException( 'Cannot open the rescue archive.' ); }
+        $position = $checkpoint['position'];
+        $entries = $checkpoint['entries'];
+        $files = $checkpoint['files'];
+        $processed = 0;
+        $selected = array( 'database.sql' => true, 'package.json' => true, 'multisite.json' => true );
+        try {
+            while ( $position < $identity['size'] - self::HEADER_BYTES && $processed < $max_entries ) {
+                if ( fseek( $input, $position, SEEK_SET ) !== 0 ) {
+                    throw new RuntimeException( 'Cannot seek in the archive.' );
+                }
+                $header = fread( $input, self::HEADER_BYTES );
+                if ( ! is_string( $header ) || strlen( $header ) !== self::HEADER_BYTES ) {
+                    throw new RuntimeException( 'Archive header is incomplete.' );
+                }
+                $name = trim( substr( $header, 0, 255 ), "\0 " );
+                $size_string = trim( substr( $header, 255, 14 ), "\0 " );
+                $folder = substr( $header, 281, 4096 );
+                $null = strpos( $folder, "\0" );
+                $folder = $null !== false ? substr( $folder, 0, $null ) : substr( $folder, 0, -8 );
+                $folder = str_replace( '\\', '/', trim( $folder ) );
+                if ( $folder === '.' ) { $folder = ''; }
+                $parts = $folder === '' ? array() : explode( '/', $folder );
+                if ( $name === '' || $name === '.' || $name === '..' ||
+                    strpbrk( $name, "/\\\0" ) !== false ||
+                    preg_match( '/[\x00-\x1f\x7f]/', $name . $folder ) ||
+                    preg_match( '#^(/|[a-zA-Z]:)#', $folder ) ||
+                    in_array( '..', $parts, true ) || in_array( '.', $parts, true ) ||
+                    in_array( '', $parts, true ) || ! ctype_digit( $size_string ) ) {
+                    throw new RuntimeException( 'Archive has an unsafe or malformed entry.' );
+                }
+                $size = filter_var( $size_string, FILTER_VALIDATE_INT, array(
+                    'options' => array( 'min_range' => 0 ),
+                ) );
+                if ( $size === false || $size > $identity['size'] - self::HEADER_BYTES - $position - self::HEADER_BYTES ) {
+                    throw new RuntimeException( 'Archive has an impossible file length.' );
+                }
+                if ( $folder === '' && isset( $selected[ $name ] ) ) {
+                    if ( isset( $files[ $name ] ) ) {
+                        throw new RuntimeException( 'Archive contains duplicate rescue metadata.' );
+                    }
+                    $files[ $name ] = array( 'offset' => $position + self::HEADER_BYTES, 'size' => $size );
+                }
+                $position += self::HEADER_BYTES + $size;
+                $entries++; $processed++;
+                if ( $entries > self::MAX_ENTRIES ) {
+                    throw new RuntimeException( 'Archive has too many entries.' );
+                }
+            }
+            if ( $position < $identity['size'] - self::HEADER_BYTES ) {
+                return array( 'complete' => false, 'entries_processed' => $processed,
+                    'checkpoint' => array( 'identity' => $identity, 'position' => $position,
+                        'entries' => $entries, 'files' => $files ) );
+            }
+            if ( $position !== $identity['size'] - self::HEADER_BYTES ||
+                fseek( $input, $position, SEEK_SET ) !== 0 ) {
+                throw new RuntimeException( 'Archive ends at an invalid offset.' );
+            }
+            $trailer = fread( $input, self::HEADER_BYTES );
+            if ( ! is_string( $trailer ) || strlen( $trailer ) !== self::HEADER_BYTES ||
+                trim( substr( $trailer, 0, 255 ), "\0" ) !== '' ) {
+                throw new RuntimeException( 'Archive terminator is missing.' );
+            }
+            if ( ! isset( $files['package.json'] ) ) {
+                throw new RuntimeException( 'Archive has no package.json metadata.' );
+            }
+            clearstatcache( true, $archive );
+            $latest = @lstat( $archive );
+            if ( ! is_array( $latest ) || $identity !== array( 'size' => (int) $latest['size'],
+                    'mtime' => (int) $latest['mtime'], 'ctime' => (int) $latest['ctime'],
+                    'ino' => (int) $latest['ino'], 'dev' => (int) $latest['dev'] ) ) {
+                throw new RuntimeException( 'Archive changed during structural inspection.' );
+            }
+            return array( 'complete' => true, 'entries_processed' => $processed,
+                'entries' => $entries, 'files' => $files );
+        } finally {
+            fclose( $input );
+        }
+    }
+
     public static function inspect( $archive ) {
         if ( ! is_string( $archive ) || ! preg_match( '/\.wpress$/D', $archive ) ||
             ! is_file( $archive ) || ! is_readable( $archive ) || is_link( $archive ) ) {
