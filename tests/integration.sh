@@ -1253,7 +1253,26 @@ $wpdb->update( Trasloco_Job_Store::table(), array(
 if ( ! in_array( $crypto_job, Trasloco_Job_Store::recoverable_crypto(), true ) ) {
     throw new Exception( "Interrupted encryption job was not recoverable from its durable checkpoint" );
 }
-$crypto_result = Trasloco_Job_Worker::run( $crypto_job );
+$crypto_result = array( "status" => "pending" );
+$crypto_manifest_lease_expired = false;
+for ( $crypto_step = 0; $crypto_step < 32; $crypto_step++ ) {
+    $crypto_result = Trasloco_Job_Worker::run( $crypto_job );
+    if ( isset( $crypto_result["status"] ) && $crypto_result["status"] === "completed" ) { break; }
+    if ( ! isset( $crypto_result["status"] ) || $crypto_result["status"] !== "pending" ) {
+        throw new Exception( "Resumable encryption worker stopped before completion" );
+    }
+    $crypto_internal = Trasloco_Job_Store::get_internal( $crypto_job );
+    if ( ! $crypto_manifest_lease_expired && isset( $crypto_internal["checkpoint"]["phase"] ) &&
+        $crypto_internal["checkpoint"]["phase"] === "manifest" ) {
+        if ( isset( Trasloco_Job_Store::get( $crypto_job )["checkpoint"]["manifest_state"] ) ) {
+            throw new Exception( "Encryption manifest checkpoint was exposed publicly" );
+        }
+        $wpdb->update( Trasloco_Job_Store::table(), array(
+            "state" => "running", "lease_owner" => "interrupted-encryption-manifest", "lease_until" => time() - 1,
+        ), array( "id" => $crypto_job ) );
+        $crypto_manifest_lease_expired = true;
+    }
+}
 $crypto_encrypted_name = $crypto_job_archive . ".enc";
 $crypto_encrypted_path = trasloco_encrypted_backup_path( $crypto_encrypted_name );
 $crypto_decrypted_path = $crypto_job_path . ".resumed";
@@ -1323,6 +1342,11 @@ fwrite( $inspection_output, $inspection_header( "package.json", 2 ) . "{}" );
 for ( $inspection_index = 0; $inspection_index < 600; $inspection_index++ ) {
     fwrite( $inspection_output, $inspection_header( "entry-" . $inspection_index . ".bin", 1, "wp-content/uploads" ) . "x" );
 }
+$inspection_large_size = 37748736;
+fwrite( $inspection_output, $inspection_header( "large-data.bin", $inspection_large_size, "wp-content/uploads" ) );
+for ( $inspection_large_offset = 0; $inspection_large_offset < $inspection_large_size; $inspection_large_offset += 1048576 ) {
+    fwrite( $inspection_output, str_repeat( "Z", min( 1048576, $inspection_large_size - $inspection_large_offset ) ) );
+}
 fwrite( $inspection_output, str_repeat( "\0", 4377 ) );
 fclose( $inspection_output );
 Trasloco_Integrity::create_chunked( $inspection_source );
@@ -1333,7 +1357,8 @@ Trasloco_Integrity::create_chunked( trasloco_encrypted_backup_path( $inspection_
 $inspection_job = Trasloco_Job_Worker::enqueue_crypto( "decrypt", $inspection_source_name . ".enc" );
 if ( ! is_int( $inspection_job ) ) { throw new Exception( "Could not queue large structural-inspection fixture" ); }
 $inspection_phase_seen = false;
-for ( $inspection_step = 0; $inspection_step < 32; $inspection_step++ ) {
+$manifest_lease_expired = false;
+for ( $inspection_step = 0; $inspection_step < 64; $inspection_step++ ) {
     $inspection_result = Trasloco_Job_Worker::run( $inspection_job );
     $inspection_internal = Trasloco_Job_Store::get_internal( $inspection_job );
     if ( isset( $inspection_internal["checkpoint"]["phase"] ) &&
@@ -1355,15 +1380,43 @@ for ( $inspection_step = 0; $inspection_step < 32; $inspection_step++ ) {
 }
 if ( ! $inspection_phase_seen ) { throw new Exception( "Large decrypted archive did not yield structural inspection" ); }
 $inspection_result = array( "status" => "pending" );
-for ( $inspection_step = 0; $inspection_step < 32; $inspection_step++ ) {
+$manifest_phase_seen = false;
+for ( $inspection_step = 0; $inspection_step < 64; $inspection_step++ ) {
     $inspection_result = Trasloco_Job_Worker::run( $inspection_job );
+    $inspection_internal = Trasloco_Job_Store::get_internal( $inspection_job );
+    if ( isset( $inspection_internal["checkpoint"]["phase"] ) &&
+        $inspection_internal["checkpoint"]["phase"] === "manifest" &&
+        isset( $inspection_result["status"] ) && $inspection_result["status"] === "pending" ) {
+        if ( ! isset( $inspection_internal["checkpoint"]["manifest_state"]["offset"] ) ) {
+            throw new Exception( "Resumable manifest checkpoint was missing" );
+        }
+        // The initial durable manifest checkpoint is intentionally saved at
+        // offset zero before any hashing starts. Expire the lease only after
+        // at least one bounded chunk has been processed.
+        if ( $inspection_internal["checkpoint"]["manifest_state"]["offset"] <= 0 ) {
+            continue;
+        }
+        if ( empty( $inspection_internal["checkpoint"]["inspection_complete"] ) ) {
+            throw new Exception( "Manifest scan started before structural inspection was durably completed" );
+        }
+        $manifest_phase_seen = true;
+        if ( isset( Trasloco_Job_Store::get( $inspection_job )["checkpoint"]["manifest_state"] ) ) {
+            throw new Exception( "Resumable manifest checkpoint was missing or exposed publicly" );
+        }
+        if ( ! $manifest_lease_expired ) {
+            $wpdb->update( Trasloco_Job_Store::table(), array(
+                "state" => "running", "lease_owner" => "interrupted-manifest-worker", "lease_until" => time() - 1,
+            ), array( "id" => $inspection_job ) );
+            $manifest_lease_expired = true;
+        }
+    }
     if ( isset( $inspection_result["status"] ) && $inspection_result["status"] === "completed" ) { break; }
     if ( ! isset( $inspection_result["status"] ) || $inspection_result["status"] !== "pending" ) {
         throw new Exception( "Structural inspection did not resume after lease expiry" );
     }
 }
 $inspection_decrypted = trasloco_backup_path( array( "archive" => "integration-structural-checkpoint-decrypted.wpress" ) );
-if ( $inspection_result["status"] !== "completed" || ! $inspection_phase_seen ||
+if ( $inspection_result["status"] !== "completed" || ! $inspection_phase_seen || ! $manifest_phase_seen ||
     Trasloco_Integrity::verify( $inspection_decrypted )["status"] !== "verified" ||
     hash_file( "sha256", $inspection_decrypted ) !== $inspection_digest ) {
     throw new Exception( "Resumed structural inspection did not publish the exact verified archive" );

@@ -34,6 +34,8 @@ jobs:
         run: php tests/sql-preview-smoke.php
       - name: Feature branch integrity manifest compatibility
         run: php tests/integrity-compat-smoke.php
+      - name: Resumable checksum-manifest generation
+        run: php tests/integrity-batch-smoke.php
       - name: Incremental snapshot reconstruction and retention
         run: php tests/incremental-store-smoke.php
       - name: Remote incremental object and catalog transfer

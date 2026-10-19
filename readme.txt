@@ -3,7 +3,7 @@ Tags: backup, migration, migrate, export, import
 Requires at least: 5.5
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.8.3
+Stable tag: 1.8.4
 License: AGPL-3.0-or-later
 License URI: https://www.gnu.org/licenses/agpl-3.0.html
 
@@ -35,6 +35,11 @@ Trasloco exports a whole WordPress site (database, media, themes and plugins) to
 The new address is set by the import: there is nothing to type. Trasloco > Guide explains every option.
 
 == Changelog ==
+
+= 1.8.4 =
+* Queued encryption and decryption now generate the final SHA-256 chunk manifest in batches of at most eight 4-MiB chunks.
+* Private, identity-bound SHA-256 state and digest journals resume after expired worker leases without rescanning completed archive prefixes; decryption also records completed structural inspection before manifest batches.
+* Local PHP smoke and WordPress/MariaDB integration tests cover checkpoint recovery, journal replay, tampered state refusal and exact manifest digests. GitHub Actions were not run.
 
 = 1.8.3 =
 * Large queued web decryptions now validate archive structure in resumable batches of at most 256 entries before publishing the plaintext archive.
@@ -76,7 +81,7 @@ The new address is set by the import: there is nothing to type. Trasloco > Guide
 
 = 1.4.0 =
 * Administrators can queue authenticated backup encryption and decryption from the Backups page. Bounded jobs resume after interruption, preserve TRLENC01 decryption compatibility and publish output only after authentication and archive inspection.
-* Secretstream checkpoints are sealed with the WordPress authentication salt; passphrases are not saved in job payloads or sent in forms. Final archive inspection and checksum generation still scan the completed file in one worker request.
+* Secretstream checkpoints are sealed with the WordPress authentication salt; passphrases are not saved in job payloads or sent in forms. Final structural inspection is limited to 256 entries per request and checksum-manifest generation to eight 4-MiB chunks per request, with private checkpoints for resume.
 * The complete local WordPress integration passes on PHP 7.4, 8.2, 8.4 and 8.5. Security smoke tests pass on all four versions. Real-host proxy, WAF and timeout testing remains open.
 
 = 1.3.0 =

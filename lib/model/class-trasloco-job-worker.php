@@ -455,6 +455,10 @@ class Trasloco_Job_Worker {
             is_array( $previous['checkpoint']['crypto_state'] ) ? $previous['checkpoint']['crypto_state'] : null;
         $inspection_state = is_array( $previous ) && isset( $previous['checkpoint']['inspection_state'] ) &&
             is_array( $previous['checkpoint']['inspection_state'] ) ? $previous['checkpoint']['inspection_state'] : null;
+        $inspection_complete = is_array( $previous ) && isset( $previous['checkpoint']['inspection_complete'] ) &&
+            $previous['checkpoint']['inspection_complete'] === true;
+        $manifest_state = is_array( $previous ) && isset( $previous['checkpoint']['manifest_state'] ) &&
+            is_array( $previous['checkpoint']['manifest_state'] ) ? $previous['checkpoint']['manifest_state'] : null;
         if ( is_file( $target ) || is_link( $target ) || is_file( Trasloco_Integrity::manifest_path( $target ) ) ) {
             if ( ! $state || empty( $state['complete'] ) || is_link( $target ) || ! is_file( $target ) ||
                 ! is_file( $temp ) || is_link( $temp ) ) {
@@ -485,7 +489,7 @@ class Trasloco_Job_Worker {
         if ( ! Trasloco_Job_Store::checkpoint( $id, $owner, 99, $checkpoint ) ) {
             throw new RuntimeException( 'Encryption cancelled or worker lease lost before publication.' );
         }
-        if ( $operation === 'decrypt' ) {
+        if ( $operation === 'decrypt' && ! $inspection_complete ) {
             $inspection = Trasloco_Offline_Recovery::inspect_step( $temp, $inspection_state, 256 );
             if ( empty( $inspection['complete'] ) ) {
                 $checkpoint['phase'] = 'inspecting';
@@ -495,6 +499,10 @@ class Trasloco_Job_Worker {
                 }
                 return array( 'status' => 'pending', 'progress' => 99 );
             }
+            $inspection_complete = true;
+        }
+        if ( $operation === 'decrypt' ) {
+            $checkpoint['inspection_complete'] = $inspection_complete;
         }
         $published_here = false;
         if ( ! file_exists( $target ) && ! @link( $temp, $target ) ) {
@@ -505,10 +513,16 @@ class Trasloco_Job_Worker {
                 $temp_stat['ino'] === $target_stat['ino'] && $temp_stat['dev'] === $target_stat['dev'];
         }
         try {
-            if ( $operation === 'encrypt' ) {
-                Trasloco_Integrity::create( $target );
-            } else {
-                Trasloco_Integrity::create_chunked( $target );
+            $manifest_step = Trasloco_Integrity::create_chunked_step( $target, (string) $id, $manifest_state, 8 );
+            if ( empty( $manifest_step['complete'] ) ) {
+                $checkpoint['phase'] = 'manifest';
+                $checkpoint['bytes'] = isset( $manifest_step['checkpoint']['offset'] )
+                    ? (int) $manifest_step['checkpoint']['offset'] : 0;
+                $checkpoint['manifest_state'] = $manifest_step['checkpoint'];
+                if ( ! Trasloco_Job_Store::yield_crypto( $id, $owner, 99, $checkpoint ) ) {
+                    throw new RuntimeException( 'Encryption cancelled or worker lease lost during manifest creation.' );
+                }
+                return array( 'status' => 'pending', 'progress' => 99 );
             }
         } catch ( Throwable $error ) {
             if ( $published_here ) {
@@ -529,6 +543,7 @@ class Trasloco_Job_Worker {
             }
             throw new RuntimeException( 'Encryption cancelled or worker lease lost before completion.' );
         }
+        Trasloco_Integrity::cleanup_chunked_journal( $target, (string) $id );
         @unlink( $temp );
         return array( 'status' => 'completed', 'archive' => $output_name );
     }
@@ -1131,6 +1146,26 @@ class Trasloco_Job_Worker {
                 $latest = Trasloco_Job_Store::get_internal( $id );
                 if ( $failed || ( is_array( $latest ) && in_array( $latest['state'], array( 'cancelled','failed' ), true ) ) ) {
                     $partial = TRASLOCO_BACKUPS_PATH . DIRECTORY_SEPARATOR . '.trasloco-crypto-' . $id . '.part.wpress';
+                    $archive_name = isset( $record['payload']['archive'] ) ? $record['payload']['archive'] : '';
+                    if ( isset( $record['payload']['operation'] ) && $record['payload']['operation'] === 'encrypt' &&
+                        is_string( $archive_name ) && preg_match( '/^[A-Za-z0-9][A-Za-z0-9_.-]*\.wpress$/D', $archive_name ) ) {
+                        $published = trasloco_encrypted_backup_path( $archive_name . '.enc' );
+                    } elseif ( is_string( $archive_name ) && preg_match( '/^[A-Za-z0-9][A-Za-z0-9_.-]*\.wpress\.enc$/D', $archive_name ) ) {
+                        $decrypted_name = substr( $archive_name, 0, -strlen( '.wpress.enc' ) ) . '-decrypted.wpress';
+                        $published = trasloco_backup_path( array( 'archive' => $decrypted_name ) );
+                    } else {
+                        $published = '';
+                    }
+                    if ( $published !== '' ) {
+                        Trasloco_Integrity::cleanup_chunked_journal( $published, (string) $id );
+                        $partial_stat = @lstat( $partial ); $published_stat = @lstat( $published );
+                        if ( is_array( $partial_stat ) && is_array( $published_stat ) && ! is_link( $partial ) &&
+                            ! is_link( $published ) && $partial_stat['ino'] === $published_stat['ino'] &&
+                            $partial_stat['dev'] === $published_stat['dev'] ) {
+                            @unlink( $published );
+                            @unlink( Trasloco_Integrity::manifest_path( $published ) );
+                        }
+                    }
                     if ( is_file( $partial ) && ! is_link( $partial ) ) { @unlink( $partial ); }
                 }
             }
