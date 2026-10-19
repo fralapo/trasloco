@@ -2,7 +2,7 @@
 
 ## Current state
 
-Trasloco 1.6.0 completes the local snapshot workflow developed after release 1.5.0. The snapshot inventory is visible and keyboard-scrollable in the Backups page, compacted snapshots restore through the ordinary WP-CLI command, explicit compaction verifies before removing an archive, and storage/retention accounting includes snapshot-only catalogs. Full archives remain the default. The local PHP 8.4 release suite, including all standalone checks and a full PHP syntax scan, passes. The account's free GitHub Actions minutes are exhausted, so no Actions run should be started.
+Trasloco 1.6.1 follows the local snapshot workflow completed in 1.6.0 and adds an optional, read-only Agency overview for separately configured WordPress sites. The snapshot inventory remains visible and keyboard-scrollable in the Backups page, compacted snapshots restore through the ordinary WP-CLI command, explicit compaction verifies before removing an archive, and storage/retention accounting includes snapshot-only catalogs. Full archives remain the default. The local PHP 8.4 release suite, including all standalone checks and a full PHP syntax scan, passes. The account's free GitHub Actions minutes are exhausted, so no Actions run should be started.
 
 The snapshot store uses batches of eight 4-MiB chunks, resumes from a private journal after interruption, and coordinates catalog retention with scheduled archive retention. Compaction is opt-in and recovery points are protected. Remote content-addressed delivery remains open.
 
@@ -13,9 +13,11 @@ The snapshot store uses batches of eight 4-MiB chunks, resumes from a private jo
 - Incremental store and WP-CLI smoke tests passed on PHP 7.4, 8.2, 8.4 and 8.5.
 - On this host, PHP 8.4 in a local Docker container passed the complete standalone quality suite, full PHP syntax scan, translation parity (440 strings in Italian, Spanish, French and German), and the incremental store/CLI tests. The focused store tests verify measured archive and manifest bytes removed, positive savings after deduplication, negative savings while originals remain, preservation of a tampered source, recovery-point protection and retention of snapshot-only catalogs. The full WordPress 6.9.10 integration and disaster/recovery fixture also passed on local MariaDB 11.4, including a real archive compaction followed by snapshot-only reconstruction and restore. GitHub Actions was not started.
 - The release verification on this checkout repeated the PHP 8.4 full syntax scan, 440-string translation check and every standalone test from `.github/workflows/ci.yml`; all passed. The offline file recovery test emits three non-fatal `rmdir` cleanup warnings for its symlink fixture, and the offsite transfer test prints `Killed` while simulating an interrupted worker before reporting success. GitHub Actions was not started.
-- Translation parity at the 1.5.0 release was 431 strings; the latest local check passes all 440 strings across Italian, Spanish, French and German.
+- Translation parity at the 1.5.0 release was 431 strings; the latest local check passes all 459 strings across Italian, Spanish, French and German.
 - The v1.5.0 base and S3-enabled release ZIPs passed local archive integrity checks.
 - The v1.6.0 base and S3-enabled packages are built from the tagged source with `tools/build-release.sh`; both pass ZIP integrity checks, and the S3 package contains the pinned runtime autoloader.
+- PR #2 was reconciled to current `main`, narrowed to the Agency overview, locally verified, and squash-merged. Its merge commit includes `[skip ci]`; GitHub Actions were not run.
+- v1.6.1 release packages must be built from the final version tag and checked before publishing. The Agency page is read-only and tested with mocked responses; no real remote agency sites were contacted.
 - These checks use local fixtures. GitHub Actions, real remote providers, real hosting environments and production durability were not tested.
 
 ## PR #2 reconciliation update — 2026-10-19

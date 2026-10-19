@@ -3,7 +3,7 @@ Tags: backup, migration, migrate, export, import
 Requires at least: 5.5
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.6.0
+Stable tag: 1.6.1
 License: AGPL-3.0-or-later
 License URI: https://www.gnu.org/licenses/agpl-3.0.html
 
@@ -35,6 +35,10 @@ Trasloco exports a whole WordPress site (database, media, themes and plugins) to
 The new address is set by the import: there is nothing to type. Trasloco > Guide explains every option.
 
 == Changelog ==
+
+= 1.6.1 =
+* Optional Agency overview lets administrators inspect connection, backup, schedule and job health across up to 15 separately configured WordPress sites. Requests are read-only, HTTPS-only, bounded and locally security-tested; real remote-provider compatibility is not certified.
+* Full standalone, syntax, translation and WordPress integration/recovery checks passed locally. GitHub Actions were not run.
 
 = 1.6.0 =
 * Snapshot catalogs, capture dates, logical sizes, integrity information and restore commands are visible on the Backups page; the storage summary reports measured file bytes and net savings.

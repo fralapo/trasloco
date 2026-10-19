@@ -7,7 +7,7 @@
 **Trasloco is a free, open source WordPress plugin that backs up and migrates a whole WordPress site.** It exports the database, media library, themes and plugins into a single `.wpress` file, then imports that file on any other WordPress install, with no file size limit, no paid add-ons and no account. It is tested with a real 1.64 GB site.
 
 [![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
-![Version](https://img.shields.io/badge/version-1.6.0-informational.svg)
+![Version](https://img.shields.io/badge/version-1.6.1-informational.svg)
 ![Languages](https://img.shields.io/badge/languages-en%20it%20es%20fr%20de-success.svg)
 ![Tested on PHP 8.4](https://img.shields.io/badge/tested_on-PHP_8.4-777bb4.svg)
 
@@ -135,10 +135,11 @@ English, Italian, Spanish, French and German. The language follows the WordPress
 
 ## Known limits
 
-As of version 1.6.0 (October 2026):
+As of version 1.6.1 (October 2026):
 
 - **Not yet tried on a real host behind a firewall.** So far it has been tested on local WordPress installs, including an import of a real 1.64 GB site (12 pages, 73 media files, 19 plugins). The base64 upload was built for hosting firewalls, but it has not been seen working behind one yet. Local CLI and recovery fixtures pass as recorded in the [roadmap](docs/ROADMAP.md); real-host HTTP tests remain pending.
 - **Incremental storage savings depend on repeated data.** Snapshots share identical chunks, but a single archive with no repeated chunks can use slightly more storage because of catalog overhead. Compaction reports measured file lengths; it does not measure filesystem block allocation or prove savings for other sites.
+- **Agency monitoring is read-only and opt-in.** It needs separately configured application passwords and reachable public HTTPS health endpoints. Real provider compatibility and credential lifecycle behavior have not been certified.
 - **Full-site rollback is not yet automatic.** File recovery restores planned files in two phases and preserves unrelated destination files; it does not make the entire site restore globally atomic.
 - **Single sites only.** Importing a multisite network is not supported.
 - **PHP's built-in web server is slow with big sites.** This is not a plugin problem, but if you use `php -S` for testing, each import step can take tens of seconds.
