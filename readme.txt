@@ -3,7 +3,7 @@ Tags: backup, migration, migrate, export, import
 Requires at least: 5.5
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.8.4
+Stable tag: 1.8.5
 License: AGPL-3.0-or-later
 License URI: https://www.gnu.org/licenses/agpl-3.0.html
 
@@ -35,6 +35,11 @@ Trasloco exports a whole WordPress site (database, media, themes and plugins) to
 The new address is set by the import: there is nothing to type. Trasloco > Guide explains every option.
 
 == Changelog ==
+
+= 1.8.5 =
+* Authenticate resumable SHA-256 manifest checkpoints with the WordPress authentication salt, rejecting altered compression state before resuming.
+* Safely migrate existing 1.8.4 checkpoints by replaying and checking their committed archive prefix once; subsequent batches remain bounded and do not rescan committed prefixes.
+* Local PHP smoke coverage verifies checkpoint tampering rejection, legacy checkpoint migration, journal replay and exact manifest digests. GitHub Actions were not run.
 
 = 1.8.4 =
 * Queued encryption and decryption now generate the final SHA-256 chunk manifest in batches of at most eight 4-MiB chunks.

@@ -138,10 +138,9 @@ class Trasloco_Integrity {
     }
 
     /**
-     * Advance a bounded chunk-manifest scan. HashContext serialization is
-     * scoped to the private resumable job checkpoint; chunk digests live in a
-     * private append-only journal so the database checkpoint stays constant
-     * size for very large archives.
+     * Advance a bounded chunk-manifest scan. A portable SHA-256 compression
+     * state is authenticated in the private job checkpoint; chunk digests live
+     * in an append-only journal so the checkpoint stays constant-size.
      */
     public static function create_chunked_step( $archive, $job_key, $checkpoint = null, $max_chunks = 8 ) {
         if ( ! is_string( $job_key ) || ! preg_match( '/^[A-Za-z0-9-]{1,64}$/D', $job_key ) ||
@@ -167,6 +166,7 @@ class Trasloco_Integrity {
                 'whole_state' => self::sha256_initial_state(),
                 'journal_bytes' => 0, 'journal_inode' => (int) $journal_stat['ino'],
                 'journal_device' => (int) $journal_stat['dev'] );
+            $state['whole_state_mac'] = self::sha256_checkpoint_mac( $state );
             fclose( $journal_handle );
             return array( 'complete' => false, 'chunks_processed' => 0, 'checkpoint' => $state );
         } else {
@@ -190,6 +190,20 @@ class Trasloco_Integrity {
                 (int) $journal_stat['dev'] !== $checkpoint['journal_device'] ||
                 (int) $journal_stat['size'] < $checkpoint['journal_bytes'] ) {
                 throw new Trasloco_Archive_Exception( 'Private manifest journal is missing or changed.' );
+            }
+            if ( isset( $checkpoint['whole_state_mac'] ) ) {
+                if ( ! is_string( $checkpoint['whole_state_mac'] ) ||
+                    ! hash_equals( self::sha256_checkpoint_mac( $checkpoint ), $checkpoint['whole_state_mac'] ) ) {
+                    throw new Trasloco_Archive_Exception( 'Resumable manifest digest checkpoint authentication failed.' );
+                }
+            } else {
+                // Upgrade checkpoints created before state authentication was added.
+                // This one-time prefix replay binds the supplied state to both the
+                // archive bytes and the already committed chunk-digest journal.
+                if ( ! self::verify_legacy_sha256_checkpoint( $archive, $journal, $checkpoint ) ) {
+                    throw new Trasloco_Archive_Exception( 'Legacy resumable manifest digest checkpoint cannot be verified.' );
+                }
+                $checkpoint['whole_state_mac'] = self::sha256_checkpoint_mac( $checkpoint );
             }
             $state = $checkpoint;
             $state['_whole_state'] = $checkpoint['whole_state'];
@@ -259,6 +273,7 @@ class Trasloco_Integrity {
         if ( $state['offset'] < $identity['size'] ) {
             $state['whole_state'] = $state['_whole_state'];
             unset( $state['_whole_state'] );
+            $state['whole_state_mac'] = self::sha256_checkpoint_mac( $state );
             return array( 'complete' => false, 'chunks_processed' => $processed, 'checkpoint' => $state );
         }
         if ( $state['journal_bytes'] !== (int) ceil( $identity['size'] / self::CHUNK_BYTES ) * 64 ) {
@@ -293,6 +308,60 @@ class Trasloco_Integrity {
     private static function sha256_initial_state() {
         return array( 'words' => array( 0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,
             0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19 ), 'buffer' => '', 'bytes' => 0 );
+    }
+
+    /** Authenticate resumable digest state against the installation secret. */
+    private static function sha256_checkpoint_mac( $checkpoint ) {
+        if ( ! function_exists( 'wp_salt' ) ) {
+            throw new Trasloco_Archive_Exception( 'WordPress authentication salt is unavailable for the manifest checkpoint.' );
+        }
+        $fields = array( 'identity', 'offset', 'next_chunk', 'whole_state', 'journal_bytes', 'journal_inode', 'journal_device' );
+        $payload = array();
+        foreach ( $fields as $field ) {
+            if ( ! array_key_exists( $field, $checkpoint ) ) {
+                throw new Trasloco_Archive_Exception( 'Resumable manifest digest checkpoint is incomplete.' );
+            }
+            $payload[ $field ] = $checkpoint[ $field ];
+        }
+        $encoded = json_encode( $payload, JSON_UNESCAPED_SLASHES );
+        $secret = wp_salt( 'auth' );
+        if ( ! is_string( $encoded ) || ! is_string( $secret ) || strlen( $secret ) < 32 ) {
+            throw new Trasloco_Archive_Exception( 'WordPress authentication salt is invalid for the manifest checkpoint.' );
+        }
+        return hash_hmac( 'sha256', $encoded, $secret );
+    }
+
+    /** Verify an older unauthenticated checkpoint by replaying its committed prefix once. */
+    private static function verify_legacy_sha256_checkpoint( $archive, $journal, $checkpoint ) {
+        $input = @fopen( $archive, 'rb' );
+        $digests = @fopen( $journal, 'rb' );
+        if ( $input === false || $digests === false ) {
+            if ( is_resource( $input ) ) { fclose( $input ); }
+            if ( is_resource( $digests ) ) { fclose( $digests ); }
+            return false;
+        }
+        $state = self::sha256_initial_state();
+        $remaining = $checkpoint['offset'];
+        try {
+            while ( $remaining > 0 ) {
+                $chunk_length = min( self::CHUNK_BYTES, $remaining );
+                $chunk = '';
+                while ( strlen( $chunk ) < $chunk_length ) {
+                    $part = fread( $input, min( 1048576, $chunk_length - strlen( $chunk ) ) );
+                    if ( ! is_string( $part ) || $part === '' ) { return false; }
+                    $chunk .= $part;
+                }
+                $expected = fread( $digests, 64 );
+                if ( ! is_string( $expected ) || strlen( $expected ) !== 64 ||
+                    ! hash_equals( $expected, hash( 'sha256', $chunk ) ) ) { return false; }
+                $state = self::sha256_update_state( $state, $chunk );
+                $remaining -= $chunk_length;
+            }
+            return $state === $checkpoint['whole_state'];
+        } finally {
+            fclose( $input );
+            fclose( $digests );
+        }
     }
 
     private static function valid_sha256_state( $state, $offset ) {

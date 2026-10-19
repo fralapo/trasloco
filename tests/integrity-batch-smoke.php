@@ -3,6 +3,8 @@
 require_once dirname( __DIR__ ) . '/exceptions.php';
 require_once dirname( __DIR__ ) . '/lib/vendor/core/archiver/class-trasloco-integrity.php';
 
+function wp_salt( $scheme = 'auth' ) { return 'integrity-batch-smoke-installation-secret-with-enough-entropy'; }
+
 function integrity_batch_assert( $condition, $message ) {
     if ( ! $condition ) { throw new RuntimeException( $message ); }
 }
@@ -32,11 +34,22 @@ try {
     $checkpoint = json_decode( json_encode( $second['checkpoint'] ), true );
 
     file_put_contents( $journal, 'uncommitted-tail', FILE_APPEND );
-    $third = Trasloco_Integrity::create_chunked_step( $archive, $job, $checkpoint, 1 );
+    $legacy_checkpoint = $checkpoint;
+    unset( $legacy_checkpoint['whole_state_mac'] );
+    $third = Trasloco_Integrity::create_chunked_step( $archive, $job, $legacy_checkpoint, 1 );
     integrity_batch_assert( $third['complete'] === false && $third['checkpoint']['offset'] === 2 * Trasloco_Integrity::CHUNK_BYTES &&
-        filesize( $journal ) === 128,
-        'Manifest replay did not truncate uncheckpointed journal bytes before continuing.' );
+        filesize( $journal ) === 128 && isset( $third['checkpoint']['whole_state_mac'] ),
+        'Manifest replay did not migrate its legacy checkpoint and truncate uncommitted journal bytes.' );
     $checkpoint = json_decode( json_encode( $third['checkpoint'] ), true );
+
+    $legacy_tampered = $checkpoint;
+    unset( $legacy_tampered['whole_state_mac'] );
+    $legacy_tampered['whole_state']['words'][0] ^= 1;
+    $rejected = false;
+    try { Trasloco_Integrity::create_chunked_step( $archive, $job, $legacy_tampered, 1 ); }
+    catch ( Trasloco_Archive_Exception $expected ) { $rejected = true; }
+    integrity_batch_assert( $rejected && filesize( $journal ) === 128,
+        'Legacy migration accepted an altered digest state or modified its journal.' );
 
     $tampered = $checkpoint;
     $tampered['offset']++;
@@ -50,6 +63,12 @@ try {
     try { Trasloco_Integrity::create_chunked_step( $archive, $job, $tampered, 1 ); }
     catch ( Trasloco_Archive_Exception $expected ) { $rejected = true; }
     integrity_batch_assert( $rejected, 'Manifest generator accepted an altered SHA-256 compression state.' );
+    $tampered = $checkpoint;
+    $tampered['whole_state_mac'] = str_repeat( '0', 64 );
+    $rejected = false;
+    try { Trasloco_Integrity::create_chunked_step( $archive, $job, $tampered, 1 ); }
+    catch ( Trasloco_Archive_Exception $expected ) { $rejected = true; }
+    integrity_batch_assert( $rejected, 'Manifest generator accepted an altered checkpoint authentication code.' );
 
     $final = Trasloco_Integrity::create_chunked_step( $archive, $job, $checkpoint, 1 );
     integrity_batch_assert( $final['complete'] === true && is_file( $journal ),
