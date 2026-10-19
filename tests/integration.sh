@@ -132,6 +132,28 @@ fi
 $WP trasloco verify "$(basename "$ARCHIVE")" --path="$ROOT/source"
 $WP trasloco incremental verify "$(basename "$ARCHIVE")" --path="$ROOT/source"
 
+# Measure real repeated WordPress exports with a stable 16-MiB media file and
+# one 512-KiB media file changed in place. Verify the shared chunks, compact both
+# archives through the production CLI and report measured net storage savings.
+export TRASLOCO_INCREMENTAL_BENCH_STATE="$ROOT/incremental-benchmark.json"
+TRASLOCO_INCREMENTAL_BENCH_MODE=prepare $WP eval-file \
+  "$GITHUB_WORKSPACE/tests/incremental-backup-benchmark.php" prepare --path="$ROOT/source"
+$WP trasloco backup --incremental --keep=10 --path="$ROOT/source" > "$ROOT/incremental-benchmark-first.log"
+TRASLOCO_INCREMENTAL_BENCH_MODE=append $WP eval-file \
+  "$GITHUB_WORKSPACE/tests/incremental-backup-benchmark.php" append --path="$ROOT/source"
+$WP trasloco backup --incremental --keep=10 --path="$ROOT/source" > "$ROOT/incremental-benchmark-second.log"
+TRASLOCO_INCREMENTAL_BENCH_MODE=names $WP eval-file \
+  "$GITHUB_WORKSPACE/tests/incremental-backup-benchmark.php" names --path="$ROOT/source" \
+  > "$ROOT/incremental-benchmark-archives.txt"
+while IFS= read -r BENCH_ARCHIVE; do
+  if [ -n "$BENCH_ARCHIVE" ]; then
+    $WP trasloco incremental compact "$BENCH_ARCHIVE" --path="$ROOT/source"
+  fi
+done < "$ROOT/incremental-benchmark-archives.txt"
+TRASLOCO_INCREMENTAL_BENCH_MODE=finish $WP eval-file \
+  "$GITHUB_WORKSPACE/tests/incremental-backup-benchmark.php" finish --path="$ROOT/source"
+rm -rf "$ROOT/source/wp-content/uploads/trasloco-incremental-benchmark"
+
 # Selective database restore defaults to a read-only plan, then replaces only
 # the explicitly selected table while preserving site settings and files.
 TRASLOCO_SELECTIVE_EXPECTED_HOME=$($WP option get home --path="$ROOT/source")
