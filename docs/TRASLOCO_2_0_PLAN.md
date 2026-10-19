@@ -77,7 +77,8 @@ Engineering process reference: [Trasloco engineering playbook](ENGINEERING_WORKF
 - [x] Phase 1B: the backup list shows completed archive verification only while the archive and manifest still match the worker-recorded file identities; pending and failed states are visible. Durable full-archive checks, verified restore rehearsals and the rendered UI regression pass in local WordPress integration.
 - [x] Initial feature 14 foundation: read-only admin-scoped REST inventory with integration permission test.
 - [x] Feature 14 bounded mutating API: administrators can queue durable local backups over REST, and the last 1,000 job mutation actions retain actor, action, job ID and UTC timestamp. Restore remains outside REST; the verified explicit restore workflow is retained.
-- [ ] Phases 2-15 as ordered above.
+- [x] Phase 15A: opt-in read-only agency status overview using wp-config.php site definitions, HTTPS Application Password requests, bounded responses, administrator-only UI and no remote mutation. Local mocked HTTP checks cover permissions, URL validation, credential handling, response validation and output escaping. Real remote-site/provider verification and full multi-tenant coordination remain open.
+- [ ] Remaining phases 2-15 as ordered above, including globally atomic rollback, remote provider certification, multisite and staging.
 
 - [x] Native WP-Cron automatic backup engine with job queue, SHA-256 verification, retention and admin configuration.
 - [ ] Validate scheduled operation timeouts on real hosting; WAF and server cron support.
