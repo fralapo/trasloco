@@ -462,6 +462,7 @@ class Trasloco_Main_Controller {
 		wp_enqueue_style( 'trasloco', Trasloco_Template::asset_link( 'css/trasloco.css' ), array( 'dashicons' ), (string) filemtime( TRASLOCO_PATH . '/lib/view/assets/css/trasloco.css' ) );
 		wp_enqueue_script( 'trasloco', Trasloco_Template::asset_link( 'javascript/trasloco.js' ), array(), (string) filemtime( TRASLOCO_PATH . '/lib/view/assets/javascript/trasloco.js' ), true );
 		wp_localize_script( 'trasloco', 'trasloco_ui', array(
+			'progress'    => __( 'Progress', TRASLOCO_PLUGIN_NAME ),
 			'replacement' => __( 'Replacement %d', TRASLOCO_PLUGIN_NAME ),
 			'covered'     => __( 'Not needed now: the option above already leaves all of them out.', TRASLOCO_PLUGIN_NAME ),
 			'deleted'     => __( 'The backup has been deleted.', TRASLOCO_PLUGIN_NAME ),
