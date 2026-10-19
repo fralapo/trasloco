@@ -534,6 +534,17 @@ class Trasloco_Main_Controller {
 			'trasloco_guide',
 			'Trasloco_Main_Controller::guide'
 		);
+
+		if ( class_exists( 'Trasloco_Agency' ) && Trasloco_Agency::enabled() ) {
+			add_submenu_page(
+				'trasloco_dashboard',
+				__( 'Agency sites', TRASLOCO_PLUGIN_NAME ),
+				__( 'Agency sites', TRASLOCO_PLUGIN_NAME ),
+				'manage_options',
+				'trasloco_agency',
+				array( 'Trasloco_Agency', 'page' )
+			);
+		}
 	}
 
 	/**

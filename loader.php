@@ -321,6 +321,10 @@ require_once TRASLOCO_MODEL_PATH .
 
 require_once TRASLOCO_MODEL_PATH .
 			DIRECTORY_SEPARATOR .
+			'class-trasloco-agency.php';
+
+require_once TRASLOCO_MODEL_PATH .
+			DIRECTORY_SEPARATOR .
 			'class-trasloco-status.php';
 
 require_once TRASLOCO_MODEL_PATH .

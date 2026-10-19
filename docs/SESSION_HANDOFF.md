@@ -1,4 +1,4 @@
-# Session handoff — 2026-10-14
+# Session handoff — 2026-10-19
 
 ## Current state
 
@@ -18,7 +18,9 @@ The snapshot store uses batches of eight 4-MiB chunks, resumes from a private jo
 - The v1.6.0 base and S3-enabled packages are built from the tagged source with `tools/build-release.sh`; both pass ZIP integrity checks, and the S3 package contains the pinned runtime autoloader.
 - These checks use local fixtures. GitHub Actions, real remote providers, real hosting environments and production durability were not tested.
 
-## Resume on another computer
+## PR #2 reconciliation update — 2026-10-19
+
+The feature branch remains historical source material because its controller, scheduler, storage and recovery implementations are superseded by the current contracts on `main`. Its deferred Agency overview is now ported locally as an opt-in, administrator-only read-only page using `TRASLOCO_AGENCY_SITES` in `wp-config.php`. Requests require public HTTPS, disable redirects, verify TLS, cap response bytes and share a ten-second page budget; the page exposes only bounded health counts. `php tests/agency-smoke.php`, the full standalone quality suite, 459-string translation parity, PHP syntax scan and WordPress 6.9.10/MariaDB 11.4 integration and recovery rehearsal pass locally in PHP 8.4. GitHub Actions was not started. Real remote-site checks and credential lifecycle review remain open.
 
 Clone the repository and start from `main`:
 
@@ -31,6 +33,8 @@ git checkout main
 The incremental workflow is implemented and covered by local smoke and WordPress integration tests. Full archives remain by default; administrators can explicitly compact one after integrity-manifest, archive-structure, catalog and whole-file verification. Restore reconstructs to a non-existing path, verifies the archive structure, and invokes the existing importer. The snapshot table has a screen-reader caption, scoped column headings and keyboard-accessible horizontal scrolling. Storage figures measure file lengths and do not claim filesystem block allocation or broad real-archive benchmark results. Full keyboard, screen-reader and contrast audits and independent security review remain open; real screen-reader coverage and provider/hosting certifications still require separate environments.
 
 Real AWS/S3 or WebDAV certification, cross-host/NFS locking and production Apache/Nginx/IIS/WAF testing require external environments and should remain clearly marked as unverified until tested there.
+
+## Resume on another computer
 
 With WP-CLI and a disposable local MariaDB available, run the main integration fixture without consuming GitHub Actions minutes:
 

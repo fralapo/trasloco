@@ -42,3 +42,5 @@ jobs:
         run: php tests/offsite-transfer-smoke.php
       - name: Resumable peer transfer and collision checks
         run: php tests/peer-pull-smoke.php
+      - name: Read-only agency monitoring security checks
+        run: php tests/agency-smoke.php

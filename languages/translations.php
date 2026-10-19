@@ -11,6 +11,45 @@
  */
 
 return array(
+	'Agency sites' => array( 'it' => 'Siti dell’agenzia', 'es' => 'Sitios de la agencia', 'fr' => 'Sites de l’agence', 'de' => 'Agentur-Websites' ),
+	'A read-only overview of sites configured in wp-config.php. It never starts backups, restores, or remote commands.' => array(
+		'it' => 'Panoramica in sola lettura dei siti configurati in wp-config.php. Non avvia backup, ripristini o comandi remoti.',
+		'es' => 'Vista de solo lectura de los sitios configurados en wp-config.php. No inicia copias, restauraciones ni comandos remotos.',
+		'fr' => 'Vue en lecture seule des sites configurés dans wp-config.php. Elle ne lance aucune sauvegarde, restauration ou commande distante.',
+		'de' => 'Schreibgeschützte Übersicht der in wp-config.php konfigurierten Websites. Sie startet keine Backups, Wiederherstellungen oder Remote-Befehle.',
+	),
+	'Configured sites' => array( 'it' => 'Siti configurati', 'es' => 'Sitios configurados', 'fr' => 'Sites configurés', 'de' => 'Konfigurierte Websites' ),
+	'No sites are configured. See the Agency monitoring guide to add read-only connections.' => array(
+		'it' => 'Non ci sono siti configurati. Consulta la guida al monitoraggio per aggiungere connessioni in sola lettura.',
+		'es' => 'No hay sitios configurados. Consulta la guía de monitorización para añadir conexiones de solo lectura.',
+		'fr' => 'Aucun site n’est configuré. Consultez le guide de supervision pour ajouter des connexions en lecture seule.',
+		'de' => 'Es sind keine Websites konfiguriert. In der Anleitung zur Überwachung erfahren Sie, wie Sie schreibgeschützte Verbindungen hinzufügen.',
+	),
+	'Agency site status table' => array( 'it' => 'Tabella dello stato dei siti dell’agenzia', 'es' => 'Tabla del estado de los sitios de la agencia', 'fr' => 'Tableau d’état des sites de l’agence', 'de' => 'Statustabelle der Agentur-Websites' ),
+	'Site' => array( 'it' => 'Sito', 'es' => 'Sitio', 'fr' => 'Site', 'de' => 'Website' ),
+	'Connection' => array( 'it' => 'Connessione', 'es' => 'Conexión', 'fr' => 'Connexion', 'de' => 'Verbindung' ),
+	'Schedule' => array( 'it' => 'Pianificazione', 'es' => 'Programación', 'fr' => 'Planification', 'de' => 'Zeitplan' ),
+	'Active jobs' => array( 'it' => 'Operazioni attive', 'es' => 'Tareas activas', 'fr' => 'Tâches actives', 'de' => 'Aktive Aufträge' ),
+	'Failed jobs' => array( 'it' => 'Operazioni non riuscite', 'es' => 'Tareas fallidas', 'fr' => 'Tâches échouées', 'de' => 'Fehlgeschlagene Aufträge' ),
+	'Connected' => array( 'it' => 'Connesso', 'es' => 'Conectado', 'fr' => 'Connecté', 'de' => 'Verbunden' ),
+	'Unreachable' => array( 'it' => 'Non raggiungibile', 'es' => 'Inalcanzable', 'fr' => 'Injoignable', 'de' => 'Nicht erreichbar' ),
+	'Unauthorized' => array( 'it' => 'Non autorizzato', 'es' => 'No autorizado', 'fr' => 'Non autorisé', 'de' => 'Nicht autorisiert' ),
+	'Invalid response or configuration' => array( 'it' => 'Risposta o configurazione non valida', 'es' => 'Respuesta o configuración no válida', 'fr' => 'Réponse ou configuration invalide', 'de' => 'Ungültige Antwort oder Konfiguration' ),
+	'Not checked yet' => array( 'it' => 'Non ancora controllato', 'es' => 'Aún sin comprobar', 'fr' => 'Pas encore vérifié', 'de' => 'Noch nicht geprüft' ),
+	'Status is cached for five minutes. Credentials are not saved in WordPress options or shown in this page.' => array(
+		'it' => 'Lo stato resta in cache per cinque minuti. Le credenziali non vengono salvate nelle opzioni di WordPress né mostrate in questa pagina.',
+		'es' => 'El estado se almacena en caché durante cinco minutos. Las credenciales no se guardan en las opciones de WordPress ni se muestran en esta página.',
+		'fr' => 'L’état est mis en cache pendant cinq minutes. Les identifiants ne sont pas enregistrés dans les options WordPress ni affichés sur cette page.',
+		'de' => 'Der Status wird fünf Minuten zwischengespeichert. Anmeldedaten werden weder in WordPress-Optionen gespeichert noch auf dieser Seite angezeigt.',
+	),
+	'You are not allowed to view this page.' => array( 'it' => 'Non hai i permessi per visualizzare questa pagina.', 'es' => 'No tienes permiso para ver esta página.', 'fr' => 'Vous n’avez pas l’autorisation de consulter cette page.', 'de' => 'Sie dürfen diese Seite nicht anzeigen.' ),
+	'The page spends at most ten seconds checking remote sites. Reload it to check sites that were not reached yet.' => array(
+		'it' => 'La pagina dedica al massimo dieci secondi ai controlli remoti. Ricaricala per controllare i siti non ancora raggiunti.',
+		'es' => 'La página dedica como máximo diez segundos a las comprobaciones remotas. Recárgala para comprobar los sitios pendientes.',
+		'fr' => 'La page consacre au maximum dix secondes aux vérifications distantes. Rechargez-la pour vérifier les sites restants.',
+		'de' => 'Die Seite prüft entfernte Websites höchstens zehn Sekunden lang. Laden Sie sie erneut, um die übrigen Websites zu prüfen.',
+	),
+	'WordPress site' => array( 'it' => 'Sito WordPress', 'es' => 'Sitio WordPress', 'fr' => 'Site WordPress', 'de' => 'WordPress-Website' ),
 	'Could not load a verified table preview.' => array(
 		'it' => 'Impossibile caricare l’anteprima verificata delle tabelle.', 'es' => 'No se pudo cargar una vista previa verificada de las tablas.', 'fr' => 'Impossible de charger un aperçu vérifié des tables.', 'de' => 'Eine verifizierte Tabellenvorschau konnte nicht geladen werden.',
 	),

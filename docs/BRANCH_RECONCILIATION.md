@@ -1,4 +1,4 @@
-# Branch reconciliation — reviewed 2026-10-14
+# Branch reconciliation — reviewed 2026-10-19
 
 ## Decision
 
@@ -20,8 +20,8 @@ The two branches register overlapping `/trasloco/v1/health`, `/jobs`, `/backups`
 | `Trasloco_Selective` (single media restore) | Private CLI selective staging and recovery overlay | Preserve existing no-overwrite behavior; any direct live-media port must retain path, checksum, collision and symlink tests. |
 | `Trasloco_Storage_Backend` / S3 / WebDAV | `Trasloco_Storage_Adapter`, hardened local writer, WebDAV stream adapter, optional AWS SDK S3 adapter and verified WP-CLI offsite transfer | WebDAV pins public DNS answers, requires verified HTTPS, disables redirects/proxies, uses conditional create-only writes, bounds inventory parsing and refuses unsafe hrefs. CLI upload/download verifies SHA-256 sidecars, requires explicit plaintext consent and rejects conflicting objects. WebDAV uploads use immutable 8 MiB parts with a read-back-verified index; S3 uses conditional writes and resumes queued multipart uploads from private job checkpoints plus provider `ListParts`. Both providers support queued upload/download jobs and scheduled encrypted uploads without storing the passphrase; daily inventory checks send transition alerts. Local WebDAV round-trip, SDK fixtures, signed S3 HTTP wire tests and the PHP/database matrix pass. Real-provider and provider-durability tests, other providers and broader credential lifecycle remain pending. |
 | `Trasloco_Peer`, transfer endpoints | `Trasloco_Peer` plus authenticated manifest/chunk routes and `wp trasloco pull-site` | Ported onto the current integrity/storage contracts. REST access requires `manage_options`; HTTPS pulls use WordPress safe requests, bounded 512-KiB frames, private resumable staging, full SHA-256 validation and no-overwrite publication. Local integration covers REST permissions, resume, idempotent completion and collision refusal. Live public-host/WAF testing remains pending. See [peer transfer operations](PEER_TRANSFER.md). |
-| `Trasloco_Agency` and remote overview | Local administrator health API | Keep remote overview pending; audit credentials, outbound URLs and scope before adding it. |
-| Feature schedule/agency templates, translations and Composer dependency | Current dashboard, translation catalog; optional locked S3 SDK is isolated to the S3 release package | Port only with the associated module and its tests. Avoid orphan views or optional SDK dependencies in a core safety fix. |
+| `Trasloco_Agency` and remote overview | Local administrator health API | Ported as an opt-in, read-only admin page. Site definitions and revocable Application Passwords are supplied only in `wp-config.php`; remote URLs must be public HTTPS, redirects are disabled, responses are size-limited, page requests have a shared ten-second budget, results are bounded/cached, and no remote action is exposed. Local HTTP mocks cover validation, authorization, redaction and rendering. Real remote-host and agency-credential lifecycle review remain pending. |
+| Feature schedule/agency templates, translations and Composer dependency | Current schedule form, new read-only agency page and translation catalog; optional locked S3 SDK isolated to the S3 release package | Schedule and agency views now use the current contracts and are covered by local fixtures. The optional SDK stays in the S3 package rather than the base plugin. |
 
 ## Next integration gates
 
@@ -29,5 +29,6 @@ The two branches register overlapping `/trasloco/v1/health`, `/jobs`, `/backups`
 2. [x] Port peer transfer and remote storage in separate increments on the current storage/job contracts.
 3. [x] Record local WordPress permission and legacy-artifact coverage for ported modules; host certification remains separately open below.
 4. [x] Give every distinct module an explicit port, compatibility, retain or defer disposition. Keep PR #2 as preserved source; do not merge its competing controllers, scheduler or storage layer wholesale.
+5. [x] Port the read-only agency overview onto the current health API and validate its URL, credential, response-size and display boundaries locally.
 
 Production blockers remain automatic/global full-site rollback, cross-host and power-loss recovery, production HTTP/server/WAF coverage, WooCommerce consistency during concurrent writes and multisite fidelity. Local SQL-import crash replay and staged same-site recovery have been rehearsed; they do not certify those remaining capabilities. A branch reconciliation does not certify production readiness.
