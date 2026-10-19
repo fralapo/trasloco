@@ -234,6 +234,112 @@ class Trasloco_Incremental_Store {
         } );
     }
 
+    /** Return a fully verified, portable catalog and its distinct object sizes. */
+    public function export_snapshot( $archive ) {
+        $this->ensure_root();
+        return $this->locked( function () use ( $archive ) {
+            $catalog = $this->read_catalog( $archive );
+            $this->stream_catalog( $catalog, null );
+            $objects = array();
+            foreach ( $catalog['chunks'] as $chunk ) {
+                $digest = $chunk['sha256'];
+                if ( isset( $objects[ $digest ] ) && $objects[ $digest ] !== $chunk['size_bytes'] ) {
+                    throw new RuntimeException( 'Incremental catalog reuses a digest with conflicting object lengths.' );
+                }
+                $objects[ $digest ] = $chunk['size_bytes'];
+            }
+            $json = json_encode( $catalog, JSON_UNESCAPED_SLASHES );
+            if ( ! is_string( $json ) || strlen( $json ) > self::MAX_CATALOG_BYTES ) {
+                throw new RuntimeException( 'Incremental catalog cannot be exported within its size limit.' );
+            }
+            return array( 'catalog' => $json, 'objects' => $objects );
+        } );
+    }
+
+    /** Open a verified local object for immutable remote publication. */
+    public function open_object_for_transfer( $digest, $size ) {
+        if ( ! is_string( $digest ) || ! preg_match( '/^[a-f0-9]{64}$/D', $digest ) ||
+            ! is_int( $size ) || $size < 0 || $size > self::CHUNK_BYTES ) {
+            throw new InvalidArgumentException( 'Invalid incremental object request.' );
+        }
+        $path = $this->object_path( $digest );
+        $this->verify_object_file( $path, $digest, $size );
+        return $this->open_private_file( $path );
+    }
+
+    /** Import a remote catalog only after fetching and validating every object. */
+    public function import_snapshot( $catalog_json, $object_reader ) {
+        if ( ! is_string( $catalog_json ) || strlen( $catalog_json ) > self::MAX_CATALOG_BYTES || ! is_callable( $object_reader ) ) {
+            throw new InvalidArgumentException( 'Invalid remote incremental catalog.' );
+        }
+        $catalog = json_decode( $catalog_json, true );
+        if ( ! is_array( $catalog ) ) { throw new RuntimeException( 'Remote incremental catalog is malformed.' ); }
+        $archive = isset( $catalog['archive'] ) ? $this->archive_name( $catalog['archive'] ) : '';
+        $canonical_json = json_encode( $catalog, JSON_UNESCAPED_SLASHES );
+        if ( ! is_string( $canonical_json ) || strlen( $canonical_json ) > self::MAX_CATALOG_BYTES ) {
+            throw new RuntimeException( 'Remote incremental catalog cannot be normalized within its size limit.' );
+        }
+        $this->ensure_root();
+        return $this->locked( function () use ( $catalog, $canonical_json, $archive, $object_reader ) {
+            $this->validate_catalog_data( $catalog, $archive );
+            $path = $this->catalog_path( $archive );
+            if ( file_exists( $path ) || is_link( $path ) ) {
+                $existing = $this->read_catalog( $archive );
+                $existing_json = json_encode( $existing, JSON_UNESCAPED_SLASHES );
+                if ( ! is_string( $existing_json ) || ! hash_equals( hash( 'sha256', $existing_json ), hash( 'sha256', $canonical_json ) ) ) {
+                    throw new RuntimeException( 'A different local snapshot catalog already exists.' );
+                }
+                $this->stream_catalog( $existing, null );
+                return array( 'status' => 'already_present', 'archive' => $archive, 'size_bytes' => $existing['size_bytes'], 'objects' => count( $existing['chunks'] ) );
+            }
+            $objects = array();
+            foreach ( $catalog['chunks'] as $chunk ) { $objects[ $chunk['sha256'] ] = $chunk['size_bytes']; }
+            foreach ( $objects as $digest => $size ) {
+                $object_path = $this->object_path( $digest );
+                if ( file_exists( $object_path ) || is_link( $object_path ) ) {
+                    $this->verify_object_file( $object_path, $digest, $size );
+                    continue;
+                }
+                $input = call_user_func( $object_reader, $digest, $size );
+                if ( ! is_resource( $input ) ) { throw new RuntimeException( 'Remote storage did not return an incremental object stream.' ); }
+                try { $this->store_object_stream( $digest, $size, $input ); } finally { fclose( $input ); }
+            }
+            $this->publish_json( $path, $catalog );
+            $published = $this->read_catalog( $archive );
+            $this->stream_catalog( $published, null );
+            return array( 'status' => 'downloaded', 'archive' => $archive, 'size_bytes' => $published['size_bytes'], 'objects' => count( $published['chunks'] ) );
+        } );
+    }
+
+    private function store_object_stream( $digest, $size, $input ) {
+        $path = $this->object_path( $digest );
+        $this->ensure_directory( dirname( $path ) );
+        $temp = @tempnam( dirname( $path ), '.trasloco-object-' );
+        if ( $temp === false ) { throw new RuntimeException( 'Cannot allocate an incremental object.' ); }
+        @chmod( $temp, 0600 );
+        $out = @fopen( $temp, 'wb' );
+        if ( ! $out ) { @unlink( $temp ); throw new RuntimeException( 'Cannot write an incremental object.' ); }
+        $hash = hash_init( 'sha256' ); $total = 0;
+        try {
+            while ( ! feof( $input ) ) {
+                $bytes = fread( $input, 1048576 );
+                if ( $bytes === false || ( $bytes === '' && ! feof( $input ) ) ) { throw new RuntimeException( 'Remote incremental object stream failed.' ); }
+                if ( $bytes === '' ) { break; }
+                $total += strlen( $bytes );
+                if ( $total > $size ) { throw new RuntimeException( 'Remote incremental object exceeds its catalog size.' ); }
+                hash_update( $hash, $bytes ); self::write( $out, $bytes );
+            }
+            if ( $total !== $size || ! hash_equals( $digest, hash_final( $hash ) ) || ! fflush( $out ) ||
+                ( function_exists( 'fsync' ) && ! @fsync( $out ) ) ) { throw new RuntimeException( 'Remote incremental object failed size, digest or durability verification.' ); }
+        } catch ( Throwable $error ) { fclose( $out ); @unlink( $temp ); throw $error; }
+        fclose( $out );
+        if ( ! @link( $temp, $path ) ) {
+            if ( is_file( $path ) && ! is_link( $path ) ) { $this->verify_object_file( $path, $digest, $size ); }
+            else { @unlink( $temp ); throw new RuntimeException( 'Cannot publish a remote incremental object safely.' ); }
+        }
+        @unlink( $temp );
+    }
+
     /** Return validated catalog metadata without reading all object contents. */
     public function list_snapshots() {
         $this->ensure_root();
@@ -494,6 +600,11 @@ class Trasloco_Incremental_Store {
             throw new RuntimeException( 'Incremental snapshot catalog changed while being read.' );
         }
         $catalog = is_string( $json ) ? json_decode( $json, true ) : null;
+        $this->validate_catalog_data( $catalog, $archive );
+        return $catalog;
+    }
+
+    private function validate_catalog_data( $catalog, $archive ) {
         if ( ! is_array( $catalog ) || array_keys( $catalog ) !== array( 'schema','archive','size_bytes','sha256','chunk_bytes','chunks' ) ||
             $catalog['schema'] !== self::SCHEMA || $catalog['archive'] !== $archive ||
             ! is_int( $catalog['size_bytes'] ) || $catalog['size_bytes'] < 0 ||
@@ -517,7 +628,6 @@ class Trasloco_Incremental_Store {
             $total += $chunk['size_bytes'];
         }
         if ( $total !== $catalog['size_bytes'] ) { throw new RuntimeException( 'Incremental snapshot size is invalid.' ); }
-        return $catalog;
     }
 
     private function stream_catalog( $catalog, $output ) {

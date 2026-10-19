@@ -1,6 +1,6 @@
 # Incremental backup storage design
 
-Status: local content-addressed snapshots are implemented for WP-CLI, manual CLI backups, and opt-in scheduled backups. Export remains a full `.wpress` operation; these snapshots deduplicate identical 4-MiB chunks across retained archives and remain independently reconstructible.
+Status: local content-addressed snapshots are implemented for WP-CLI, manual CLI backups, and opt-in scheduled backups. Immutable remote object/catalog transfer is implemented on the storage adapter contract and verified against a local fixture. Export remains a full `.wpress` operation; these snapshots deduplicate identical 4-MiB chunks across retained archives and remain independently reconstructible.
 
 ## Goal
 
@@ -29,7 +29,7 @@ Reduce the storage and offsite transfer cost of repeated backups without changin
 
 Use a private content-addressed object store and independently complete snapshot catalogs. The initial implementation should build a catalog from the exact verified archive bytes, split by a bounded chunking scheme, and retain the original archive until the catalog has been reconstructed and verified byte-for-byte. Only then may the original archive be replaced by the catalog representation. This gives the importer a normal `.wpress` file through an explicit materialization boundary.
 
-The local storage layer exposes catalog validation, bounded object insertion, snapshot verification, materialization, and pruning. It does not change the generic `StorageAdapter`; a later adapter change can transfer missing objects and publish catalogs last.
+The local storage layer exposes catalog validation, bounded object insertion, snapshot verification, materialization, and pruning. Remote transfer uses the generic storage adapter with digest-addressed immutable objects (`tro-<sha256>.obj`) and archive-hash-addressed catalogs (`trc-<sha256>.json`). Upload verifies existing objects or writes and reads them back, then publishes the catalog last. Download verifies every object before atomically exposing a local catalog. Provider conditional-write, crash durability, restore, and cost behavior still need real-provider certification.
 
 ## Local WP-CLI workflow
 
@@ -42,6 +42,8 @@ wp trasloco incremental materialize backup.wpress --output=restored.wpress
 wp trasloco incremental list
 wp trasloco incremental stats
 wp trasloco incremental prune --keep=backup.wpress,newer.wpress
+wp trasloco incremental upload backup.wpress --allow-unencrypted
+wp trasloco incremental download backup.wpress
 ```
 
 The reconstructed file is compatible with the existing importer. `wp trasloco restore backup.wpress` also reconstructs a missing archive from its catalog, verifies the full digest and required restore members, then invokes the existing restore workflow. It never overwrites an existing file. The Backups page lists catalogs, logical sizes, capture dates, restore commands and a storage summary.
@@ -51,6 +53,10 @@ The reconstructed file is compatible with the existing importer. `wp trasloco re
 For a one-shot CLI export, `wp trasloco backup --incremental` captures the new verified archive automatically. Adding `--keep=<count>` applies retention across full archives and snapshot-only catalogs using their capture times while preserving recovery-point catalogs. Without `--keep`, no snapshots are pruned. Manual capture and pruning remain available for existing archives.
 
 Scheduled backups can opt into the same local snapshot format from **Trasloco → Backups**. The worker verifies or creates the chunk manifest, then captures at most eight 4-MiB chunks per request. A private append-only journal lets the next leased worker resume after interruption; the catalog is published only after every chunk matches the verified manifest. Scheduled retention counts snapshot-only catalogs and full archives together, preserving recovery-point catalogs.
+
+Remote transfer uses the configured `local`, WebDAV, or S3 adapter. `wp trasloco incremental upload <archive> --allow-unencrypted` uploads only absent digest-addressed chunks and publishes the catalog after read-back verification; repeats are idempotent. `wp trasloco incremental download <archive>` fetches the catalog, validates it, imports its objects into the local store, and publishes the catalog only after every object and the whole reconstructed archive digest pass. Run `wp trasloco restore <archive>` to use the normal restore flow after downloading. Incremental objects contain original backup bytes, so upload is refused unless the operator explicitly supplies `--allow-unencrypted`; this workflow does not encrypt individual objects. Do not use it where remote plaintext storage is unacceptable.
+
+The local transfer fixture uploads two snapshots with one shared 4-MiB object and confirms that the second upload sends only its new object. It also imports the catalog, reconstructs exact bytes, checks idempotent repeats, and rejects a corrupted remote object before publishing a local catalog. This validates the adapter contract with local storage only, not remote provider behavior.
 
 Full archives are retained by default. To reclaim space for one ordinary archive, run `wp trasloco incremental compact backup.wpress`. Compaction is explicit and refuses recovery points; it checks the existing integrity manifest, archive structure, catalog objects and exact whole-archive digest, then isolates and rechecks the source before removal. The catalog remains available, and `wp trasloco restore backup.wpress` reconstructs the original archive before starting the existing import; the reconstructed `.wpress` remains available afterward and can be compacted again explicitly. Compaction is not enabled automatically for scheduled or manual backups.
 
@@ -67,4 +73,4 @@ Full archives are retained by default. To reclaim space for one ordinary archive
 
 ## Release gates and open questions
 
-The archive export still runs in full for each snapshot. Local content-addressed deduplication, explicit verified compaction, snapshot-only restore, administrator visibility and file-byte savings accounting are implemented and covered by standalone and WordPress integration tests. The repeated-export fixture demonstrates positive savings for one controlled local media workload; more varied backup-change patterns and representative site datasets remain unmeasured. Fixed-size chunk reuse depends on matching archive offsets, so edits or new files before unchanged content can reduce reuse. Cross-host locks, provider-side conditional writes, remote garbage collection, power-loss durability, real-provider testing, and production restore behavior require external environments.
+The archive export still runs in full for each snapshot. Local content-addressed deduplication, explicit verified compaction, snapshot-only restore, administrator visibility, file-byte savings accounting and remote object/catalog transfer are implemented and covered by local fixtures. The repeated-export fixture demonstrates positive savings for one controlled local media workload; more varied backup-change patterns and representative site datasets remain unmeasured. Fixed-size chunk reuse depends on matching archive offsets, so edits or new files before unchanged content can reduce reuse. Cross-host locks, provider-side conditional writes, remote garbage collection, power-loss durability, real-provider testing, and production restore behavior require external environments.

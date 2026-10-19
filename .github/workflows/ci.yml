@@ -34,6 +34,8 @@ jobs:
         run: php tests/integrity-compat-smoke.php
       - name: Incremental snapshot reconstruction and retention
         run: php tests/incremental-store-smoke.php
+      - name: Remote incremental object and catalog transfer
+        run: php tests/incremental-transfer-smoke.php
       - name: Incremental WP-CLI workflow
         run: php tests/incremental-cli-smoke.php
       - name: WebDAV storage adapter safety

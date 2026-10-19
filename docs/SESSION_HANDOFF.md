@@ -4,7 +4,7 @@
 
 Trasloco 1.6.1 follows the local snapshot workflow completed in 1.6.0 and adds an optional, read-only Agency overview for separately configured WordPress sites. The snapshot inventory remains visible and keyboard-scrollable in the Backups page, compacted snapshots restore through the ordinary WP-CLI command, explicit compaction verifies before removing an archive, and storage/retention accounting includes snapshot-only catalogs. Full archives remain the default. The local PHP 8.4 release suite, including all standalone checks and a full PHP syntax scan, passes. The account's free GitHub Actions minutes are exhausted, so no Actions run should be started.
 
-The snapshot store uses batches of eight 4-MiB chunks, resumes from a private journal after interruption, and coordinates catalog retention with scheduled archive retention. Compaction is opt-in and recovery points are protected. Remote content-addressed delivery remains open.
+The snapshot store uses batches of eight 4-MiB chunks, resumes from a private journal after interruption, and coordinates catalog retention with scheduled archive retention. Compaction is opt-in and recovery points are protected. Incremental remote upload/download is implemented over storage adapters with immutable digest keys, object read-back checks, catalog-last publication and verified import. Local fixtures cover idempotency and corrupt-object rejection; real provider behavior remains uncertified.
 
 ## Local validation
 
@@ -19,6 +19,7 @@ The snapshot store uses batches of eight 4-MiB chunks, resumes from a private jo
 - PR #2 was reconciled to current `main`, narrowed to the Agency overview, locally verified, and squash-merged. Its merge commit includes `[skip ci]`; GitHub Actions were not run.
 - The v1.6.1 base and S3-enabled packages were built from tag `v1.6.1` and passed ZIP integrity checks; the S3 package includes the pinned runtime autoloader. Both ZIPs and their SHA-256 manifest are published in the [v1.6.1 release](https://github.com/fralapo/trasloco/releases/tag/v1.6.1). The Agency page is read-only and tested with mocked responses; no real remote agency sites were contacted.
 - The local WordPress integration now benchmarks two real repeated `.wpress` exports. A stable 16-MiB media file plus one changed 512-KiB media file produced 12,582,912 shared bytes and 12,581,472 net bytes saved (36.1%) after verified compaction. This controlled fixture preserves file-list lengths and does not generalize to real customer backups; fixed-size chunk reuse can decrease when preceding content shifts.
+- Incremental remote transfer now has a standalone local-adapter fixture covering immutable chunk reuse, catalog-last upload, idempotent retries, exact reconstruction and rejection of corrupted objects. The complete WordPress 7.1.3/MariaDB 11.4 integration and recovery rehearsal also passed locally after checking WP-CLI upload/download and the required plaintext-consent guard. No GitHub Actions or real provider calls were made.
 - These checks use local fixtures. GitHub Actions, real remote providers, real hosting environments and production durability were not tested.
 
 ## PR #2 reconciliation update — 2026-10-19

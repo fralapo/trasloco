@@ -56,6 +56,7 @@ class Trasloco_WebDAV_Storage implements Trasloco_Storage_Adapter, Trasloco_Resu
     private function validate_key( $key ) {
         $valid = is_string( $key ) && strlen( $key ) <= 220 && strpos( $key, '..' ) === false && (
             preg_match( '/^[A-Za-z0-9][A-Za-z0-9_.-]*\.wpress(?:\.enc(?:\.manifest\.json)?|\.manifest\.json|\.parts\.json)?$/D', $key ) ||
+            preg_match( '/^tro-[a-f0-9]{64}\.obj$/D', $key ) || preg_match( '/^trc-[a-f0-9]{64}\.json$/D', $key ) ||
             preg_match( '/^trp-[a-f0-9]{64}-[0-9]{6}\.part$/D', $key ) ||
             preg_match( '/^trs-[a-f0-9]{24}\.part$/D', $key )
         );

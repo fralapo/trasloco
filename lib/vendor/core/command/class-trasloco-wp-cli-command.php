@@ -308,9 +308,13 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 		 *     wp trasloco incremental list
 		 *     wp trasloco incremental stats
 		 *     wp trasloco incremental compact backup.wpress
+		 *     wp trasloco incremental upload backup.wpress --allow-unencrypted
+		 *     wp trasloco incremental download backup.wpress
 		 *
 		 * Captured snapshots are stored privately under the backup directory. They
 		 * remain independently reconstructible and do not depend on source files.
+		 * Remote upload stores the original bytes and therefore requires explicit
+		 * plaintext-storage consent; download verifies each object before publish.
 		 *
 		 * @subcommand incremental
 		 */
@@ -325,6 +329,27 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 					WP_CLI::line( sprintf( 'Snapshots: %d; logical bytes: %d; object bytes: %d; catalog bytes: %d; source archive bytes: %d; manifest bytes: %d; physical bytes: %d; net saved bytes: %d',
 						$stats['snapshots'], $stats['logical_bytes'], $stats['object_bytes'], $stats['catalog_bytes'],
 						$stats['source_archive_bytes'], $stats['source_manifest_bytes'], $stats['physical_bytes'], $stats['net_saved_bytes'] ) );
+					return;
+				}
+				if ( $action === 'upload' || $action === 'download' ) {
+					if ( ! wp_mkdir_p( TRASLOCO_BACKUPS_PATH ) ) {
+						WP_CLI::error( 'Unable to prepare the local backup directory.' );
+					}
+					$name = isset( $args[1] ) ? $args[1] : '';
+					if ( ! is_string( $name ) || strlen( $name ) > 206 || basename( $name ) !== $name ||
+						! preg_match( '/^[A-Za-z0-9][A-Za-z0-9_.-]*\.wpress$/D', $name ) || strpos( $name, '..' ) !== false ) {
+						WP_CLI::error( 'Specify a valid backup filename ending in .wpress.' );
+					}
+					if ( $action === 'upload' && ! isset( $assoc_args['allow-unencrypted'] ) ) {
+						WP_CLI::error( 'Incremental objects contain the original backup bytes; use --allow-unencrypted only when remote plaintext storage is acceptable.' );
+					}
+					require_once TRASLOCO_LIB_PATH . '/model/storage/class-trasloco-incremental-transfer.php';
+					$remote = Trasloco_Storage_Factory::configured();
+					$transfer = new Trasloco_Incremental_Transfer( $remote, $store );
+					$result = $action === 'upload' ? $transfer->upload( $name ) : $transfer->download( $name );
+					WP_CLI::success( sprintf( '%s %s (%d objects, %d bytes uploaded).', $result['archive'],
+						$result['status'], isset( $result['objects_uploaded'] ) ? $result['objects_uploaded'] : $result['objects'],
+						isset( $result['bytes_uploaded'] ) ? $result['bytes_uploaded'] : 0 ) );
 					return;
 				}
 				if ( $action === 'list' ) {
@@ -411,7 +436,7 @@ if ( class_exists( 'WP_CLI_Command' ) ) {
 						count( $result['retained_snapshots'] ), count( $result['removed_snapshots'] ), count( $result['removed_objects'] ) ) );
 					return;
 				}
-				WP_CLI::error( 'Use capture, verify, materialize, prune, list, stats, or compact.' );
+				WP_CLI::error( 'Use capture, verify, materialize, prune, list, stats, compact, upload, or download.' );
 			} catch ( Throwable $error ) {
 				WP_CLI::error( $error->getMessage() );
 			}
